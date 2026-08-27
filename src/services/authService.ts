@@ -1,13 +1,16 @@
 // Thin convenience layer over firebase/auth.ts. Post-sign-in setup
-// (profile creation, the owner auto-grant check, token refresh) is
+// (profile creation, resolving the staff role from Firestore) is
 // centralized in AuthProvider's onAuthStateChanged subscription — see
 // useAuth.tsx — NOT duplicated here. Every one of Firebase's sign-in
 // methods (Google, email, phone) fires the same onAuthStateChanged
 // event, so AuthProvider's subscription already runs for all of them;
 // calling ensureUserProfile again here would just be a second,
 // redundant, potentially-racing code path doing the same setup.
+//
+// Nothing in this file calls a Cloud Function. Sign-in is Firebase
+// Auth only, and the role that follows it is read from Firestore under
+// the protection of firestore.rules.
 import type { User } from "firebase/auth";
-import { callFunction } from "@/firebase/functions";
 import {
   confirmOtp,
   createRecaptchaVerifier,
@@ -50,19 +53,6 @@ export async function registerAndLoginWithEmail(
 }
 
 export { resetPassword };
-
-// Resolves this account's staff role server-side and writes it into
-// their Firebase Auth custom claims. Called once per sign-in and
-// awaited before anything reads the ID token. Takes no arguments by
-// design: the function looks only at the verified uid and email inside
-// the caller's own token, so there is nothing for a client to forge.
-//
-// It is also what makes a role CHANGE or a REVOCATION take effect —
-// the claim is rewritten (or stripped) to match whatever the server
-// currently says, not whatever the old token happened to carry.
-export async function syncMyRole(): Promise<{ role: string | null }> {
-  return callFunction<Record<string, never>, { role: string | null }>("syncMyRole", {});
-}
 
 export { createRecaptchaVerifier, sendOtp };
 

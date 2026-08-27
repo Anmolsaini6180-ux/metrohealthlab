@@ -117,10 +117,10 @@ export default function DashboardPage() {
           <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>description</span>
           My Reports
         </Link>
-        {/* Staff only — driven by the role custom claim on the ID
-            token, so a normal customer never sees it. Hiding it is a
-            convenience; AdminProtectedRoute and firestore.rules are
-            what actually deny access to /admin. */}
+        {/* Staff only — driven by the role on the caller's Firestore
+            authorization record, so a normal customer never sees it.
+            Hiding it is a convenience; AdminProtectedRoute and
+            firestore.rules are what actually deny access to /admin. */}
         {adminHomePathForRole(role) && (
           <Link to={adminHomePathForRole(role)!} className="card mh-quick-action">
             <span className="mi" style={{ fontSize: 26, color: "var(--color-accent)" }}>admin_panel_settings</span>

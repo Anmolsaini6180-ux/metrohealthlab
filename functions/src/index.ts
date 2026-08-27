@@ -1,6 +1,21 @@
 // Entry point Firebase Functions loads. Every exported function here
 // becomes a deployed Cloud Function.
 //
+// NOTE — THIS TREE IS NOT DEPLOYED. The project runs on the Firebase
+// Spark (free) plan, which cannot host Cloud Functions, and
+// firebase.json no longer wires this directory into a deploy. It is
+// kept as reference for the customer flows (booking, quoting,
+// payments, reports) that would need a Blaze upgrade.
+//
+// AUTHENTICATION AND AUTHORIZATION NO LONGER LIVE HERE. Roles are
+// stored in Firestore (system/config + users/{uid}) and enforced by
+// firestore.rules; syncMyRole / upsertStaffMember / revokeStaffMember /
+// getStaffDirectory / createTeamMember / updateTeamMemberStatus have
+// been deleted rather than left as dead endpoints. Anything below that
+// still reads request.auth.token.role therefore denies every caller —
+// which is the safe direction, but it means this tree would need
+// reworking before it could be deployed again.
+//
 // Covers the customer flows (booking, quoting, payments, reports) and
 // the admin panel (catalog, team, bookings, customers, media,
 // notifications, audit). Anything that has to be trusted — pricing,
@@ -17,18 +32,10 @@ export {
   setReportReady,
 } from "./reports";
 export { getMediaUploadSignature, confirmMediaUpload, deleteMediaAsset } from "./media";
-export { createTeamMember, updateTeamMemberStatus } from "./team";
 export { assignBooking, updateBookingStatus } from "./adminBookingActions";
 export { getAdminBookings, getTeamMembers, getLeads, getCustomerSegments } from "./adminQueries";
 export { getTeamPerformance } from "./adminPerformance";
 export { getAuditLogs } from "./adminAuditLogs";
-// Master-admin + staff role assignment. Replaces the old
-// bootstrapSuperAdmin / checkOwnerAutoGrant pair: the first (and only)
-// SUPER_ADMIN is now whoever signs in with MASTER_ADMIN_EMAIL, and
-// everyone else gets their role from an email-keyed assignment that a
-// SUPER_ADMIN makes in Admin -> Settings -> Admin & Staff. No bootstrap
-// secret, and therefore no Secret Manager dependency, is involved.
-export { syncMyRole, upsertStaffMember, revokeStaffMember, getStaffDirectory } from "./staffRoles";
 export { seedStarterCatalog } from "./seedStarterCatalog";
 export { getAdminCustomers, getCustomerDetail } from "./adminCustomers";
 export { sendAdminNotification } from "./adminNotifications";

@@ -3,8 +3,17 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Same role source as firestore.rules: Firebase Auth custom claims,
-    // never Firestore document content or anything client-supplied.
+    // NOTE (Spark plan): Storage rules cannot read Firestore, so they
+    // cannot see the users/{uid} role record that firestore.rules now
+    // uses. The only role source available here is a Firebase Auth
+    // custom claim, and nothing mints custom claims without deployed
+    // Cloud Functions — so this predicate is currently false for
+    // everybody and the admin image paths below are effectively closed.
+    // That is deliberate: failing closed is correct, and the panel has
+    // no in-app uploader (images are added through the Firebase
+    // Console, which bypasses these rules). Do NOT relax this to
+    // `request.auth != null` — that would let any signed-in customer
+    // overwrite public catalog imagery.
     function isCatalogManager() {
       return request.auth != null && "role" in request.auth.token &&
         request.auth.token.role in ["SUPER_ADMIN", "ADMIN"];

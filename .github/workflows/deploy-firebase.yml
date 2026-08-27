@@ -1,8 +1,15 @@
 name: Deploy Firebase backend
 
 # Frontend deployment is handled by Vercel's own Git integration — this
-# workflow covers the half Vercel doesn't: Cloud Functions, Firestore
-# rules and indexes, and Storage rules.
+# workflow covers the half Vercel doesn't: Firestore rules and indexes,
+# and Storage rules.
+#
+# It deliberately does NOT deploy Cloud Functions. The project runs on
+# the Firebase Spark (free) plan, where `firebase deploy --only
+# functions` fails outright, and nothing in the running app depends on a
+# function any more — authentication and authorization are Firebase Auth
+# + Firestore + these rules. The functions/ tree is legacy reference
+# code; CI still type-checks and tests it, but it is never shipped.
 #
 # It only runs after the CI workflow has fully succeeded on main, so a
 # broken build can never be deployed. If CI fails, this never starts and
@@ -22,7 +29,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy functions and rules
+    name: Deploy Firestore and Storage rules
     runs-on: ubuntu-latest
     # workflow_run fires on failure too — this is the gate.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
@@ -41,15 +48,6 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: functions/package-lock.json
-
-      - name: Install function dependencies
-        working-directory: functions
-        run: npm ci
-
-      - name: Build functions
-        working-directory: functions
-        run: npm run build
 
       - name: Work out what actually changed
         id: changes
@@ -57,18 +55,12 @@ jobs:
           BEFORE="${{ github.event.workflow_run.head_sha }}"
           if [ -z "$BEFORE" ] || ! git rev-parse "$BEFORE^" >/dev/null 2>&1; then
             # No usable parent (first commit, shallow clone, manual run):
-            # deploy everything rather than guess.
-            echo "functions=true" >> "$GITHUB_OUTPUT"
+            # deploy rather than guess.
             echo "rules=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           CHANGED=$(git diff --name-only "$BEFORE^" "$BEFORE")
           echo "Changed files:"; echo "$CHANGED"
-          if echo "$CHANGED" | grep -qE '^functions/'; then
-            echo "functions=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "functions=false" >> "$GITHUB_OUTPUT"
-          fi
           if echo "$CHANGED" | grep -qE '^(firestore\.rules|storage\.rules|firestore\.indexes\.json|firebase\.json)$'; then
             echo "rules=true" >> "$GITHUB_OUTPUT"
           else
@@ -76,7 +68,7 @@ jobs:
           fi
 
       - name: Authenticate to Firebase
-        if: steps.changes.outputs.functions == 'true' || steps.changes.outputs.rules == 'true'
+        if: steps.changes.outputs.rules == 'true'
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
@@ -93,12 +85,8 @@ jobs:
         if: steps.changes.outputs.rules == 'true'
         run: npx --yes firebase-tools@13 deploy --only firestore:rules,firestore:indexes,storage --project metro-health-0001 --non-interactive
 
-      - name: Deploy Cloud Functions
-        if: steps.changes.outputs.functions == 'true'
-        run: npx --yes firebase-tools@13 deploy --only functions --project metro-health-0001 --non-interactive --force
-
       - name: Nothing to deploy
-        if: steps.changes.outputs.functions != 'true' && steps.changes.outputs.rules != 'true'
+        if: steps.changes.outputs.rules != 'true'
         run: echo "No backend files changed in this commit — skipping deploy."
 
       - name: Remove credentials

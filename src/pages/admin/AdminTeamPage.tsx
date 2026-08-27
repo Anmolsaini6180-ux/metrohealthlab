@@ -2,15 +2,22 @@ import { useMemo, useState } from "react";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
 import {
-  createTeamMember,
+  changeStaffRole,
   getStaffDirectory,
   getTeamMembers,
+  grantStaffRoleByEmail,
+  restoreStaffMember,
   revokeStaffMember,
   updateTeamMemberStatus,
-  upsertStaffMember,
 } from "@/services/adminTeamService";
-import type { AdminRole, StaffDirectoryEntry } from "@/types/team";
-import { assignableRoles, ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/utils/roleAccess";
+import type { AdminRole, StaffContext, StaffDirectoryEntry, TeamMember } from "@/types/team";
+import {
+  assignableRoles,
+  canEditStaffMember,
+  canManageStaff,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+} from "@/utils/roleAccess";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import TeamTree from "@/components/admin/TeamTree";
 import LoadingState from "@/components/common/LoadingState";
@@ -21,15 +28,20 @@ import { useToast } from "@/hooks/useToast";
 
 const ALL_ROLES: AdminRole[] = ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN", "COLLECTION_AGENT"];
 
-// Admin & Staff management. Everything on this screen is a thin shell
-// over Cloud Function calls — upsertStaffMember / revokeStaffMember /
-// getStaffDirectory — each of which re-derives the caller's own role
-// from their signed ID token and enforces the hierarchy itself. What
-// this page shows or hides is convenience; it is never the boundary.
+// Admin & Staff management. Every action on this screen is an ordinary
+// Firestore write to users/{uid}, gated by firestore.rules — the rules
+// re-read the caller's own record and re-derive the hierarchy for
+// themselves, so what this page shows or hides is convenience only and
+// never the boundary. There are no Cloud Functions involved, which is
+// what makes it work on the Spark plan.
 export default function AdminTeamPage() {
-  const { role } = useAdminRole();
+  const staffContext = useAdminRole();
+  const { role, loading: roleLoading } = staffContext;
   const { showToast } = useToast();
-  const staff = useAsync(() => getStaffDirectory(), []);
+  const staff = useAsync(
+    () => (canManageStaff(role) ? getStaffDirectory(staffContext) : Promise.resolve([])),
+    [role, staffContext.uid]
+  );
   const [showForm, setShowForm] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState<StaffDirectoryEntry | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
@@ -50,17 +62,17 @@ export default function AdminTeamPage() {
       );
     }
     if (roleFilter) list = list.filter((m) => m.role === roleFilter);
-    if (statusFilter === "pending") list = list.filter((m) => m.pending && m.status === "active");
-    else if (statusFilter) list = list.filter((m) => m.status === statusFilter);
+    if (statusFilter === "active") list = list.filter((m) => m.status === "active");
+    else if (statusFilter) list = list.filter((m) => m.status !== "active");
     return list;
   }, [staff.data, search, roleFilter, statusFilter]);
 
   async function handleRoleChange(member: StaffDirectoryEntry, nextRole: AdminRole) {
     if (nextRole === member.role) return;
-    setRowBusy(member.email);
+    setRowBusy(member.uid);
     try {
-      await upsertStaffMember({ email: member.email, name: member.name, role: nextRole });
-      showToast(`${member.email} is now ${ROLE_LABELS[nextRole]}.`);
+      await changeStaffRole(staffContext, member, nextRole);
+      showToast(`${member.email || member.uid} is now ${ROLE_LABELS[nextRole]}.`);
       staff.retry();
     } catch (err) {
       showToast(toUserMessage(err), "error");
@@ -70,10 +82,10 @@ export default function AdminTeamPage() {
   }
 
   async function handleReactivate(member: StaffDirectoryEntry) {
-    setRowBusy(member.email);
+    setRowBusy(member.uid);
     try {
-      await upsertStaffMember({ email: member.email, name: member.name, role: member.role });
-      showToast(`${member.email} reactivated.`);
+      await restoreStaffMember(staffContext, member);
+      showToast(`${member.email || member.uid} reactivated.`);
       staff.retry();
     } catch (err) {
       showToast(toUserMessage(err), "error");
@@ -86,8 +98,8 @@ export default function AdminTeamPage() {
     if (!pendingRevoke) return;
     setConfirmBusy(true);
     try {
-      await revokeStaffMember(pendingRevoke.email);
-      showToast(`Admin access removed for ${pendingRevoke.email}.`);
+      await revokeStaffMember(staffContext, pendingRevoke);
+      showToast(`Admin access removed for ${pendingRevoke.email || pendingRevoke.uid}.`);
       setPendingRevoke(null);
       staff.retry();
     } catch (err) {
@@ -97,14 +109,30 @@ export default function AdminTeamPage() {
     }
   }
 
+  if (roleLoading) return <LoadingState label="Checking access..." />;
+
+  // A collection agent (or an account whose role was just revoked) has
+  // no business here. The rules deny the underlying reads regardless;
+  // this is just a clearer message than an empty table.
+  if (!canManageStaff(role)) {
+    return (
+      <EmptyState
+        icon="lock"
+        title="You don't have permission to manage staff"
+        description="Only a Super Admin, Admin or Sub Admin can view and change staff access."
+      />
+    );
+  }
+
   return (
     <div>
       <div className="mh-page-head">
         <div>
           <h1 style={{ fontSize: "var(--text-xl)" }}>Admin &amp; Staff</h1>
           <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginTop: 4 }}>
-            Add someone by their Google/email address and pick a role. They sign in normally and land
-            straight in the admin dashboard with exactly that role's permissions.
+            The person signs in once with their Google account, then you grant them a role here by
+            that same email address. They land straight in the admin dashboard with exactly that
+            role's permissions.
           </p>
         </div>
         {creatable.length > 0 && (
@@ -114,8 +142,20 @@ export default function AdminTeamPage() {
         )}
       </div>
 
+      {!staffContext.masterUid && (
+        <p
+          className="card"
+          style={{ fontSize: "var(--text-sm)", color: "var(--color-danger)", marginBottom: "var(--space-md)" }}
+        >
+          This project has no master admin configured yet. Create the <code>system/config</code>{" "}
+          document with a <code>masterAdminUid</code> field in the Firebase Console — see
+          DEPLOYMENT.md.
+        </p>
+      )}
+
       {showForm && creatable.length > 0 && (
         <AddStaffForm
+          caller={staffContext}
           creatableRoles={creatable}
           onDone={() => {
             setShowForm(false);
@@ -142,7 +182,6 @@ export default function AdminTeamPage() {
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ flex: "0 1 180px" }}>
           <option value="">Any status</option>
           <option value="active">Active</option>
-          <option value="pending">Pending first sign-in</option>
           <option value="revoked">Access removed</option>
         </select>
       </div>
@@ -166,16 +205,17 @@ export default function AdminTeamPage() {
             </thead>
             <tbody>
               {filtered.map((m) => {
-                // The master admin's access comes from the server's
-                // MASTER_ADMIN_EMAIL setting, so there is nothing here
-                // to edit — the server refuses these calls for that
-                // address regardless of what the UI renders.
-                const editable = !m.isMasterAdmin && assignableRoles(role).includes(m.role);
-                const busy = rowBusy === m.email;
+                // The master admin's authority comes from the
+                // system/config document, which no client can write —
+                // there is nothing here to edit, and the rules refuse
+                // any write to that account regardless of what the UI
+                // renders. The same is true of your own row.
+                const editable = canEditStaffMember(staffContext, m);
+                const busy = rowBusy === m.uid;
                 return (
-                  <tr key={m.email}>
+                  <tr key={m.uid}>
                     <td>
-                      <span style={{ fontWeight: 600 }}>{m.name || m.email}</span>
+                      <span style={{ fontWeight: 600 }}>{m.name || m.email || m.uid}</span>
                       {m.name && (
                         <>
                           <br />
@@ -189,7 +229,7 @@ export default function AdminTeamPage() {
                           value={m.role}
                           disabled={busy}
                           onChange={(e) => handleRoleChange(m, e.target.value as AdminRole)}
-                          aria-label={`Role for ${m.email}`}
+                          aria-label={`Role for ${m.email || m.uid}`}
                         >
                           {assignableRoles(role).map((r) => (
                             <option key={r} value={r}>
@@ -204,10 +244,8 @@ export default function AdminTeamPage() {
                     <td>
                       {m.isMasterAdmin ? (
                         <span className="mh-pill mh-pill--info">Master admin</span>
-                      ) : m.status === "revoked" ? (
+                      ) : m.status !== "active" ? (
                         <span className="mh-pill mh-pill--danger">Access removed</span>
-                      ) : m.pending ? (
-                        <span className="mh-pill mh-pill--warn">Pending first sign-in</span>
                       ) : (
                         <span className="mh-pill mh-pill--ok">Active</span>
                       )}
@@ -215,9 +253,13 @@ export default function AdminTeamPage() {
                     <td style={{ textAlign: "right" }}>
                       {m.isMasterAdmin ? (
                         <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
-                          Configured server-side
+                          Configured in system/config
                         </span>
-                      ) : m.status === "revoked" ? (
+                      ) : m.uid === staffContext.uid ? (
+                        <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+                          This is you
+                        </span>
+                      ) : m.status !== "active" ? (
                         <button className="btn btn-outline" disabled={busy || !editable} onClick={() => handleReactivate(m)}>
                           Restore access
                         </button>
@@ -235,12 +277,12 @@ export default function AdminTeamPage() {
         </div>
       )}
 
-      <ReportingHierarchy />
+      <ReportingHierarchy caller={staffContext} />
 
       {pendingRevoke && (
         <ConfirmDialog
           title="Remove admin access?"
-          message={`${pendingRevoke.email} will lose their ${ROLE_LABELS[pendingRevoke.role]} role. Their sign-in session is ended immediately and signing in again will not restore it. You can grant access again later.`}
+          message={`${pendingRevoke.email || pendingRevoke.uid} will lose their ${ROLE_LABELS[pendingRevoke.role]} role. It stops applying on their very next request — they do not have to be signed out first. You can restore access again later.`}
           confirmLabel="Remove access"
           busy={confirmBusy}
           onConfirm={handleConfirmRevoke}
@@ -251,49 +293,32 @@ export default function AdminTeamPage() {
   );
 }
 
-// One form, two provisioning paths. Leaving the password field empty
-// is the normal case: the person just signs in with Google and the
-// role is applied on the spot. Filling it in creates a Firebase Auth
-// account with that password too, for staff who don't have (or won't
-// use) a Google account — the pre-existing createTeamMember flow.
-function AddStaffForm({ creatableRoles, onDone }: { creatableRoles: AdminRole[]; onDone: () => void }) {
-  const [name, setName] = useState("");
+// Granting a role needs an account that already exists: on the Spark
+// plan there is no trusted server code that could safely hold a
+// pending, email-keyed role for somebody who has never signed in, so
+// the flow is "they sign in first, you grant second". The lookup goes
+// through the userEmails directory, which each person publishes for
+// their own verified address only.
+function AddStaffForm({
+  caller,
+  creatableRoles,
+  onDone,
+}: {
+  caller: StaffContext;
+  creatableRoles: AdminRole[];
+  onDone: () => void;
+}) {
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<AdminRole>(creatableRoles[0]);
-  const [temporaryPassword, setTemporaryPassword] = useState("");
-  const [withPassword, setWithPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
-      if (withPassword) {
-        await createTeamMember({
-          name,
-          email,
-          phone: phone || undefined,
-          role,
-          temporaryPassword,
-        });
-      } else {
-        const result = await upsertStaffMember({
-          email,
-          name: name || undefined,
-          phone: phone || undefined,
-          role,
-        });
-        if (result.pending) {
-          setNotice(
-            `${result.email} will get ${ROLE_LABELS[role]} access the first time they sign in with this email.`
-          );
-        }
-      }
+      await grantStaffRoleByEmail(caller, email, role);
       onDone();
     } catch (err) {
       setError(toUserMessage(err));
@@ -309,14 +334,6 @@ function AddStaffForm({ creatableRoles, onDone }: { creatableRoles: AdminRole[];
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
       </label>
       <label>
-        Full name {withPassword ? "" : "(optional)"}
-        <input required={withPassword} value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      <label>
-        Phone (optional)
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} />
-      </label>
-      <label>
         Role
         <select value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
           {creatableRoles.map((r) => (
@@ -329,62 +346,36 @@ function AddStaffForm({ creatableRoles, onDone }: { creatableRoles: AdminRole[];
       <p className="text-soft" style={{ fontSize: "var(--text-xs)", gridColumn: "1 / -1" }}>
         {ROLE_DESCRIPTIONS[role]}
       </p>
-
-      <label style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8 }}>
-        <input
-          type="checkbox"
-          checked={withPassword}
-          onChange={(e) => setWithPassword(e.target.checked)}
-        />
-        <span style={{ fontSize: "var(--text-sm)" }}>
-          They don't use Google sign-in — create an email/password account instead
-        </span>
-      </label>
-      {withPassword && (
-        <label style={{ gridColumn: "1 / -1" }}>
-          Temporary password (share it with them securely)
-          <input
-            type="text"
-            required
-            minLength={6}
-            value={temporaryPassword}
-            onChange={(e) => setTemporaryPassword(e.target.value)}
-          />
-        </label>
-      )}
+      <p className="text-soft" style={{ fontSize: "var(--text-xs)", gridColumn: "1 / -1" }}>
+        They must have signed in to this site at least once with that address before you can grant
+        them a role.
+      </p>
 
       {error && (
         <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", gridColumn: "1 / -1" }}>{error}</p>
       )}
-      {notice && (
-        <p style={{ color: "var(--color-success)", fontSize: "var(--text-sm)", gridColumn: "1 / -1" }}>{notice}</p>
-      )}
       <div style={{ gridColumn: "1 / -1" }}>
         <button className="btn btn-primary" type="submit" disabled={busy}>
-          {busy ? "Saving..." : withPassword ? "Create account" : "Grant access"}
+          {busy ? "Saving..." : "Grant access"}
         </button>
       </div>
     </form>
   );
 }
 
-// The pre-existing reporting-hierarchy view, kept intact. It reads the
-// users collection through getTeamMembers (hierarchy-scoped
-// server-side) rather than the email-keyed directory above, because
-// only accounts that actually exist have a uid to hang a tree off.
-// Deactivating from here disables the Firebase Auth account itself —
-// a stronger action than removing the admin role, which is why both
-// controls exist.
-function ReportingHierarchy() {
+// The reporting-hierarchy view, kept intact. It reads the same
+// hierarchy-scoped users query as the directory above and renders it
+// as a tree using the denormalized ownership chain.
+function ReportingHierarchy({ caller }: { caller: StaffContext }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
-  const members = useAsync(() => (open ? getTeamMembers() : Promise.resolve([])), [open]);
+  const members = useAsync(() => (open ? getTeamMembers(caller) : Promise.resolve([])), [open, caller.uid]);
 
-  function handleToggleStatus(uid: string, current: "active" | "inactive") {
-    const next = current === "active" ? "inactive" : "active";
-    updateTeamMemberStatus(uid, next)
+  function handleToggleStatus(member: TeamMember) {
+    const next = member.status === "active" ? "revoked" : "active";
+    updateTeamMemberStatus(caller, member, next)
       .then(() => {
-        showToast(next === "active" ? "Account reactivated." : "Account deactivated.");
+        showToast(next === "active" ? "Access restored." : "Access removed.");
         members.retry();
       })
       .catch((err) => showToast(toUserMessage(err), "error"));

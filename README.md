@@ -1,11 +1,16 @@
 # Metro Health Lab — customer platform
 
-React + TypeScript + Vite frontend, Firebase (Auth/Firestore/Storage/
-Functions) as the single source of truth. No hard-coded business data
-anywhere — every price, test, package, lab, slot, and coupon comes from
-Firestore, and every security-sensitive operation (pricing, payment,
-coupon redemption, report access) is enforced server-side in Cloud
-Functions, never trusted from the client.
+React + TypeScript + Vite frontend, Firebase (Auth/Firestore/Storage) as
+the single source of truth. No hard-coded business data anywhere — every
+price, test, package, lab, slot, and coupon comes from Firestore.
+
+**This project runs on the Firebase Spark (free) plan: no Cloud Functions
+are deployed, and none are required to sign in or to determine a role.**
+Authentication and authorization are Firebase Auth + Firestore +
+Firestore Security Rules — see the section below. The `functions/` tree
+is retained as reference code for the customer flows (booking, payment,
+report/media signatures) that would need a Blaze upgrade; nothing in the
+auth path touches it.
 
 **Firebase project:** `metro-health-0001` — Firebase config is hardcoded
 directly in `src/firebase/config.ts` (per explicit request, overriding
@@ -17,7 +22,7 @@ the earlier env-var-only setup) and is complete, including the API key.
 > this section said the Admin Panel had been skipped and that "nothing
 > under `/admin` exists". That is no longer true and was left stale:
 > a full admin panel now exists at `/admin` (27 screens, its own
-> `AdminLayout`, claims-gated by `AdminProtectedRoute`), plus an agent
+> `AdminLayout`, role-gated by `AdminProtectedRoute`), plus an agent
 > area at `/agent`. See **Admin panel** below.
 
 What the customer-side redesign pass built:
@@ -84,6 +89,116 @@ npm install
 npm run build
 ```
 
+## Authentication and authorization (Firebase Spark / free plan)
+
+This project runs on the **Firebase Spark (free) plan**. Spark cannot host
+Cloud Functions, so there is **no deployed backend code and no Firebase Auth
+custom claims** anywhere in the sign-in or authorization path. Nothing in
+the app calls a Cloud Function to log in or to find out who you are.
+
+The security boundary is **Firebase Authentication + Firestore + Firestore
+Security Rules**, and only that.
+
+### The two trusted documents
+
+| Document | Who can write it | What it decides |
+| --- | --- | --- |
+| `system/config` → `masterAdminUid` | **Nobody through the app.** `allow write: if false` for every client; only the Firebase Console / Admin SDK can create or change it. | The single root authority. Whoever's uid is in here is `SUPER_ADMIN`. |
+| `users/{uid}` → `role`, `status`, `superAdminId`, `adminId`, `subAdminId` | Only a caller the rules have *already* established as a higher-ranked staff member, through one narrowly-scoped rule. | Every other staff assignment. |
+
+`firestore.rules` re-reads both documents on **every single request** and
+decides for itself. The React app reads them too, but only to know what to
+draw — `useAdminRole()`, `AdminProtectedRoute` and every menu check are
+presentation. Patching them in devtools changes what your own browser
+renders and nothing about what the database will accept.
+
+### What the rules guarantee
+
+- **Nobody can assign `SUPER_ADMIN`** — not an admin, not a super admin,
+  not through any code path. It is derived exclusively from
+  `system/config`. A `users` document that claims `role: "SUPER_ADMIN"`
+  for any other uid is *ignored*, not honoured.
+- **You can never write your own authorization record.** The staff-write
+  rule starts with `userId != request.auth.uid`, so self-promotion,
+  self-demotion and self-revocation are all impossible.
+- **You can only assign a role strictly below your own**
+  (`SUPER_ADMIN → ADMIN → SUB_ADMIN → COLLECTION_AGENT`), and only to
+  somebody inside your own subtree.
+- **The ownership chain cannot be forged.** A new staff record must carry
+  exactly the writing caller's own position in the tree, recomputed by
+  the rules from the caller's stored record.
+- **A revocation bites immediately.** `status` is read live on every
+  request, so a removed role stops working on the very next operation —
+  strictly better than the old custom-claim model, where a cached ID
+  token stayed privileged for up to an hour.
+- **Nothing else can ride along.** A staff write may only touch
+  `role`, `status`, the three chain fields, `updatedAt` and `updatedBy`.
+
+All of this is proven, not asserted: `tests/rules/firestore.rules.test.ts`
+runs 91 cases against the Firestore emulator (`npm run test:rules`).
+
+### First `SUPER_ADMIN` — the one manual step
+
+A browser cannot be allowed to nominate the first super admin (that would
+be precisely the self-promotion hole the rest of this design closes), and
+there is no trusted server code to do it. So the project owner does it
+once, by hand, in the Firebase Console:
+
+1. Sign in to the site once with the account that should be master, so
+   that a Firebase Auth account and a `users/{uid}` document exist.
+2. Firebase Console → **Authentication → Users** → copy that account's
+   **User UID**.
+3. Firebase Console → **Firestore Database** → create collection
+   `system`, document ID `config`, with one string field:
+   `masterAdminUid` = the uid you copied.
+4. Reload the site. That account is now `SUPER_ADMIN`; the app writes its
+   own `users/{uid}` staff record on the next sign-in (the only write of
+   its kind the rules permit, and only for that exact uid).
+
+**`MASTER_ADMIN_EMAIL` no longer exists anywhere.** An email compared in
+the browser is not an authorization boundary, and without server code
+there is no way to turn one into one. The bootstrap is a uid in a
+document no client can write — see DEPLOYMENT.md for the full procedure,
+including the migration checklist for existing data.
+
+### Adding and removing staff
+
+Admin → **Settings → Admin & Staff**:
+
+- **Add:** the person signs in to the site once with their own Google
+  account, then you enter that email address and pick a role. The lookup
+  goes through `userEmails/{email}`, a directory each person publishes
+  for their **own verified address only** — so an admin can find an
+  account by email without being able to enumerate the users collection,
+  and nobody can point somebody else's address at their own uid.
+  There is deliberately **no pending, email-keyed invite** any more: on
+  Spark, a privileged record keyed by an address nobody has proven they
+  own cannot be made safe, so a role is always attached to a real uid.
+- **Change role / remove access / restore access:** ordinary Firestore
+  writes to that person's `users/{uid}` record, allowed only within the
+  hierarchy rules above. Removing access sets `status: "revoked"` and
+  keeps the row so it can be restored.
+
+### What Spark costs you, honestly
+
+- **No Cloud Functions at all.** The `functions/` tree is retained as
+  reference code but is not deployed and is not wired into
+  `firebase.json`. The customer flows that genuinely need trusted server
+  code — booking creation, price quoting, Razorpay payment/webhook,
+  Cloudinary media and report signatures, admin bookings/customers
+  queries and notifications — therefore do not work on this plan. They
+  still fail *closed*.
+- **No server-written audit log** for staff changes. `auditLogs` stays
+  read-only to clients rather than letting a browser fabricate entries;
+  Firestore's own console history is what you have instead.
+- **A deactivated staff member's Firebase Auth account cannot be
+  disabled** from the app (that needs the Admin SDK). Revoking their role
+  removes all access; they can still sign in as an ordinary user.
+- **Storage rules cannot see the Firestore role**, so the admin image
+  paths in `storage.rules` are closed to everyone. Upload through the
+  Firebase Console. Relaxing them to "any signed-in user" would let a
+  customer overwrite public catalog imagery, so they stay shut.
+
 ## Project layout
 
 ```
@@ -110,8 +225,11 @@ functions/
     media.ts                 Cloudinary signed-upload signature, verified confirm, delete
     cloudinaryConfig.ts      Cloudinary secrets + the folder allowlist
     razorpaySignature.ts     webhook HMAC verification (extracted so it's testable)
-    roleClaims.ts            custom-claim role reads + requireCatalogManager guard
+    roleClaims.ts            LEGACY custom-claim guards (unused on Spark — nothing mints claims)
     *.test.ts                unit tests (vitest)
+  (functions/ is NOT deployed on Spark and is not referenced by firebase.json)
+src/services/roleService.ts  role resolution from Firestore (system/config + users/{uid})
+src/services/adminTeamService.ts  staff management as rules-gated Firestore writes
 tests/rules/          Firestore security-rules tests (needs the emulator)
 .github/workflows/    CI + Firebase backend deploy
 vercel.json           Vercel build config + SPA rewrite + headers
@@ -170,15 +288,14 @@ either blocking forever or guessing.
   write: if false` outright — even the owner's own Storage SDK call is
   denied; `getReportDownloadUrl` still works because it uses the Admin
   SDK, which bypasses these rules.
-- `isStaff()` is now based on a Firebase Auth **custom claim**
-  (`request.auth.token.role`), not the existence of a `roles/{uid}`
-  document. Custom claims can only be set by the Admin SDK — no client
-  write path can ever grant or modify their own claim, which is a
-  materially stronger guarantee than "no one can write to this
-  collection" (that was already true, but a document's mere *existence*
-  was doing double duty as authorization before, and the instruction
-  was explicit that this isn't sufficient). `roles/{uid}` is kept only
-  as a human-readable reference for a future Admin UI.
+- `isStaff()` no longer treats the existence of a `roles/{uid}`
+  document as authorization. It was later moved to a Firebase Auth
+  custom claim; on the Spark plan (no Cloud Functions, so nothing can
+  mint a claim) it now reads `users/{uid}.role` + `.status` live,
+  under a rule that lets only a higher-ranked staff member write those
+  fields — see "Authentication and authorization" above for why that is
+  equivalent in strength rather than a step back. `roles/{uid}` is kept
+  only as a human-readable reference.
 
 ### 8. Coupon security
 
@@ -330,14 +447,16 @@ Firebase Console (console.firebase.google.com → metro-health-0001)
 → App Check
    → Skip for now, per your own note — add later via reCAPTCHA v3/Enterprise
 
-→ Cloud Functions (first deploy will prompt to enable, or enable ahead of time)
-   → Cloud Build API, Artifact Registry API, Eventarc API, Cloud Run API
+→ Cloud Functions
+   → NOT enabled and NOT needed. Spark plan; nothing is deployed. Do not
+     upgrade to Blaze for authentication or role management — neither
+     needs it.
 
-→ Custom claims for the future Admin Panel
-   → No console toggle for this. Setting request.auth.token.role requires
-     a privileged server action (Admin SDK auth.setCustomUserClaims) —
-     out of scope until the Admin Panel itself is built, but the rules
-     already expect it (see isStaff() in firestore.rules).
+→ The first SUPER_ADMIN (one manual console step)
+   → Firestore Database → create system/config with a string field
+     masterAdminUid = the master account's Firebase Auth uid. That
+     document is the root of the entire authorization model, and no
+     client can write it. Full procedure in DEPLOYMENT.md.
 ```
 
 ## Deploying
@@ -352,12 +471,16 @@ git push origin main
 
 That's it. GitHub Actions runs the checks; Vercel builds and promotes
 the frontend to https://metrohealthlab.in once they pass; a second
-workflow deploys Cloud Functions and rules if `functions/` or the rules
-files changed.
+workflow deploys the Firestore/Storage rules and indexes if those files
+changed.
 
-Manual deploys are still possible for emergencies (`firebase deploy
---only functions --project metro-health-0001`), but the automated path
-is the one that's expected to be used — a manual deploy skips the tests.
+**Cloud Functions are never deployed** — the project is on the Spark
+plan, where that command fails, and nothing in the running app needs
+them. The emergency manual equivalent of the automated deploy is:
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,storage --project metro-health-0001
+```
 
 One-time setup (Vercel project + deployment checks, GitHub service
 account secret, Firebase Functions secrets, Cloudinary account, Razorpay
@@ -375,13 +498,13 @@ webhook URL) is all in `DEPLOYMENT.md`.
   authorization, media folder allowlist)
 - The CI secret-leak check, run against the real `dist/` output — clean
 
+- `npm run test:rules` — the Firestore security-rules suite,
+  91 cases against the real emulator, covering the bootstrap record,
+  self-promotion, every rung of the role hierarchy, revocation,
+  subtree scoping, the email directory, report cross-customer access,
+  booking/payment tampering, coupon reads and the internal ledgers.
+
 **Written but NOT yet run anywhere:**
-- `npm run test:rules` — the Firestore security-rules suite
-  (`tests/rules/`, ~30 cases covering report cross-customer access,
-  booking/payment tampering, role escalation, coupon reads, internal
-  ledgers). It needs the Firestore emulator, whose jars couldn't be
-  downloaded in the environment these were written in. **It runs in CI
-  on the first push** — check that job before trusting the rules.
 - Both GitHub Actions workflows. YAML is schema-valid; neither has
   executed.
 
@@ -431,48 +554,22 @@ security rules, unauthorized access, role escalation, responsive).
 
 Lives at `/admin` (login at `/admin/login`), with a separate
 `AdminLayout` — no customer header/footer/bottom nav. Access is gated by
-`AdminProtectedRoute` + `useAdminRole`, both of which read the role from
-the Firebase ID token's **custom claims**, the same source
-`firestore.rules` and every admin Cloud Function use. The UI's idea of
-"what can I see" therefore can't drift from what's actually enforced.
+`AdminProtectedRoute` + `useAdminRole`, which read the role from the
+authorization context `AuthProvider` resolved out of Firestore
+(`system/config` + `users/{uid}`) — the same two documents
+`firestore.rules` reads on every request. The UI's idea of "what can I
+see" therefore cannot drift from what is actually enforced, and the
+provider does not publish a signed-in user until the role is known, so
+no screen ever renders against an unknown or stale role.
 
 Roles: `SUPER_ADMIN` → `ADMIN` → `SUB_ADMIN` → `COLLECTION_AGENT`. Each
 can only assign a role strictly below it (`CREATABLE_ROLES` in
-`functions/src/roleClaims.ts`), and claims are only ever written by the
-Admin SDK inside a Cloud Function — there is no client write path that
-can grant or escalate a role.
+`src/types/team.ts`, mirrored by `canAssign()` in `firestore.rules` —
+`src/utils/roleAccess.test.ts` pins the two together). There is no client
+write path that can grant or escalate a role; see "Authentication and
+authorization" above for the full model.
 
 Collection agents get their own area at `/agent`.
-
-### Who becomes an admin
-
-There is exactly one bootstrap input, and it is server-side
-configuration rather than a secret: **`MASTER_ADMIN_EMAIL`**, declared as
-a plain deploy parameter in `functions/src/masterAdmin.ts`. Whoever signs
-in (Google or email/password) with that address is granted `SUPER_ADMIN`
-by the `syncMyRole` Cloud Function, which the app awaits on every
-sign-in. Nothing else in the system can ever produce a `SUPER_ADMIN` —
-not even an existing one.
-
-Everyone else is added by email from **Admin → Settings → Admin & Staff**:
-
-1. A `SUPER_ADMIN` enters someone's Google/email address and picks
-   `ADMIN`, `SUB_ADMIN` or `COLLECTION_AGENT`.
-2. `upsertStaffMember` re-checks the caller's own role from their signed
-   token, refuses anything at or above it, and writes the assignment to
-   `staffInvites/{email}` — a collection closed to all clients in
-   `firestore.rules`, in both directions.
-3. When that person signs in, `syncMyRole` resolves the assignment into
-   a real custom claim on their ID token. If they already have an
-   account, the role is applied immediately instead.
-4. Removing access clears the claim, revokes their refresh tokens, and
-   marks the assignment revoked, so signing in again cannot restore it.
-
-Because the decision is made from the verified email inside the caller's
-own ID token and written with the Admin SDK, no amount of frontend
-state, `localStorage` editing, URL fiddling or Firestore writing can
-grant a role. There is no bootstrap secret and no Secret Manager
-dependency anywhere in this path.
 
 ### Media and reports — no console step
 

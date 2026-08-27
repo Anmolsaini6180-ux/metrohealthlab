@@ -34,7 +34,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AdminDashboardPage() {
-  const { role } = useAdminRole();
+  const staff = useAdminRole();
+  const { role } = staff;
   const { showToast } = useToast();
   const [range, setRange] = useState<DateRange>(() => resolveDateRange("today"));
   const [showSeedConfirm, setShowSeedConfirm] = useState(false);
@@ -48,9 +49,9 @@ export default function AdminDashboardPage() {
   const [filterBookingStatus, setFilterBookingStatus] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
 
-  const admins = useAsync(() => (role === "SUPER_ADMIN" ? getTeamMembers("ADMIN") : Promise.resolve([])), [role]);
-  const subAdmins = useAsync(() => (role === "SUPER_ADMIN" || role === "ADMIN" ? getTeamMembers("SUB_ADMIN") : Promise.resolve([])), [role]);
-  const agents = useAsync(() => (role !== "COLLECTION_AGENT" ? getTeamMembers("COLLECTION_AGENT") : Promise.resolve([])), [role]);
+  const admins = useAsync(() => (role === "SUPER_ADMIN" ? getTeamMembers(staff, "ADMIN") : Promise.resolve([])), [role, staff.uid]);
+  const subAdmins = useAsync(() => (role === "SUPER_ADMIN" || role === "ADMIN" ? getTeamMembers(staff, "SUB_ADMIN") : Promise.resolve([])), [role, staff.uid]);
+  const agents = useAsync(() => (role && role !== "COLLECTION_AGENT" ? getTeamMembers(staff, "COLLECTION_AGENT") : Promise.resolve([])), [role, staff.uid]);
   const labs = useAsync(getAllLabs, []);
   const activeTests = useAsync(() => getTests(), []);
   const activePackages = useAsync(() => getPackages(), []);

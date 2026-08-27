@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/brand/Logo";
 import { useAdminRole } from "@/hooks/useAdminRole";
-import { loginWithEmail, loginWithGoogle, logout, syncMyRole } from "@/services/authService";
+import { loginWithEmail, loginWithGoogle, logout } from "@/services/authService";
+import { resolveStaffContext } from "@/services/roleService";
 import { adminHomePathForRole } from "@/utils/roleAccess";
 import { toUserMessage } from "@/utils/errors";
+import type { User } from "firebase/auth";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
@@ -23,16 +25,15 @@ export default function AdminLoginPage() {
     return <Navigate to={from === "/admin" ? home : from} replace />;
   }
 
-  // Shared tail for both sign-in methods. syncMyRole is what actually
-  // decides the role: it re-reads MASTER_ADMIN_EMAIL and the staff
-  // assignment server-side and writes the custom claim, so the token we
-  // then read is authoritative and current — a role granted or revoked
-  // a minute ago is reflected here, not the stale one from a previous
-  // session.
-  async function completeSignIn(user: { getIdTokenResult: (force?: boolean) => Promise<{ claims: Record<string, unknown> }> }) {
-    await syncMyRole();
-    const token = await user.getIdTokenResult(true);
-    const home = adminHomePathForRole(token.claims.role);
+  // Shared tail for both sign-in methods. The role comes from
+  // Firestore — system/config for the master account, users/{uid} for
+  // everybody else — read here so the redirect target is right on the
+  // first attempt. It is read again by AuthProvider, and enforced
+  // independently by firestore.rules on every request the admin
+  // screens then make; landing on /admin proves nothing by itself.
+  async function completeSignIn(user: User) {
+    const staff = await resolveStaffContext(user);
+    const home = adminHomePathForRole(staff.role);
     if (!home) {
       // Valid Firebase credentials, but not a staff account — reject
       // here rather than letting them into any part of /admin.

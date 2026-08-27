@@ -3,7 +3,9 @@
 Production: **https://metrohealthlab.in**
 Firebase project: **`metro-health-0001`**
 Frontend host: **Vercel** (from GitHub `main`)
-Backend: **Firebase Cloud Functions** (deployed by GitHub Actions)
+Backend: **Firebase Spark (free) plan — Auth + Firestore + Security Rules.
+No Cloud Functions are deployed, and none are required to sign in or to
+determine a role.**
 
 ---
 
@@ -22,8 +24,9 @@ GitHub main
    ├─► GitHub Actions "CI"                       (typecheck, tests, build, rules tests)
    │        │
    │        ├─► on success ─► "Deploy Firebase backend"
-   │        │                    ├─ Cloud Functions   (only if functions/ changed)
-   │        │                    └─ Firestore + Storage rules (only if those files changed)
+   │        │                    └─ Firestore + Storage rules and indexes
+   │        │                       (only if those files changed)
+   │        │                       Cloud Functions are never deployed — Spark plan.
    │        │
    │        └─► on failure ─► nothing deploys; the live site is untouched
    │
@@ -35,6 +38,128 @@ GitHub main
 
 You never open the Vercel dashboard, never run `firebase deploy`, and never
 touch the Firebase Storage console to upload an image or a report.
+
+---
+
+## Firebase plan: Spark (free) — and the one manual step it costs you
+
+This project is deliberately Spark-compatible. **Do not upgrade to Blaze
+for authentication or role management: neither needs it.**
+
+- No Cloud Functions are deployed. `firebase.json` does not even declare
+  a `functions` block, so `firebase deploy` cannot attempt one.
+- Authentication is Firebase Auth. Authorization is Firestore + Firestore
+  Security Rules, re-evaluated on every request.
+- Because only the Admin SDK can mint Firebase Auth custom claims, and
+  the Admin SDK needs server code, there are **no custom claims**. A
+  role lives in `users/{uid}` and the rules read it live.
+
+### First `SUPER_ADMIN` bootstrap — do this once
+
+A browser must never be able to nominate the first super admin; that is
+exactly the escalation the rest of the model exists to prevent. And with
+no Cloud Functions there is no trusted server code to do it either. So
+the project owner does it once, by hand, with Firebase Console rights —
+which bypass security rules and are therefore the trusted actor here.
+
+1. **Sign in to the site once** with the Google account that should be
+   the master admin. This creates the Firebase Auth account and its
+   `users/{uid}` profile document.
+2. Firebase Console → **Authentication → Users** → find that account →
+   copy its **User UID** (a 28-character string, *not* the email).
+3. Firebase Console → **Firestore Database → Data** → **Start
+   collection** → Collection ID: `system` → Document ID: `config` →
+   add one field:
+
+   | Field | Type | Value |
+   | --- | --- | --- |
+   | `masterAdminUid` | string | the uid you copied in step 2 |
+
+   Save. (If a `system/config` document already exists, just add or edit
+   that one field.)
+4. Reload the site and sign in again. That account now resolves to
+   `SUPER_ADMIN`, and the app writes its own `users/{uid}` staff record
+   — the only write of its kind the rules allow, and only for that exact
+   uid.
+5. Verify: `/admin` opens, and **Settings → Admin & Staff** lists the
+   master account with a read-only "Master admin" badge.
+
+To move master authority to a different account later, change
+`masterAdminUid` in the console. Nothing in the app can do it, which is
+the point. There is no `MASTER_ADMIN_EMAIL` any more: an email compared
+in the browser is not a boundary, and there is no server left to compare
+it anywhere else.
+
+### Adding staff
+
+1. The person signs in to the site once with their own Google account
+   (an email/password account works too, but its address must be
+   verified).
+2. A `SUPER_ADMIN`/`ADMIN`/`SUB_ADMIN` opens **Settings → Admin & Staff
+   → Add staff member**, types that email address and picks a role.
+3. The app looks the address up in `userEmails/{email}` — a directory
+   each person publishes for their own verified address only — and
+   writes `role`/`status`/ownership chain onto that person's
+   `users/{uid}` document. The rules verify the caller's own record,
+   the hierarchy and the chain before allowing it.
+4. Their next request already carries the new role.
+
+There is no pending, email-keyed invitation any more. On Spark it cannot
+be made safe: a privileged record keyed by an address nobody has proven
+they own is a standing offer to whoever registers that address first.
+
+### Removing staff
+
+**Settings → Admin & Staff → Remove access** sets `status: "revoked"` on
+their record. Because every rule reads `status` live, access stops on
+their very next request — no waiting out a cached token. The row stays
+visible so access can be restored later. Their Firebase Auth account is
+untouched: they can still sign in as an ordinary customer, which is what
+you want (deleting or disabling the account needs the Admin SDK).
+
+### Migrating an existing project
+
+Do this before or immediately after deploying the new rules. Nothing
+below deletes user data.
+
+1. **Check for stray roles.** In Firestore, query `users` for documents
+   that have a `role` field. Anything you do not recognise should be
+   corrected now. (Safety net: the rules only honour `ADMIN`,
+   `SUB_ADMIN` and `COLLECTION_AGENT` from a document, and only when
+   `status == "active"`. A document claiming `SUPER_ADMIN` confers
+   nothing — the super admin is the uid in `system/config` and nothing
+   else.)
+2. **Add `status: "active"`** to any legacy staff document that has a
+   `role` but no `status`. Without it that person has no access.
+   Legacy `status: "inactive"` is treated as revoked and needs no
+   change.
+3. **Ownership chain.** Legacy staff records should carry
+   `superAdminId`/`adminId`/`subAdminId` (use `""` for levels that do
+   not apply). They are what the subtree scoping reads.
+4. **`staffInvites` is dead.** The collection is sealed in both
+   directions by the rules and is no longer consulted. Anyone who was
+   invited but had not signed in must sign in once and then be granted
+   a role through the UI. You can delete the collection when you are
+   satisfied nobody is missing.
+5. **Old custom claims are harmless.** Nothing reads
+   `request.auth.token.role` any more. They expire on their own; there
+   is no cleanup to do.
+
+### Testing it locally
+
+```bash
+npm run test:rules
+```
+
+Starts the Firestore emulator and runs the full security-rules suite
+(91 cases). To click through the app against the emulator instead:
+
+```bash
+firebase emulators:start --only firestore,auth,hosting
+```
+
+Seed a `system/config` document in the Emulator UI exactly as in the
+bootstrap procedure above to give yourself a master admin locally.
 
 ---
 
@@ -109,7 +234,17 @@ under the production environment settings.
 The workflow writes it to a temp file outside the workspace, exports
 `GOOGLE_APPLICATION_CREDENTIALS`, and deletes it in an `always()` step.
 
-### 5. Firebase Functions secrets
+### 5. Firebase Functions secrets — NOT APPLICABLE ON SPARK
+
+> Skip this section. No Cloud Functions are deployed, so there is
+> nothing to configure and `firebase functions:secrets:set` would be
+> pointless. It is left here only for the record of what a future Blaze
+> upgrade would need. **Authentication and roles do not need any of it.**
+
+<details>
+<summary>Legacy (Blaze-only) — original instructions</summary>
+
+
 
 Run these once from your machine (you need `firebase login` first). They are
 stored in Google Secret Manager and never appear in the repository, in Vercel,
@@ -132,6 +267,8 @@ Check what exists at any time with `firebase functions:secrets:access <NAME>`.
 Adding or rotating a secret requires a functions redeploy to take effect —
 push any commit touching `functions/`, or run the **Deploy Firebase backend**
 workflow manually from the Actions tab.
+
+</details>
 
 ### 6. Cloudinary
 
@@ -202,10 +339,10 @@ Useful commands:
 |---|---|---|
 | `VITE_RAZORPAY_KEY_ID` | Vercel env vars | Yes — compiled into the bundle |
 | `VITE_FIREBASE_*` (optional) | Vercel env vars | Yes — Firebase web config is not a secret |
-| `RAZORPAY_KEY_ID` | Firebase Secret Manager | Server only |
+| `RAZORPAY_KEY_ID` | Firebase Secret Manager *(Blaze only — unused on Spark)* | Server only |
 | `RAZORPAY_KEY_SECRET` | Firebase Secret Manager | **Secret** |
 | `RAZORPAY_WEBHOOK_SECRET` | Firebase Secret Manager | **Secret** |
-| `MASTER_ADMIN_EMAIL` | Functions deploy param (`functions/.env`, or the committed default in `functions/src/masterAdmin.ts`) | Not a secret — it's an identity, not a credential. **Backend only; never mirror it into a `VITE_*` variable.** |
+| ~~`MASTER_ADMIN_EMAIL`~~ | **Gone.** Who the super admin is now lives in the Firestore document `system/config` (`masterAdminUid`), writable only from the Firebase Console. | Not an environment variable at all. **Never add a `VITE_MASTER_ADMIN_EMAIL`: a value compiled into the bundle can be edited by the user and can never be an authorization decision.** |
 | `CLOUDINARY_CLOUD_NAME` | Firebase Secret Manager | Sent to the browser during signed upload |
 | `CLOUDINARY_API_KEY` | Firebase Secret Manager | Sent to the browser during signed upload |
 | `CLOUDINARY_API_SECRET` | Firebase Secret Manager | **Secret — never leaves the server** |
@@ -416,31 +553,38 @@ static assets and `vercel.json` needs fixing.
 
 ---
 
-## Phase 3 — merge and deploy the backend
+## Phase 3 — merge and deploy the rules
 
 Merge the PR. This triggers CI on `main`, then the deploy workflow.
 
-**Pass:** the `Deploy Firebase backend` workflow runs and succeeds.
+**Pass:** the `Deploy Firebase backend` workflow runs and succeeds. On
+the Spark plan it deploys **only** Firestore rules, Firestore indexes and
+Storage rules — no Cloud Functions.
+
+The manual equivalent, if you ever need it:
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,storage --project metro-health-0001
+```
+
+Never run `firebase deploy --only functions`. It fails on Spark, and
+nothing in the app depends on it.
 
 Most likely first-run failures:
 
 | Symptom | Fix |
 |---|---|
 | `FIREBASE_SERVICE_ACCOUNT is not set` | Setup step 4 — must be a *repository* secret, not an environment one |
-| Secret Manager permission error | Grant **Secret Manager Admin** to the deployer service account |
-| `Cloud Build`/`Artifact Registry` permission error | Grant the role named in the error |
-| Deploy succeeds but functions error at runtime on a secret | Secret was set after the last deploy — re-run the workflow |
+| `Permission denied` deploying rules | The deployer service account needs **Firebase Rules Admin** |
+| Rules deploy fine, but every admin screen 403s | `system/config` has not been created yet — do the bootstrap step above |
 
-Then confirm what actually deployed:
+Then confirm the authorization model is live, in the app itself:
 
-```bash
-npx firebase-tools@13 functions:list --project metro-health-0001
-```
-
-**Pass:** 42 functions listed, including `getMediaUploadSignature`,
-`confirmMediaUpload`, `deleteMediaAsset`, `getReportUploadSignature`,
-`confirmReportUpload`, `setReportReady`, `getReportDownloadUrl`,
-`razorpayWebhook`. **Capture the `razorpayWebhook` URL** — Phase 6 needs it.
+1. Sign in as the master account → `/admin` opens.
+2. Sign in as an ordinary customer → `/admin` bounces to `/admin/login`,
+   and in the browser console
+   `firebase.firestore().doc('users/<your uid>').update({role:'SUPER_ADMIN'})`
+   fails with `permission-denied`. That failure is the whole point.
 
 ---
 

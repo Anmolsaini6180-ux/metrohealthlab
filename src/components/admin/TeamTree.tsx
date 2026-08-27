@@ -35,7 +35,7 @@ function buildTree(members: TeamMember[]): TeamNode[] {
 
 interface TeamTreeProps {
   members: TeamMember[];
-  onToggleStatus: (uid: string, current: "active" | "inactive") => void;
+  onToggleStatus: (member: TeamMember) => void;
 }
 
 export default function TeamTree({ members, onToggleStatus }: TeamTreeProps) {
@@ -64,8 +64,8 @@ function TeamNodeRow({ node, depth, onToggleStatus }: { node: TeamNode; depth: n
           <span style={{ fontSize: "var(--text-xs)", color: node.status === "active" ? "var(--color-success)" : "var(--color-danger)" }}>
             {node.status}
           </span>
-          <button className="btn btn-outline" onClick={() => onToggleStatus(node.uid, node.status)}>
-            {node.status === "active" ? "Deactivate" : "Activate"}
+          <button className="btn btn-outline" onClick={() => onToggleStatus(node)}>
+            {node.status === "active" ? "Remove access" : "Restore access"}
           </button>
         </div>
       </div>

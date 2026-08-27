@@ -1,9 +1,9 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 
 // Firebase's Web SDK config is NOT a secret — it identifies the project
-// in the browser, and the real security boundary is Firestore/Storage
-// rules plus custom claims. It stays hardcoded below (per an explicit
-// earlier request) so a clean clone builds and runs with zero setup.
+// in the browser, and the real security boundary is Firestore Security
+// Rules. It stays hardcoded below (per an explicit earlier request) so
+// a clean clone builds and runs with zero setup.
 //
 // Each value can still be overridden by a Vite env var, which is what
 // makes it possible to point a Vercel preview or a staging deployment

@@ -1,55 +1,22 @@
-import { useEffect, useState } from "react";
 import { useAuth } from "./useAuth";
-import type { AdminRole } from "@/types/team";
+import { buildStaffContext } from "@/utils/roleAccess";
+import type { AdminRole, StaffContext } from "@/types/team";
 
-interface AdminClaims {
-  role: AdminRole | null;
-  superAdminId?: string;
-  adminId?: string;
-  subAdminId?: string;
-}
-
-// Reads the caller's role/hierarchy chain from their Firebase ID token
-// (custom claims), NOT from any Firestore document — this is the same
-// source of truth firestore.rules and every admin Cloud Function check,
-// so the UI's idea of "am I staff, and what can I see" can never drift
-// from what's actually enforced server-side. A stale cached token can
-// under-report a just-granted role for a few minutes; getIdTokenResult
-// forces a refresh once so a brand-new staff account works immediately
-// after their first sign-in following account creation.
-export function useAdminRole(): AdminClaims & { loading: boolean } {
-  const { user, loading: authLoading } = useAuth();
-  const [claims, setClaims] = useState<AdminClaims>({ role: null });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      setClaims({ role: null });
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    user
-      .getIdTokenResult(true)
-      .then((token) => {
-        if (cancelled) return;
-        const c = token.claims as Record<string, unknown>;
-        setClaims({
-          role: (c.role as AdminRole) ?? null,
-          superAdminId: c.superAdminId as string | undefined,
-          adminId: c.adminId as string | undefined,
-          subAdminId: c.subAdminId as string | undefined,
-        });
-      })
-      .catch(() => setClaims({ role: null }))
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.uid, authLoading]);
-
-  return { ...claims, loading: loading || authLoading };
+// Reads the caller's role and hierarchy chain from the authorization
+// context AuthProvider resolved out of Firestore (system/config +
+// users/{uid}) — the same two documents firestore.rules reads on every
+// request, so the UI's idea of "am I staff, and what can I see" cannot
+// drift from what is actually enforced.
+//
+// There is no token/claim refresh to wait for and no second async
+// hop: the provider does not publish a signed-in user until the role
+// has been resolved, so `loading` is false only once `role` is
+// truthful, and a live Firestore listener keeps it current afterwards.
+//
+// UI convenience, not security. Hiding a menu item is not what stops
+// anyone; the security rules are.
+export function useAdminRole(): StaffContext & { role: AdminRole | null; loading: boolean } {
+  const { user, staff, loading } = useAuth();
+  const context = staff ?? buildStaffContext(user?.uid ?? "", "", null);
+  return { ...context, loading };
 }

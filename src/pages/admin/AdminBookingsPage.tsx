@@ -43,7 +43,8 @@ function nextStatus(current: BookingStatus): BookingStatus | null {
 const PRIVILEGED = ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN"];
 
 export default function AdminBookingsPage() {
-  const { role } = useAdminRole();
+  const staff = useAdminRole();
+  const { role } = staff;
   const { showToast } = useToast();
   const [range, setRange] = useState<DateRange>(() => resolveDateRange("today"));
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -56,8 +57,8 @@ export default function AdminBookingsPage() {
     [range.startDate, range.endDate, statusFilter]
   );
   const agents = useAsync(
-    () => (role && PRIVILEGED.includes(role) ? getTeamMembers("COLLECTION_AGENT") : Promise.resolve([])),
-    [role]
+    () => (role && PRIVILEGED.includes(role) ? getTeamMembers(staff, "COLLECTION_AGENT") : Promise.resolve([])),
+    [role, staff.uid]
   );
 
   async function handleAssign(bookingId: string, agentUid: string) {
