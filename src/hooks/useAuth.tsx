@@ -3,7 +3,7 @@ import type { User } from "firebase/auth";
 import { subscribeToAuthChanges } from "@/firebase/auth";
 import { firebaseConfigured } from "@/firebase/config";
 import { ensureUserProfile } from "@/services/userService";
-import { checkOwnerAutoGrant } from "@/services/authService";
+import { syncMyRole } from "@/services/authService";
 import type { UserProfile } from "@/types/user";
 
 interface AuthContextValue {
@@ -35,15 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const nextProfile = await ensureUserProfile(nextUser);
           setProfile(nextProfile);
-          // Award the owner's SUPER_ADMIN claim (if applicable) and wait
-          // for it to actually be set BEFORE this user is considered
+          // Resolve this account's staff role server-side (master
+          // admin, an email-keyed assignment, or none) and wait for the
+          // claim to actually be written BEFORE this user is considered
           // "signed in" anywhere else in the app. Without this await,
           // useAdminRole's own token check (which fires the instant
           // `user` is set below) can run before the claim exists —
           // checking too early and never re-checking, since nothing
           // else changes to make it re-check later. Awaiting here and
-          // then forcing a fresh token means that race can't happen.
-          await checkOwnerAutoGrant();
+          // then forcing a fresh token means that race can't happen,
+          // and also means a revoked role disappears on the very next
+          // sign-in rather than lingering in a stale token.
+          await syncMyRole();
           await nextUser.getIdToken(true);
         } catch (err) {
           // Whatever failed above (profile creation, the grant check),

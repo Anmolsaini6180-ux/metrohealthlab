@@ -53,7 +53,7 @@ export default function BookingsPage() {
     <div>
       <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-md)" }}>Your bookings</h1>
 
-      <div style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto", marginBottom: "var(--space-md)" }}>
+      <div className="mh-chip-row" style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto", marginBottom: "var(--space-md)" }}>
         {TABS.map((t) => (
           <button
             key={t}

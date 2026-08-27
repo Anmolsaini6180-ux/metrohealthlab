@@ -21,12 +21,16 @@ const CUSTOMER_A = "customer-a";
 const CUSTOMER_B = "customer-b";
 const ADMIN = "admin-1";
 const AGENT = "agent-1";
+const SUPER_ADMIN = "super-1";
 
 function admin() {
   return testEnv.authenticatedContext(ADMIN, { role: "ADMIN" }).firestore();
 }
 function agent() {
   return testEnv.authenticatedContext(AGENT, { role: "COLLECTION_AGENT" }).firestore();
+}
+function superAdmin() {
+  return testEnv.authenticatedContext(SUPER_ADMIN, { role: "SUPER_ADMIN" }).firestore();
 }
 function customerA() {
   return testEnv.authenticatedContext(CUSTOMER_A).firestore();
@@ -104,6 +108,15 @@ beforeEach(async () => {
       active: true,
     });
     await setDoc(doc(db, "users", CUSTOMER_A), { name: "A", email: "a@example.com" });
+    // What upsertStaffMember writes via the Admin SDK. Nothing below
+    // is allowed to read it back or touch it from a client.
+    await setDoc(doc(db, "staffInvites", "staff@example.com"), {
+      email: "staff@example.com",
+      role: "SUB_ADMIN",
+      status: "active",
+      superAdminId: SUPER_ADMIN,
+      invitedBy: SUPER_ADMIN,
+    });
   });
 });
 
@@ -269,5 +282,84 @@ describe("internal ledgers", () => {
 
   it("denies a client writing audit logs", async () => {
     await assertFails(setDoc(doc(admin(), "auditLogs", "fake"), { action: "nothing.happened" }));
+  });
+});
+
+// The collection that decides who is an admin. Everything about it is
+// Cloud-Function-only, so the interesting assertion is that literally
+// no client context — customer, agent, admin, even SUPER_ADMIN — can
+// read or write it. Frontend state, localStorage or a hand-crafted
+// Firestore write therefore have no path to granting a role.
+describe("staff role assignments (staffInvites)", () => {
+  it("denies a customer creating a role assignment for themselves", async () => {
+    await assertFails(
+      setDoc(doc(customerA(), "staffInvites", "a@example.com"), {
+        email: "a@example.com",
+        role: "SUPER_ADMIN",
+        status: "active",
+      })
+    );
+  });
+
+  it("denies a customer reading who has admin access", async () => {
+    await assertFails(getDoc(doc(customerA(), "staffInvites", "staff@example.com")));
+    await assertFails(getDocs(collection(customerA(), "staffInvites")));
+  });
+
+  it("denies an unauthenticated client entirely", async () => {
+    await assertFails(getDoc(doc(anonymous(), "staffInvites", "staff@example.com")));
+    await assertFails(setDoc(doc(anonymous(), "staffInvites", "x@example.com"), { role: "ADMIN" }));
+  });
+
+  it("denies an ADMIN promoting someone by writing here directly", async () => {
+    // An ADMIN may not assign ADMIN or SUPER_ADMIN. The upsertStaffMember
+    // function enforces that; this proves the direct-write bypass is
+    // closed too, for every role including the ones they COULD assign.
+    await assertFails(
+      setDoc(doc(admin(), "staffInvites", "someone@example.com"), { role: "SUPER_ADMIN", status: "active" })
+    );
+    await assertFails(
+      setDoc(doc(admin(), "staffInvites", "someone@example.com"), { role: "ADMIN", status: "active" })
+    );
+    await assertFails(
+      setDoc(doc(admin(), "staffInvites", "someone@example.com"), { role: "COLLECTION_AGENT", status: "active" })
+    );
+  });
+
+  it("denies even a SUPER_ADMIN writing or reading it directly", async () => {
+    await assertFails(getDoc(doc(superAdmin(), "staffInvites", "staff@example.com")));
+    await assertFails(
+      setDoc(doc(superAdmin(), "staffInvites", "new@example.com"), { role: "ADMIN", status: "active" })
+    );
+  });
+
+  it("denies a revoked staff member deleting their own revocation", async () => {
+    await assertFails(deleteDoc(doc(admin(), "staffInvites", "staff@example.com")));
+    await assertFails(
+      updateDoc(doc(admin(), "staffInvites", "staff@example.com"), { status: "active" })
+    );
+  });
+});
+
+describe("role escalation through the users collection", () => {
+  it("denies a customer adding a role to their own profile update", async () => {
+    // The users document mirrors the role for listing/auditing, and
+    // syncMyRole trusts it as a fallback for legacy staff accounts —
+    // which is only safe because a client can never write that field.
+    await assertFails(updateDoc(doc(customerA(), "users", CUSTOMER_A), { role: "SUPER_ADMIN" }));
+    await assertFails(updateDoc(doc(customerA(), "users", CUSTOMER_A), { status: "active", role: "ADMIN" }));
+  });
+
+  it("denies a customer adding a hierarchy chain to their own profile", async () => {
+    await assertFails(updateDoc(doc(customerA(), "users", CUSTOMER_A), { superAdminId: CUSTOMER_A }));
+    await assertFails(updateDoc(doc(customerA(), "users", CUSTOMER_A), { adminId: CUSTOMER_A }));
+  });
+
+  it("denies an ADMIN writing a role onto another user's document", async () => {
+    await assertFails(updateDoc(doc(admin(), "users", CUSTOMER_A), { role: "ADMIN" }));
+  });
+
+  it("still allows a customer their ordinary profile edits", async () => {
+    await assertSucceeds(updateDoc(doc(customerA(), "users", CUSTOMER_A), { name: "A Updated" }));
   });
 });

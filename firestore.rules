@@ -247,6 +247,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Email-keyed staff role assignments. This is the collection that
+    // decides who is an admin, so it is Cloud-Function-only in BOTH
+    // directions: written exclusively by upsertStaffMember /
+    // revokeStaffMember / createTeamMember (Admin SDK, which bypasses
+    // rules), and never read directly by a client — the Admin & Staff
+    // screen lists it through the getStaffDirectory callable, which
+    // applies the caller's hierarchy scope in trusted code. A client
+    // being able to write here would be a direct path to self-granting
+    // a role at next sign-in, so nothing short of `false` is safe.
+    match /staffInvites/{email} { allow read, write: if false; }
+
     // ---------- Internal / staff-only ----------
     match /roles/{id} { allow read: if isOwner(id) || isStaff(); allow write: if false; }
     match /permissions/{id} { allow read: if isStaff(); allow write: if false; }

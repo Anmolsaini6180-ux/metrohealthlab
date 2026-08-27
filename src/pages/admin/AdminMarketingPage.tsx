@@ -44,7 +44,7 @@ export default function AdminMarketingPage() {
     <div style={{ display: "grid", gap: "var(--space-lg)" }}>
       <h1 style={{ fontSize: "var(--text-xl)" }}>Marketing</h1>
 
-      <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+      <div className="mh-stat-grid">
         {MODULES.map((m) => (
           <Link key={m.to} to={m.to} className="card mh-quick-action">
             <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>{m.icon}</span>
@@ -66,7 +66,7 @@ export default function AdminMarketingPage() {
       {error && <ErrorState message={error} />}
 
       {!loading && !error && (
-        <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+        <div className="mh-stat-grid">
           <Stat label="Active campaigns" value={activeCampaigns} />
           <Stat label="Active offers" value={activeOffers} />
           <Stat label="Coupon usage (all-time)" value={couponUsage} />

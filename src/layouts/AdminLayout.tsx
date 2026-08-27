@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { to: "/admin/content/articles", label: "Articles", icon: "article", roles: CAN_MANAGE_CATALOG },
   { to: "/admin/content/media", label: "Media library", icon: "photo_library", roles: CAN_MANAGE_CATALOG },
   { to: "/admin/settings/branding", label: "Branding", icon: "storefront", roles: CAN_MANAGE_CATALOG },
-  { to: "/admin/team", label: "Team", icon: "groups", roles: CAN_MANAGE_TEAM },
+  { to: "/admin/settings/staff", label: "Admin & Staff", icon: "admin_panel_settings", roles: CAN_MANAGE_TEAM },
   { to: "/admin/team/performance", label: "Team Performance", icon: "insights", roles: CAN_VIEW_ANALYTICS },
   { to: "/agent", label: "My Collections", icon: "local_shipping", roles: ["COLLECTION_AGENT"] },
   { to: "/admin/security/audit-logs", label: "Audit Logs", icon: "history", roles: ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN"] },

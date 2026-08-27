@@ -1,3 +1,9 @@
 node_modules
 lib
 *.log
+
+# Runtime configuration. Never commit a real .env — the template is
+# .env.example, which is deliberately tracked.
+.env
+.env.*
+!.env.example

@@ -57,7 +57,7 @@ export default function HomePage() {
           <EmptyState icon="category" title="No categories yet" description="Add testCategories in Firestore to populate this section." />
         )}
         {categories.data && categories.data.length > 0 && (
-          <div className="card-grid">
+          <div className="card-grid card-grid--compact">
             {categories.data.map((c) => (
               <Link key={c.id} to={`/tests?category=${c.id}`} className="card" style={{ textAlign: "center" }}>
                 <span className="mi" style={{ fontSize: 28, color: "var(--color-primary)" }}>

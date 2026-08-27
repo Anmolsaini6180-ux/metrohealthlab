@@ -382,7 +382,7 @@ export default function BookingFlowPage() {
         <section style={{ display: "grid", gap: "var(--space-md)" }}>
           <div>
             <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Date</h2>
-            <div style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto" }}>
+            <div className="mh-chip-row" style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto" }}>
               {nextSevenDays.map((d) => (
                 <button
                   key={d}

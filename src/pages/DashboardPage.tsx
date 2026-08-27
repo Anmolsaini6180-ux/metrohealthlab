@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
+import { adminHomePathForRole, adminMenuLabelForRole } from "@/utils/roleAccess";
 import { useAsync } from "@/hooks/useAsync";
 import { useUnreadNotificationsCount } from "@/hooks/useUnreadNotificationsCount";
 import { getUserBookings } from "@/services/bookingService";
@@ -38,6 +40,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
+  const { role } = useAdminRole();
   const bookings = useAsync(() => (user ? getUserBookings(user.uid) : Promise.resolve([])), [user?.uid]);
   const reports = useAsync(() => (user ? getUserReports(user.uid) : Promise.resolve([])), [user?.uid]);
   const unreadCount = useUnreadNotificationsCount();
@@ -78,7 +81,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+      <div className="mh-stat-grid">
         <div className="mh-stat-card">
           <div className="mh-stat-card__value">{stats.upcoming}</div>
           <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Upcoming bookings</p>
@@ -97,7 +100,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+      <div className="mh-stat-grid">
         <Link to="/tests" className="card mh-quick-action">
           <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>science</span>
           Book a Test
@@ -114,6 +117,16 @@ export default function DashboardPage() {
           <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>description</span>
           My Reports
         </Link>
+        {/* Staff only — driven by the role custom claim on the ID
+            token, so a normal customer never sees it. Hiding it is a
+            convenience; AdminProtectedRoute and firestore.rules are
+            what actually deny access to /admin. */}
+        {adminHomePathForRole(role) && (
+          <Link to={adminHomePathForRole(role)!} className="card mh-quick-action">
+            <span className="mi" style={{ fontSize: 26, color: "var(--color-accent)" }}>admin_panel_settings</span>
+            {adminMenuLabelForRole(role)}
+          </Link>
+        )}
       </div>
 
       {unreadCount > 0 && (

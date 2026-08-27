@@ -179,7 +179,7 @@ export default function AdminDashboardPage() {
 
       {bookings.data && (
         <>
-          <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+          <div className="mh-stat-grid">
             <Stat label="Total bookings" value={stats.total} />
             <Stat label="Completed" value={stats.completed} />
             <Stat label="Pending" value={stats.pending} />

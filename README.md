@@ -437,12 +437,42 @@ the Firebase ID token's **custom claims**, the same source
 "what can I see" therefore can't drift from what's actually enforced.
 
 Roles: `SUPER_ADMIN` → `ADMIN` → `SUB_ADMIN` → `COLLECTION_AGENT`. Each
-can only create the role below it (`CREATABLE_ROLES` in
+can only assign a role strictly below it (`CREATABLE_ROLES` in
 `functions/src/roleClaims.ts`), and claims are only ever written by the
-`createTeamMember` Cloud Function via the Admin SDK — there is no client
-write path that can grant or escalate a role.
+Admin SDK inside a Cloud Function — there is no client write path that
+can grant or escalate a role.
 
 Collection agents get their own area at `/agent`.
+
+### Who becomes an admin
+
+There is exactly one bootstrap input, and it is server-side
+configuration rather than a secret: **`MASTER_ADMIN_EMAIL`**, declared as
+a plain deploy parameter in `functions/src/masterAdmin.ts`. Whoever signs
+in (Google or email/password) with that address is granted `SUPER_ADMIN`
+by the `syncMyRole` Cloud Function, which the app awaits on every
+sign-in. Nothing else in the system can ever produce a `SUPER_ADMIN` —
+not even an existing one.
+
+Everyone else is added by email from **Admin → Settings → Admin & Staff**:
+
+1. A `SUPER_ADMIN` enters someone's Google/email address and picks
+   `ADMIN`, `SUB_ADMIN` or `COLLECTION_AGENT`.
+2. `upsertStaffMember` re-checks the caller's own role from their signed
+   token, refuses anything at or above it, and writes the assignment to
+   `staffInvites/{email}` — a collection closed to all clients in
+   `firestore.rules`, in both directions.
+3. When that person signs in, `syncMyRole` resolves the assignment into
+   a real custom claim on their ID token. If they already have an
+   account, the role is applied immediately instead.
+4. Removing access clears the claim, revokes their refresh tokens, and
+   marks the assignment revoked, so signing in again cannot restore it.
+
+Because the decision is made from the verified email inside the caller's
+own ID token and written with the Admin SDK, no amount of frontend
+state, `localStorage` editing, URL fiddling or Firestore writing can
+grant a role. There is no bootstrap secret and no Secret Manager
+dependency anywhere in this path.
 
 ### Media and reports — no console step
 

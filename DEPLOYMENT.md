@@ -121,7 +121,6 @@ firebase use metro-health-0001
 firebase functions:secrets:set RAZORPAY_KEY_ID
 firebase functions:secrets:set RAZORPAY_KEY_SECRET
 firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET
-firebase functions:secrets:set SUPER_ADMIN_BOOTSTRAP_SECRET
 
 firebase functions:secrets:set CLOUDINARY_CLOUD_NAME
 firebase functions:secrets:set CLOUDINARY_API_KEY
@@ -206,7 +205,7 @@ Useful commands:
 | `RAZORPAY_KEY_ID` | Firebase Secret Manager | Server only |
 | `RAZORPAY_KEY_SECRET` | Firebase Secret Manager | **Secret** |
 | `RAZORPAY_WEBHOOK_SECRET` | Firebase Secret Manager | **Secret** |
-| `SUPER_ADMIN_BOOTSTRAP_SECRET` | Firebase Secret Manager | **Secret** |
+| `MASTER_ADMIN_EMAIL` | Functions deploy param (`functions/.env`, or the committed default in `functions/src/masterAdmin.ts`) | Not a secret — it's an identity, not a credential. **Backend only; never mirror it into a `VITE_*` variable.** |
 | `CLOUDINARY_CLOUD_NAME` | Firebase Secret Manager | Sent to the browser during signed upload |
 | `CLOUDINARY_API_KEY` | Firebase Secret Manager | Sent to the browser during signed upload |
 | `CLOUDINARY_API_SECRET` | Firebase Secret Manager | **Secret — never leaves the server** |

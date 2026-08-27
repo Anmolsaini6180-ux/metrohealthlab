@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
+import { adminHomePathForRole, adminMenuLabelForRole } from "@/utils/roleAccess";
 import { logout } from "@/services/authService";
 
 const LINKS = [
@@ -60,10 +61,14 @@ export default function ProfilePage() {
             {l.label}
           </Link>
         ))}
-        {role && (
-          <Link to={role === "COLLECTION_AGENT" ? "/agent" : "/admin"} className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+        {/* Shown only when the ID token actually carries a staff role
+            claim. A normal customer never sees this — and if they
+            navigated to /admin directly anyway, AdminProtectedRoute and
+            firestore.rules would both refuse them. */}
+        {adminHomePathForRole(role) && (
+          <Link to={adminHomePathForRole(role)!} className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
             <span className="mi" style={{ color: "var(--color-accent)" }}>admin_panel_settings</span>
-            {role === "COLLECTION_AGENT" ? "My Collections" : "Admin Dashboard"}
+            {adminMenuLabelForRole(role)}
           </Link>
         )}
       </div>

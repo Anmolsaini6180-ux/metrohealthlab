@@ -3,7 +3,8 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./admin";
 import { writeAuditLogDirect } from "./audit";
-import { CREATABLE_ROLES, getCallerClaims, type AdminRole } from "./roleClaims";
+import { buildOwnershipChain, CREATABLE_ROLES, getCallerClaims, type AdminRole } from "./roleClaims";
+import { assertValidStaffEmail } from "./staffRoles";
 
 interface CreateTeamMemberInput {
   name: string;
@@ -30,6 +31,9 @@ export const createTeamMember = onCall<CreateTeamMemberInput>(async (request) =>
   if (!CREATABLE_ROLES[caller.role].includes(input.role)) {
     throw new HttpsError("permission-denied", `A ${caller.role} cannot create a ${input.role}.`);
   }
+  // Normalized (lower-cased, trimmed) so this account and any
+  // email-keyed assignment for the same person resolve to one record.
+  const email = assertValidStaffEmail(input.email);
 
   const callerUid = request.auth!.uid;
   const auth = getAuth();
@@ -37,7 +41,7 @@ export const createTeamMember = onCall<CreateTeamMemberInput>(async (request) =>
   let newUser;
   try {
     newUser = await auth.createUser({
-      email: input.email,
+      email,
       password: input.temporaryPassword,
       displayName: input.name,
     });
@@ -45,27 +49,16 @@ export const createTeamMember = onCall<CreateTeamMemberInput>(async (request) =>
     throw new HttpsError("already-exists", "Could not create this account — the email may already be in use.");
   }
 
-  // Denormalized ownership chain: every level carries every ancestor's
-  // uid (not just its direct parent), so hierarchy-scoped rules/queries
-  // never need a recursive lookup.
-  const chain: Record<string, string> = {};
-  if (input.role === "ADMIN") {
-    chain.superAdminId = callerUid;
-  } else if (input.role === "SUB_ADMIN") {
-    chain.superAdminId = caller.role === "SUPER_ADMIN" ? callerUid : caller.superAdminId ?? "";
-    chain.adminId = caller.role === "ADMIN" ? callerUid : caller.adminId ?? "";
-  } else if (input.role === "COLLECTION_AGENT") {
-    chain.superAdminId = caller.role === "SUPER_ADMIN" ? callerUid : caller.superAdminId ?? "";
-    chain.adminId = caller.role === "ADMIN" ? callerUid : caller.adminId ?? "";
-    chain.subAdminId = caller.role === "SUB_ADMIN" ? callerUid : caller.subAdminId ?? "";
-  }
+  // Denormalized ownership chain — same helper the email-invite path
+  // uses, so the two ways of provisioning staff can't drift apart.
+  const chain = buildOwnershipChain(callerUid, caller, input.role);
 
   await auth.setCustomUserClaims(newUser.uid, { role: input.role, ...chain });
 
   await db.collection("users").doc(newUser.uid).set({
     uid: newUser.uid,
     name: input.name,
-    email: input.email,
+    email,
     phone: input.phone ?? null,
     role: input.role,
     status: "active",
@@ -75,13 +68,31 @@ export const createTeamMember = onCall<CreateTeamMemberInput>(async (request) =>
     updatedAt: FieldValue.serverTimestamp(),
   });
 
+  // Mirror into the email-keyed staff directory so accounts created
+  // this way show up alongside email invites in Admin & Staff, and can
+  // be re-roled or revoked through the same endpoints.
+  await db.collection("staffInvites").doc(email).set({
+    email,
+    name: input.name,
+    ...(input.phone ? { phone: input.phone } : {}),
+    role: input.role,
+    status: "active",
+    superAdminId: chain.superAdminId ?? "",
+    adminId: chain.adminId ?? "",
+    subAdminId: chain.subAdminId ?? "",
+    uid: newUser.uid,
+    invitedBy: callerUid,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
   await writeAuditLogDirect({
     action: "team.member_created",
     actorType: "staff",
     actorId: callerUid,
     targetType: "user",
     targetId: newUser.uid,
-    metadata: { role: input.role, email: input.email },
+    metadata: { role: input.role, email },
   });
 
   return { uid: newUser.uid };

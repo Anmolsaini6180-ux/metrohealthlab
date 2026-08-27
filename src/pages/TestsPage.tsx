@@ -34,7 +34,7 @@ export default function TestsPage() {
 
       {categories.data && categories.data.length > 0 && (
         <div
-          className="mh-scroll"
+          className="mh-chip-row"
           style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto", marginBottom: "var(--space-md)" }}
         >
           <button

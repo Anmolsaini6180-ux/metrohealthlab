@@ -25,7 +25,7 @@ export default function AdminSegmentsPage() {
               </p>
             </div>
           )}
-          <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+          <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 260px))" }}>
             {result.data.segments.map((s) => (
               <div key={s.key} className="mh-stat-card">
                 <div className="mh-stat-card__value" style={{ fontSize: "var(--text-xl)" }}>{s.count}</div>

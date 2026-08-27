@@ -22,8 +22,13 @@ export { assignBooking, updateBookingStatus } from "./adminBookingActions";
 export { getAdminBookings, getTeamMembers, getLeads, getCustomerSegments } from "./adminQueries";
 export { getTeamPerformance } from "./adminPerformance";
 export { getAuditLogs } from "./adminAuditLogs";
-export { bootstrapSuperAdmin } from "./bootstrap";
-export { checkOwnerAutoGrant, grantOwnerSuperAdmin } from "./ownerAutoGrant";
+// Master-admin + staff role assignment. Replaces the old
+// bootstrapSuperAdmin / checkOwnerAutoGrant pair: the first (and only)
+// SUPER_ADMIN is now whoever signs in with MASTER_ADMIN_EMAIL, and
+// everyone else gets their role from an email-keyed assignment that a
+// SUPER_ADMIN makes in Admin -> Settings -> Admin & Staff. No bootstrap
+// secret, and therefore no Secret Manager dependency, is involved.
+export { syncMyRole, upsertStaffMember, revokeStaffMember, getStaffDirectory } from "./staffRoles";
 export { seedStarterCatalog } from "./seedStarterCatalog";
 export { getAdminCustomers, getCustomerDetail } from "./adminCustomers";
 export { sendAdminNotification } from "./adminNotifications";

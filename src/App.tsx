@@ -63,7 +63,6 @@ import AdminTeamPerformancePage from "@/pages/admin/AdminTeamPerformancePage";
 import AgentProtectedRoute from "@/components/common/AgentProtectedRoute";
 import AgentDashboardPage from "@/pages/AgentDashboardPage";
 import AdminAuditLogsPage from "@/pages/admin/AdminAuditLogsPage";
-import SetupSuperAdminPage from "@/pages/SetupSuperAdminPage";
 
 export default function App() {
   return (
@@ -87,7 +86,6 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/setup/super-admin" element={<SetupSuperAdminPage />} />
 
         <Route
           path="/dashboard"
@@ -235,6 +233,9 @@ export default function App() {
         <Route path="content/media" element={<AdminMediaPage />} />
         <Route path="settings/branding" element={<AdminBrandingSettingsPage />} />
         <Route path="team" element={<AdminTeamPage />} />
+        {/* Settings -> Admin & Staff. Same screen as /admin/team, which
+            stays valid so existing links and bookmarks keep working. */}
+        <Route path="settings/staff" element={<AdminTeamPage />} />
         <Route path="team/performance" element={<AdminTeamPerformancePage />} />
         <Route path="security/audit-logs" element={<AdminAuditLogsPage />} />
       </Route>

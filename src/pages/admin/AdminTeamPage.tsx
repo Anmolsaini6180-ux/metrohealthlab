@@ -1,68 +1,95 @@
 import { useMemo, useState } from "react";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
-import { createTeamMember, getTeamMembers, updateTeamMemberStatus } from "@/services/adminTeamService";
-import { CREATABLE_ROLES, type AdminRole, type TeamMember } from "@/types/team";
-import TeamTree from "@/components/admin/TeamTree";
+import {
+  createTeamMember,
+  getStaffDirectory,
+  getTeamMembers,
+  revokeStaffMember,
+  updateTeamMemberStatus,
+  upsertStaffMember,
+} from "@/services/adminTeamService";
+import type { AdminRole, StaffDirectoryEntry } from "@/types/team";
+import { assignableRoles, ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/utils/roleAccess";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
-import StatusBadge from "@/components/admin/StatusBadge";
+import TeamTree from "@/components/admin/TeamTree";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import { toUserMessage } from "@/utils/errors";
 import { useToast } from "@/hooks/useToast";
 
-const ROLES: AdminRole[] = ["ADMIN", "SUB_ADMIN", "COLLECTION_AGENT"];
+const ALL_ROLES: AdminRole[] = ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN", "COLLECTION_AGENT"];
 
+// Admin & Staff management. Everything on this screen is a thin shell
+// over Cloud Function calls — upsertStaffMember / revokeStaffMember /
+// getStaffDirectory — each of which re-derives the caller's own role
+// from their signed ID token and enforces the hierarchy itself. What
+// this page shows or hides is convenience; it is never the boundary.
 export default function AdminTeamPage() {
   const { role } = useAdminRole();
   const { showToast } = useToast();
-  const members = useAsync(() => getTeamMembers(), []);
+  const staff = useAsync(() => getStaffDirectory(), []);
   const [showForm, setShowForm] = useState(false);
-  const [pendingDeactivation, setPendingDeactivation] = useState<TeamMember | null>(null);
+  const [pendingRevoke, setPendingRevoke] = useState<StaffDirectoryEntry | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  const creatable = role ? CREATABLE_ROLES[role] : [];
+  const creatable = assignableRoles(role);
 
   const filtered = useMemo(() => {
-    let list = members.data ?? [];
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter((m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q));
+    let list = staff.data ?? [];
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (m) => m.email.toLowerCase().includes(q) || (m.name ?? "").toLowerCase().includes(q)
+      );
     }
     if (roleFilter) list = list.filter((m) => m.role === roleFilter);
-    if (statusFilter) list = list.filter((m) => m.status === statusFilter);
+    if (statusFilter === "pending") list = list.filter((m) => m.pending && m.status === "active");
+    else if (statusFilter) list = list.filter((m) => m.status === statusFilter);
     return list;
-  }, [members.data, search, roleFilter, statusFilter]);
+  }, [staff.data, search, roleFilter, statusFilter]);
 
-  function handleToggleStatus(uid: string, current: "active" | "inactive") {
-    if (current === "active") {
-      // Deactivating is the destructive direction — confirm first.
-      const member = (members.data ?? []).find((m) => m.uid === uid);
-      if (member) setPendingDeactivation(member);
-      return;
+  async function handleRoleChange(member: StaffDirectoryEntry, nextRole: AdminRole) {
+    if (nextRole === member.role) return;
+    setRowBusy(member.email);
+    try {
+      await upsertStaffMember({ email: member.email, name: member.name, role: nextRole });
+      showToast(`${member.email} is now ${ROLE_LABELS[nextRole]}.`);
+      staff.retry();
+    } catch (err) {
+      showToast(toUserMessage(err), "error");
+    } finally {
+      setRowBusy(null);
     }
-    // Reactivating isn't destructive — no confirmation needed.
-    updateTeamMemberStatus(uid, "active")
-      .then(() => {
-        showToast(`${(members.data ?? []).find((m) => m.uid === uid)?.name ?? "Team member"} reactivated.`);
-        members.retry();
-      })
-      .catch((err) => showToast(toUserMessage(err), "error"));
   }
 
-  async function handleConfirmDeactivate() {
-    if (!pendingDeactivation) return;
+  async function handleReactivate(member: StaffDirectoryEntry) {
+    setRowBusy(member.email);
+    try {
+      await upsertStaffMember({ email: member.email, name: member.name, role: member.role });
+      showToast(`${member.email} reactivated.`);
+      staff.retry();
+    } catch (err) {
+      showToast(toUserMessage(err), "error");
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  async function handleConfirmRevoke() {
+    if (!pendingRevoke) return;
     setConfirmBusy(true);
     try {
-      await updateTeamMemberStatus(pendingDeactivation.uid, "inactive");
-      showToast(`${pendingDeactivation.name} deactivated.`);
-      setPendingDeactivation(null);
-      members.retry();
+      await revokeStaffMember(pendingRevoke.email);
+      showToast(`Admin access removed for ${pendingRevoke.email}.`);
+      setPendingRevoke(null);
+      staff.retry();
     } catch (err) {
       showToast(toUserMessage(err), "error");
     } finally {
@@ -72,97 +99,202 @@ export default function AdminTeamPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
-        <h1 style={{ fontSize: "var(--text-xl)" }}>Team</h1>
+      <div className="mh-page-head">
+        <div>
+          <h1 style={{ fontSize: "var(--text-xl)" }}>Admin &amp; Staff</h1>
+          <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginTop: 4 }}>
+            Add someone by their Google/email address and pick a role. They sign in normally and land
+            straight in the admin dashboard with exactly that role's permissions.
+          </p>
+        </div>
         {creatable.length > 0 && (
           <button className="btn btn-primary" onClick={() => setShowForm((s) => !s)}>
-            {showForm ? "Cancel" : "+ Add team member"}
+            {showForm ? "Cancel" : "+ Add staff member"}
           </button>
         )}
       </div>
 
       {showForm && creatable.length > 0 && (
-        <CreateTeamMemberForm
+        <AddStaffForm
           creatableRoles={creatable}
-          onCreated={() => {
+          onDone={() => {
             setShowForm(false);
-            members.retry();
+            staff.retry();
           }}
         />
       )}
 
-      <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", marginBottom: "var(--space-md)" }}>
+      <div className="mh-filter-row">
         <input
           placeholder="Search name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 180, padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+          style={{ flex: "1 1 220px", minWidth: 180 }}
         />
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} style={{ flex: "0 1 180px" }}>
           <option value="">All roles</option>
-          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          {ALL_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS[r]}
+            </option>
+          ))}
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>
-          <option value="">Active & inactive</option>
-          <option value="active">Active only</option>
-          <option value="inactive">Inactive only</option>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ flex: "0 1 180px" }}>
+          <option value="">Any status</option>
+          <option value="active">Active</option>
+          <option value="pending">Pending first sign-in</option>
+          <option value="revoked">Access removed</option>
         </select>
       </div>
 
-      {members.loading && <LoadingState rows={3} />}
-      {members.error && <ErrorState message={members.error} onRetry={members.retry} />}
-      {members.data && filtered.length === 0 && <EmptyState icon="groups" title="No team members match" />}
-      {filtered.length > 0 && (search || roleFilter || statusFilter) && (
-        <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-          {filtered.map((m) => (
-            <div key={m.uid} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <p style={{ fontWeight: 600 }}>{m.name} <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>({m.role})</span></p>
-                <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{m.email}{m.phone ? ` • ${m.phone}` : ""}</p>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <StatusBadge status={m.status} />
-                <button className="btn btn-outline" onClick={() => handleToggleStatus(m.uid, m.status)}>
-                  {m.status === "active" ? "Deactivate" : "Activate"}
-                </button>
-              </div>
-            </div>
-          ))}
+      {staff.loading && <LoadingState rows={3} />}
+      {staff.error && <ErrorState message={staff.error} onRetry={staff.retry} />}
+      {staff.data && filtered.length === 0 && (
+        <EmptyState icon="groups" title="No staff match these filters" />
+      )}
+
+      {filtered.length > 0 && (
+        <div className="mh-scroll-x">
+          <table className="mh-table">
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((m) => {
+                // The master admin's access comes from the server's
+                // MASTER_ADMIN_EMAIL setting, so there is nothing here
+                // to edit — the server refuses these calls for that
+                // address regardless of what the UI renders.
+                const editable = !m.isMasterAdmin && assignableRoles(role).includes(m.role);
+                const busy = rowBusy === m.email;
+                return (
+                  <tr key={m.email}>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>{m.name || m.email}</span>
+                      {m.name && (
+                        <>
+                          <br />
+                          <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{m.email}</span>
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      {editable ? (
+                        <select
+                          value={m.role}
+                          disabled={busy}
+                          onChange={(e) => handleRoleChange(m, e.target.value as AdminRole)}
+                          aria-label={`Role for ${m.email}`}
+                        >
+                          {assignableRoles(role).map((r) => (
+                            <option key={r} value={r}>
+                              {ROLE_LABELS[r]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="mh-pill">{ROLE_LABELS[m.role]}</span>
+                      )}
+                    </td>
+                    <td>
+                      {m.isMasterAdmin ? (
+                        <span className="mh-pill mh-pill--info">Master admin</span>
+                      ) : m.status === "revoked" ? (
+                        <span className="mh-pill mh-pill--danger">Access removed</span>
+                      ) : m.pending ? (
+                        <span className="mh-pill mh-pill--warn">Pending first sign-in</span>
+                      ) : (
+                        <span className="mh-pill mh-pill--ok">Active</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      {m.isMasterAdmin ? (
+                        <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+                          Configured server-side
+                        </span>
+                      ) : m.status === "revoked" ? (
+                        <button className="btn btn-outline" disabled={busy || !editable} onClick={() => handleReactivate(m)}>
+                          Restore access
+                        </button>
+                      ) : (
+                        <button className="btn btn-danger" disabled={busy || !editable} onClick={() => setPendingRevoke(m)}>
+                          Remove access
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
-      {filtered.length > 0 && !(search || roleFilter || statusFilter) && (
-        <TeamTree members={filtered} onToggleStatus={handleToggleStatus} />
-      )}
-      {pendingDeactivation && (
+
+      <ReportingHierarchy />
+
+      {pendingRevoke && (
         <ConfirmDialog
-          title="Deactivate team member?"
-          message={`${pendingDeactivation.name} will no longer be able to sign in. You can reactivate them anytime.`}
-          confirmLabel="Deactivate"
+          title="Remove admin access?"
+          message={`${pendingRevoke.email} will lose their ${ROLE_LABELS[pendingRevoke.role]} role. Their sign-in session is ended immediately and signing in again will not restore it. You can grant access again later.`}
+          confirmLabel="Remove access"
           busy={confirmBusy}
-          onConfirm={handleConfirmDeactivate}
-          onCancel={() => setPendingDeactivation(null)}
+          onConfirm={handleConfirmRevoke}
+          onCancel={() => setPendingRevoke(null)}
         />
       )}
     </div>
   );
 }
 
-function CreateTeamMemberForm({ creatableRoles, onCreated }: { creatableRoles: AdminRole[]; onCreated: () => void }) {
+// One form, two provisioning paths. Leaving the password field empty
+// is the normal case: the person just signs in with Google and the
+// role is applied on the spot. Filling it in creates a Firebase Auth
+// account with that password too, for staff who don't have (or won't
+// use) a Google account — the pre-existing createTeamMember flow.
+function AddStaffForm({ creatableRoles, onDone }: { creatableRoles: AdminRole[]; onDone: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<AdminRole>(creatableRoles[0]);
   const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [withPassword, setWithPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      await createTeamMember({ name, email, phone: phone || undefined, role, temporaryPassword });
-      onCreated();
+      if (withPassword) {
+        await createTeamMember({
+          name,
+          email,
+          phone: phone || undefined,
+          role,
+          temporaryPassword,
+        });
+      } else {
+        const result = await upsertStaffMember({
+          email,
+          name: name || undefined,
+          phone: phone || undefined,
+          role,
+        });
+        if (result.pending) {
+          setNotice(
+            `${result.email} will get ${ROLE_LABELS[role]} access the first time they sign in with this email.`
+          );
+        }
+      }
+      onDone();
     } catch (err) {
       setError(toUserMessage(err));
     } finally {
@@ -171,27 +303,110 @@ function CreateTeamMemberForm({ creatableRoles, onCreated }: { creatableRoles: A
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
-      <input placeholder="Full name" required value={name} onChange={(e) => setName(e.target.value)} />
-      <input type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-      <input placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      <select value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
-        {creatableRoles.map((r) => (
-          <option key={r} value={r}>{r}</option>
-        ))}
-      </select>
-      <input
-        type="text"
-        placeholder="Temporary password (share with them securely)"
-        required
-        minLength={6}
-        value={temporaryPassword}
-        onChange={(e) => setTemporaryPassword(e.target.value)}
-      />
-      {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy}>
-        {busy ? "Creating..." : "Create account"}
-      </button>
+    <form className="card mh-form-grid" onSubmit={handleSubmit}>
+      <label>
+        Email (their Google / sign-in address)
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
+      <label>
+        Full name {withPassword ? "" : "(optional)"}
+        <input required={withPassword} value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label>
+        Phone (optional)
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </label>
+      <label>
+        Role
+        <select value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
+          {creatableRoles.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS[r]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="text-soft" style={{ fontSize: "var(--text-xs)", gridColumn: "1 / -1" }}>
+        {ROLE_DESCRIPTIONS[role]}
+      </p>
+
+      <label style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={withPassword}
+          onChange={(e) => setWithPassword(e.target.checked)}
+        />
+        <span style={{ fontSize: "var(--text-sm)" }}>
+          They don't use Google sign-in — create an email/password account instead
+        </span>
+      </label>
+      {withPassword && (
+        <label style={{ gridColumn: "1 / -1" }}>
+          Temporary password (share it with them securely)
+          <input
+            type="text"
+            required
+            minLength={6}
+            value={temporaryPassword}
+            onChange={(e) => setTemporaryPassword(e.target.value)}
+          />
+        </label>
+      )}
+
+      {error && (
+        <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", gridColumn: "1 / -1" }}>{error}</p>
+      )}
+      {notice && (
+        <p style={{ color: "var(--color-success)", fontSize: "var(--text-sm)", gridColumn: "1 / -1" }}>{notice}</p>
+      )}
+      <div style={{ gridColumn: "1 / -1" }}>
+        <button className="btn btn-primary" type="submit" disabled={busy}>
+          {busy ? "Saving..." : withPassword ? "Create account" : "Grant access"}
+        </button>
+      </div>
     </form>
+  );
+}
+
+// The pre-existing reporting-hierarchy view, kept intact. It reads the
+// users collection through getTeamMembers (hierarchy-scoped
+// server-side) rather than the email-keyed directory above, because
+// only accounts that actually exist have a uid to hang a tree off.
+// Deactivating from here disables the Firebase Auth account itself —
+// a stronger action than removing the admin role, which is why both
+// controls exist.
+function ReportingHierarchy() {
+  const { showToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const members = useAsync(() => (open ? getTeamMembers() : Promise.resolve([])), [open]);
+
+  function handleToggleStatus(uid: string, current: "active" | "inactive") {
+    const next = current === "active" ? "inactive" : "active";
+    updateTeamMemberStatus(uid, next)
+      .then(() => {
+        showToast(next === "active" ? "Account reactivated." : "Account deactivated.");
+        members.retry();
+      })
+      .catch((err) => showToast(toUserMessage(err), "error"));
+  }
+
+  return (
+    <section style={{ marginTop: "var(--space-lg)" }}>
+      <button className="btn btn-outline" onClick={() => setOpen((o) => !o)}>
+        {open ? "Hide reporting hierarchy" : "Show reporting hierarchy"}
+      </button>
+      {open && (
+        <div style={{ marginTop: "var(--space-md)" }}>
+          {members.loading && <LoadingState rows={2} />}
+          {members.error && <ErrorState message={members.error} onRetry={members.retry} />}
+          {members.data && members.data.length === 0 && (
+            <EmptyState icon="account_tree" title="Nobody reports to you yet" />
+          )}
+          {members.data && members.data.length > 0 && (
+            <TeamTree members={members.data} onToggleStatus={handleToggleStatus} />
+          )}
+        </div>
+      )}
+    </section>
   );
 }

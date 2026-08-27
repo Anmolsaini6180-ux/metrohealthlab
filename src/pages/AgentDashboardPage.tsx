@@ -100,7 +100,7 @@ export default function AgentDashboardPage() {
 
       <DateRangePicker onChange={(r) => setCustomRange(r)} />
 
-      <div style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto" }}>
+      <div className="mh-chip-row" style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto" }}>
         {TABS.map((t) => (
           <button key={t} className={tab === t ? "btn btn-primary" : "btn btn-outline"} onClick={() => setTab(t)} style={{ whiteSpace: "nowrap" }}>
             {t}

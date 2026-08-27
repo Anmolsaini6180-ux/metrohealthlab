@@ -13,9 +13,23 @@ body {
   /* Guard against any single too-wide element (a long unbroken URL, a
      wide table) making the whole page scroll sideways — that's what
      makes a mobile layout look "broken" even when everything else is
-     correct. */
-  overflow-x: hidden;
+     correct.
+
+     `clip`, not `hidden`. `overflow-x: hidden` turns the element into a
+     scroll container, and a scroll-container ancestor silently kills
+     `position: sticky` on everything inside it — which is exactly what
+     was happening to the site header: it scrolled away with the page
+     at every width instead of staying pinned. `clip` does the same
+     visual job (nothing can be scrolled to horizontally) without
+     creating that scroll container, so sticky works again. */
+  overflow-x: clip;
   max-width: 100%;
+}
+
+/* The header is sticky, so an in-page anchor jump must stop short of
+   it — otherwise the heading it lands on sits underneath the header. */
+html {
+  scroll-padding-top: calc(var(--header-height) + var(--space-sm));
 }
 
 body {
@@ -806,4 +820,309 @@ h1, h2, h3 {
 /* --- Selection colour matches brand --- */
 ::selection {
   background: rgba(30, 75, 163, 0.15);
+}
+
+/* ============================================================
+   Laptop / desktop layer
+   ------------------------------------------------------------
+   The site was built mobile-first and reads well on a phone, but
+   several patterns that are right at 390px stop being right at
+   1366-1920px: an auto-fit grid with a 130px minimum turns four stat
+   tiles into four 300px-wide slabs; a body-copy column allowed to
+   reach the full 1280px container runs to ~180 characters a line; the
+   admin content area has no upper bound at all.
+
+   Everything below is a shared, reusable rule keyed off the
+   breakpoints already declared in tokens.css - no page-by-page
+   patching, no change to the brand's colours, type or spacing scale.
+   ============================================================ */
+
+/* ---------- Grids that must not stretch ----------
+   minmax(min, max) with auto-fit is the key: tracks grow to fill the
+   row but stop at a sensible maximum, so leftover width becomes empty
+   space at the end of the row instead of four absurdly wide cards.
+   Below the laptop breakpoint they behave exactly as before. */
+
+/* Small numeric tiles: KPI counters, quick actions, category chips. */
+.mh-stat-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+
+/* Medium tiles: category cards, compact summary cards. */
+.card-grid--compact {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+}
+
+@media (min-width: 1024px) {
+  .mh-stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 220px));
+  }
+
+  .card-grid--compact {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 200px));
+  }
+}
+
+/* ---------- Header at laptop widths ----------
+   Between 1024 and 1280 the desktop bar has to fit a logo, six nav
+   links, a search field and two icon buttons. Without min-width:0 the
+   search form refuses to shrink (flex items default to min-width:auto)
+   and the row overflows; with a slightly tighter nav gap in that band
+   everything fits without dropping any navigation. */
+.mh-header__search {
+  min-width: 0;
+}
+
+.mh-header__nav {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.mh-header__nav a {
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .mh-header__nav {
+    gap: var(--space-sm);
+    font-size: var(--text-sm);
+    margin-inline-start: var(--space-sm);
+  }
+
+  .mh-header__search {
+    max-width: 320px;
+  }
+}
+
+/* ---------- Admin shell ----------
+   The sidebar was a fixed 220px at every desktop size and scrolled
+   away with the page; the content area had no maximum width, so on a
+   1920px monitor a form field could stretch past 1600px. */
+@media (min-width: 1024px) {
+  .mh-admin-shell > aside {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .mh-admin-shell > main {
+    min-width: 0; /* let wide children scroll internally rather than push the grid */
+  }
+
+  /* Admin content is dense, form- and table-heavy: give it a generous
+     but finite column rather than letting one text input span the
+     whole screen. */
+  .mh-admin-shell > main > * {
+    max-width: 1400px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .mh-admin-shell {
+    grid-template-columns: 248px 1fr !important;
+  }
+}
+
+/* ---------- Admin page furniture ---------- */
+
+/* Title on the left, primary action on the right - wrapping to two
+   rows on narrow screens instead of squashing the heading. */
+.mh-page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.mh-page-head > :first-child {
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+/* Search + filter selects. Wraps on mobile, single row from tablet up,
+   and no control is allowed to grow to an absurd width on a big
+   monitor. */
+.mh-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  align-items: center;
+}
+
+.mh-filter-row > input,
+.mh-filter-row > select {
+  width: auto;
+  max-width: 100%;
+}
+
+/* Data tables. Always inside .mh-scroll-x so a wide table scrolls
+   itself instead of widening the page. */
+.mh-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  background: var(--color-surface);
+}
+
+.mh-table th,
+.mh-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-line);
+  vertical-align: middle;
+}
+
+.mh-table th {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+  background: var(--color-bg-tint);
+  white-space: nowrap;
+}
+
+.mh-table tr:last-child td {
+  border-bottom: none;
+}
+
+.mh-table select {
+  min-height: 36px;
+  padding: 4px 8px;
+  width: auto;
+  min-width: 150px;
+}
+
+.mh-table .btn {
+  min-height: 36px;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+/* Status pills. */
+.mh-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--color-bg-tint);
+  color: var(--color-primary-deep);
+}
+
+.mh-pill--ok {
+  background: rgba(26, 156, 107, 0.12);
+  color: var(--color-success);
+}
+
+.mh-pill--warn {
+  background: rgba(245, 165, 36, 0.16);
+  color: #8a5a00;
+}
+
+.mh-pill--danger {
+  background: rgba(214, 69, 69, 0.12);
+  color: var(--color-danger);
+}
+
+.mh-pill--info {
+  background: rgba(30, 75, 163, 0.12);
+  color: var(--color-primary);
+}
+
+/* Admin forms: stacked on mobile, two columns once there's room -
+   which is what stops a create form from looking like a phone screen
+   stretched across a laptop. */
+.mh-form-grid {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  grid-template-columns: 1fr;
+}
+
+.mh-form-grid label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .mh-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-md);
+  }
+}
+
+@media (min-width: 1280px) {
+  .mh-form-grid {
+    max-width: 900px;
+  }
+}
+
+/* ---------- Admin sign-in ---------- */
+.mh-admin-login {
+  width: 100%;
+  max-width: 400px;
+  margin: var(--space-xl) auto;
+  padding-inline: var(--space-md);
+}
+
+.mh-admin-login label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+}
+
+.mh-or-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-block: var(--space-md);
+  color: var(--color-ink-soft);
+  font-size: var(--text-xs);
+}
+
+.mh-or-divider::before,
+.mh-or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-line);
+}
+
+/* ---------- Horizontal chip/filter strips ----------
+   Several pages use an inline overflow-x:auto row of filter chips. On
+   a laptop they have room to simply wrap, which reads better than a
+   scroll region the user can't tell is scrollable. */
+@media (min-width: 1024px) {
+  .mh-chip-row {
+    flex-wrap: wrap;
+    overflow-x: visible !important;
+  }
+}
+
+/* ---------- Buttons ----------
+   Stop a long label from being clipped by a too-small flex basis while
+   still allowing wrapping where a button really is narrow. */
+.btn {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ---------- Modal / dialog on desktop ----------
+   Dialogs are fixed-position overlays; on a tall desktop screen a long
+   one has to be able to scroll rather than run off the top and bottom. */
+.mh-dialog-scroll {
+  max-height: calc(100vh - 2 * var(--space-lg));
+  overflow-y: auto;
 }

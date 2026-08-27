@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { logout } from "@/services/authService";
+import { adminHomePathForRole, adminMenuLabelForRole } from "@/utils/roleAccess";
 
 const MENU_LINKS = [
   { to: "/dashboard", label: "Dashboard", icon: "space_dashboard" },
@@ -74,10 +75,10 @@ export default function ProfileMenu() {
               role claim — hiding/showing this is UX convenience only;
               AdminProtectedRoute + firestore.rules are what actually
               stop an unauthorized user from reaching /admin. */}
-          {role && (
-            <Link to={role === "COLLECTION_AGENT" ? "/agent" : "/admin"} onClick={() => setOpen(false)}>
+          {adminHomePathForRole(role) && (
+            <Link to={adminHomePathForRole(role)!} onClick={() => setOpen(false)}>
               <span className="mi" style={{ fontSize: 18, color: "var(--color-accent)" }}>admin_panel_settings</span>
-              {role === "COLLECTION_AGENT" ? "My Collections" : "Admin Dashboard"}
+              {adminMenuLabelForRole(role)}
             </Link>
           )}
           <button onClick={handleLogout}>

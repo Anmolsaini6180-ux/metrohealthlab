@@ -51,8 +51,17 @@ export async function registerAndLoginWithEmail(
 
 export { resetPassword };
 
-export async function checkOwnerAutoGrant(): Promise<{ granted: boolean }> {
-  return callFunction<Record<string, never>, { granted: boolean }>("checkOwnerAutoGrant", {});
+// Resolves this account's staff role server-side and writes it into
+// their Firebase Auth custom claims. Called once per sign-in and
+// awaited before anything reads the ID token. Takes no arguments by
+// design: the function looks only at the verified uid and email inside
+// the caller's own token, so there is nothing for a client to forge.
+//
+// It is also what makes a role CHANGE or a REVOCATION take effect —
+// the claim is rewritten (or stripped) to match whatever the server
+// currently says, not whatever the old token happened to carry.
+export async function syncMyRole(): Promise<{ role: string | null }> {
+  return callFunction<Record<string, never>, { role: string | null }>("syncMyRole", {});
 }
 
 export { createRecaptchaVerifier, sendOtp };
