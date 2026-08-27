@@ -1,0 +1,109 @@
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useAsync } from "@/hooks/useAsync";
+import { getBookingById } from "@/services/bookingService";
+import { formatCurrencyInr } from "@/services/pricingService";
+import { usePaymentCheckout } from "@/hooks/usePaymentCheckout";
+import type { PaymentMethod } from "@/types/payment";
+import LoadingState from "@/components/common/LoadingState";
+import ErrorState from "@/components/common/ErrorState";
+import EmptyState from "@/components/common/EmptyState";
+
+const METHODS: PaymentMethod[] = ["upi", "card", "netbanking", "wallet"];
+
+export default function BookingDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const booking = useAsync(() => getBookingById(id!), [id]);
+  const paymentCheckout = usePaymentCheckout();
+  const [retryMethod, setRetryMethod] = useState<PaymentMethod>("upi");
+
+  if (booking.loading) return <LoadingState label="Loading booking..." />;
+  if (booking.error) return <ErrorState message={booking.error} onRetry={booking.retry} />;
+  if (!booking.data) return <EmptyState icon="search_off" title="Booking not found" />;
+
+  const b = booking.data;
+  // A booking left in payment_pending (payment never succeeded, or
+  // failed and the customer didn't retry immediately) is the only state
+  // that's ever safe/sensible to retry payment from.
+  const canRetryPayment = b.bookingStatus === "payment_pending" && b.paymentStatus !== "success";
+
+  async function handleRetry() {
+    const result = await paymentCheckout.pay(b.id, retryMethod, {
+      email: user?.email ?? undefined,
+      contact: user?.phoneNumber ?? undefined,
+    });
+    if (result.outcome === "success" || result.outcome === "delayed") {
+      navigate(`/track/${b.id}`);
+    } else {
+      booking.retry();
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gap: "var(--space-md)" }}>
+      <div>
+        <h1 style={{ fontSize: "var(--text-2xl)" }}>{b.id}</h1>
+        <p className="text-soft">{b.date} • {b.collectionType === "home" ? "Home collection" : "Center visit"}</p>
+      </div>
+
+      <div className="card">
+        {b.items.map((item, i) => (
+          <p key={i}>{item.name}</p>
+        ))}
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 4 }}>
+        <Row label="Subtotal" value={formatCurrencyInr(b.subtotal)} />
+        <Row label="Collection fee" value={formatCurrencyInr(b.collectionFee)} />
+        <Row label="Discount" value={`- ${formatCurrencyInr(b.discount)}`} />
+        <Row label="Total" value={formatCurrencyInr(b.finalAmount)} bold />
+        <Row label="Payment status" value={b.paymentStatus.replace(/_/g, " ")} />
+      </div>
+
+      {canRetryPayment && (
+        <div className="card" style={{ display: "grid", gap: "var(--space-sm)" }}>
+          <p style={{ fontWeight: 600 }}>Payment not completed yet</p>
+          <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+            Your booking is held — finish payment to confirm it.
+          </p>
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+            {METHODS.map((m) => (
+              <button
+                key={m}
+                className={retryMethod === m ? "btn btn-primary" : "btn btn-outline"}
+                onClick={() => setRetryMethod(m)}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          {paymentCheckout.phase === "verifying" && <p className="text-soft">Payment verification in progress...</p>}
+          {paymentCheckout.error && <ErrorState message={paymentCheckout.error} />}
+          <button
+            className="btn btn-accent"
+            onClick={handleRetry}
+            disabled={paymentCheckout.phase === "opening" || paymentCheckout.phase === "verifying"}
+          >
+            {paymentCheckout.phase === "opening" ? "Opening payment..." : "Retry payment"}
+          </button>
+        </div>
+      )}
+
+      <Link className="btn btn-primary" to={`/track/${b.id}`}>
+        Track this booking
+      </Link>
+    </div>
+  );
+}
+
+function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: bold ? 700 : 400 }}>
+      <span>{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}

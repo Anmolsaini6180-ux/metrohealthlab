@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Metro Health Lab</title>
+    <meta name="description" content="Book diagnostic tests, health packages and home sample collection with Metro Health Lab." />
+
+    <!-- PWA: makes Chrome offer "Install app" instead of just
+         "Add to Home screen", and gives the installed app its icon,
+         name and standalone (no browser bar) window. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#1e4ba3" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- iOS home-screen support (iOS ignores the manifest for these) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Metro Health" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Poppins:wght@600;700&family=Inter:wght@400;500;600&display=swap" />
+
+    <style>
+      /* Splash shown immediately on open — logo + company name, before
+         any JS/React has loaded. Removed by main.tsx once React mounts,
+         so the app never "flashes" from splash to blank to content. */
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #ffffff;
+        transition: opacity 0.35s ease;
+      }
+      #app-splash.is-hiding {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #app-splash img {
+        width: 132px;
+        height: 132px;
+        object-fit: contain;
+      }
+      #app-splash .splash-name {
+        font-family: "Poppins", "Manrope", sans-serif;
+        font-weight: 800;
+        font-size: 25px;
+        letter-spacing: -0.4px;
+        color: #153a85;
+      }
+      #app-splash .splash-name span {
+        color: #ff6a1a;
+      }
+      #app-splash .splash-tag {
+        font-family: "Inter", sans-serif;
+        font-size: 13px;
+        color: #6b7280;
+        margin-top: -10px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-splash">
+      <img src="/icons/icon-512.png" alt="Metro Health Lab" />
+      <div class="splash-name">Metro <span>health</span></div>
+      <div class="splash-tag">Accurate tests. Better health.</div>
+    </div>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

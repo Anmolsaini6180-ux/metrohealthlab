@@ -1,0 +1,110 @@
+name: CI
+
+# Runs on every pull request and every push to main. Vercel is
+# configured (one-time, in its dashboard) to require this workflow's
+# checks before promoting a production deployment, so a red build here
+# means the currently-live site simply stays live.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend — typecheck, build, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Fail if a server secret leaked into the bundle
+        # The build output is public — anything in dist/ is readable by
+        # anyone. This looks for a secret NAME bound to a string VALUE
+        # (rather than the bare name, which legitimately appears in the
+        # setup page's instructions), plus the cloudinary:// URL form,
+        # which embeds the API secret directly.
+        run: |
+          set -o pipefail
+          FOUND=0
+          if grep -rIonE '(RAZORPAY_KEY_SECRET|RAZORPAY_WEBHOOK_SECRET|CLOUDINARY_API_SECRET|SUPER_ADMIN_BOOTSTRAP_SECRET)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{8,}' dist/; then
+            echo "::error::A server-only secret appears to be assigned a value in the built bundle."
+            FOUND=1
+          fi
+          if grep -rIonE 'cloudinary://[^"'"'"'[:space:]]+' dist/; then
+            echo "::error::A cloudinary:// URL (which embeds the API secret) is present in the built bundle."
+            FOUND=1
+          fi
+          if [ "$FOUND" -ne 0 ]; then exit 1; fi
+          echo "No server secrets found in dist/."
+
+  functions:
+    name: Functions — typecheck, build, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Type check
+        working-directory: functions
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: functions
+        run: npm test
+
+      - name: Build
+        working-directory: functions
+        run: npm run build
+
+  rules:
+    name: Firestore security rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # The Firestore emulator is a Java process.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security rules tests against the emulator
+        run: npm run test:rules

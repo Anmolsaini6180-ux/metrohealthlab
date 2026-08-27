@@ -1,0 +1,22 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.local
+.DS_Store
+functions/node_modules
+functions/lib
+.tsc-out
+*.tsbuildinfo
+
+# Vercel CLI
+.vercel
+
+# Firebase emulator / CI artifacts
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*-debug.log
+firebase-key.json
+serviceAccount*.json

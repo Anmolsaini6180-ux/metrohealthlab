@@ -1,0 +1,809 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  /* Guard against any single too-wide element (a long unbroken URL, a
+     wide table) making the whole page scroll sideways — that's what
+     makes a mobile layout look "broken" even when everything else is
+     correct. */
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  -webkit-tap-highlight-color: transparent;
+  /* Long unbroken strings (error URLs, IDs, emails) wrap instead of
+     forcing the page wider than the viewport. */
+  overflow-wrap: break-word;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Layout primitives ---------- */
+
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding-inline: var(--space-md);
+}
+
+/* Screen-reader-only text — was missing entirely, which is why the
+   search input's accessibility label ("Search tests and packages")
+   was rendering as visible, overlapping text instead of being hidden. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+}
+
+/* Room for the fixed bottom nav on mobile/tablet, plus any device
+   safe-area (home-indicator/gesture-bar). Applied to the footer since
+   it's now the last element in the shell — previously this sat on
+   .app-main, which left the footer itself underneath the bottom nav. */
+.mh-footer {
+  padding-bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px) + var(--space-md));
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    padding-bottom: var(--space-xl);
+  }
+
+  /* No bottom nav at desktop widths — drop the reserved space. */
+  .mh-footer {
+    padding-bottom: 0;
+  }
+}
+
+/* Fluid card grid: 1 col mobile -> 2 col tablet -> 3/4 col desktop,
+   without hard breakpoint jumps for in-between widths. */
+.card-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  border-radius: var(--radius-sm);
+  border: none;
+  font-weight: 600;
+  font-size: var(--text-base);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  min-height: 44px; /* touch target */
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-deep);
+}
+
+.btn-accent {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
+}
+
+.text-soft {
+  color: var(--color-ink-soft);
+}
+
+/* ---------- Header ---------- */
+
+.mh-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* Desktop bar: hidden on mobile, shown from tablet-landscape up */
+.mh-header__desktop-row {
+  display: none;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  height: var(--header-height);
+}
+
+.mh-header__logo {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mh-header__logo-icon {
+  display: block;
+}
+
+.mh-header__logo-full {
+  display: none;
+}
+
+@media (min-width: 480px) {
+  .mh-header__logo-icon {
+    display: none;
+  }
+
+  .mh-header__logo-full {
+    display: block;
+  }
+}
+
+.mh-header__search {
+  flex: 1;
+  max-width: 480px;
+}
+
+.mh-header__search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  color: var(--color-ink-soft);
+  pointer-events: none;
+}
+
+.mh-header__search-input {
+  width: 100%;
+  padding: 10px 14px 10px 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  background: var(--color-bg-tint);
+}
+
+.mh-header__nav {
+  display: flex;
+  gap: var(--space-md);
+  margin-inline-start: var(--space-md);
+}
+
+.mh-header__icons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+@media (min-width: 1024px) {
+  .mh-header__desktop-row {
+    display: flex;
+  }
+
+  .mh-header__mobile-hero {
+    display: none !important;
+  }
+}
+
+/* Mobile hero — logo+wordmark, real greeting, and a floating-card
+   search, matching the original product's mobile home layout. Shown
+   only below 1024px (the desktop bar above takes over from there). */
+.mh-header__mobile-hero {
+  padding: 14px 16px 16px;
+  background: linear-gradient(180deg, var(--color-bg-tint), var(--color-surface));
+}
+
+.mh-header__mobile-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mh-header__wordmark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.mh-header__wordmark-text {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: var(--color-primary-deep);
+  letter-spacing: -0.3px;
+  line-height: 1.1;
+}
+
+.mh-header__wordmark-accent {
+  color: var(--color-accent);
+}
+
+.mh-header__greeting {
+  font-size: var(--text-sm);
+  margin-top: var(--space-sm);
+  color: var(--color-ink);
+}
+
+.mh-header__mobile-search-form {
+  margin-top: var(--space-sm);
+}
+
+.mh-header__mobile-search {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-card);
+}
+
+.icon-btn {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ---------- Install (PWA) prompt ---------- */
+
+.mh-install-prompt {
+  position: fixed;
+  left: var(--space-md);
+  right: var(--space-md);
+  /* Sits just above the fixed bottom nav on mobile. */
+  bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px) + var(--space-sm));
+  z-index: 30;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 24px rgba(30, 75, 163, 0.18);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (min-width: 1024px) {
+  .mh-install-prompt {
+    /* No bottom nav at desktop widths — dock it bottom-right instead
+       of spanning the full width of a wide screen. */
+    left: auto;
+    right: var(--space-lg);
+    bottom: var(--space-lg);
+    max-width: 400px;
+  }
+}
+
+/* ---------- Bottom nav (mobile/tablet) ---------- */
+
+.mh-bottomnav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-line);
+  display: flex;
+  z-index: 20;
+}
+
+.mh-bottomnav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+}
+
+.mh-bottomnav a.active {
+  color: var(--color-primary);
+}
+
+@media (min-width: 1024px) {
+  .mh-bottomnav {
+    display: none;
+  }
+}
+
+/* ---------- States ---------- */
+
+.state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-md);
+  color: var(--color-ink-soft);
+}
+
+.mi {
+  font-family: "Material Icons";
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-line) 25%, #eef3fa 37%, var(--color-line) 63%);
+  background-size: 400% 100%;
+  animation: mh-shimmer 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes mh-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ---------- Refined interactions ---------- */
+
+.card {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+a.card:hover,
+button.card:hover {
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-1px);
+}
+
+.btn {
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1.5px solid var(--color-danger);
+}
+
+/* ---------- Card-shaped skeletons (replace plain "Loading..." text) ---------- */
+
+.skeleton-card {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: grid;
+  gap: 8px;
+}
+
+/* ---------- Header: logged-in profile menu ---------- */
+
+.mh-profile-menu {
+  position: relative;
+}
+
+.mh-profile-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  min-width: 200px;
+  padding: 6px;
+  z-index: 30;
+  display: grid;
+}
+
+.mh-profile-menu__panel a,
+.mh-profile-menu__panel button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-size: var(--text-sm);
+  width: 100%;
+  cursor: pointer;
+}
+
+.mh-profile-menu__panel a:hover,
+.mh-profile-menu__panel button:hover {
+  background: var(--color-bg-tint);
+}
+
+/* ---------- Header: notification bell badge ---------- */
+
+.mh-badge-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-coral);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.icon-btn {
+  position: relative;
+}
+
+/* ---------- Footer ---------- */
+
+.mh-footer {
+  border-top: 1px solid var(--color-line);
+  background: var(--color-bg-warm);
+  margin-top: var(--space-xl);
+}
+
+.mh-footer .container {
+  padding-block: var(--space-lg);
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.mh-footer__grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.mh-footer__grid a {
+  display: block;
+  padding: 4px 0;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
+.mh-footer__grid a:hover {
+  color: var(--color-primary);
+}
+
+.mh-footer__bottom {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-line);
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+}
+
+/* ---------- Patient dashboard ---------- */
+
+.mh-stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  text-align: center;
+}
+
+.mh-stat-card__value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-2xl);
+  color: var(--color-primary);
+}
+
+.mh-quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: var(--space-md);
+}
+
+/* ---------- Admin shell ---------- */
+
+.mh-admin-shell {
+  grid-template-columns: 1fr !important;
+}
+
+.mh-admin-shell aside nav {
+  display: flex !important;
+  overflow-x: auto;
+  gap: 4px !important;
+}
+
+.mh-admin-shell aside nav a {
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .mh-admin-shell {
+    grid-template-columns: 220px 1fr !important;
+  }
+
+  .mh-admin-shell aside nav {
+    display: grid !important;
+    overflow-x: visible;
+  }
+}
+
+/* Customer list + detail split (AdminCustomersPage) — single column
+   until there's genuinely enough width for two readable panes. */
+.mh-customer-split {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .mh-customer-split {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---------- Auth split layout (login/signup) ---------- */
+
+.mh-auth-split {
+  display: grid;
+  min-height: calc(100vh - var(--header-height));
+  align-items: center;
+}
+
+.mh-auth-split__brand {
+  display: none;
+}
+
+.mh-auth-split__card {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: var(--space-lg) 0;
+}
+
+@media (min-width: 1024px) {
+  .mh-auth-split {
+    grid-template-columns: 1.1fr 1fr;
+    gap: var(--space-xl);
+  }
+
+  .mh-auth-split__brand {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-xl);
+    background: linear-gradient(160deg, var(--color-bg-tint), var(--color-bg-warm));
+    border-radius: var(--radius-lg);
+    height: 100%;
+  }
+
+  .mh-auth-split__mobile-logo {
+    display: none;
+  }
+}
+
+/* ============================================================
+   Professional polish layer
+   Appended last so these refine the base rules above rather than
+   fighting them. Purely visual/interaction — no layout or logic
+   changes, so nothing that currently works can break.
+   ============================================================ */
+
+/* --- Accessible focus rings ---
+   Keyboard users need to see where they are; :focus-visible means
+   mouse/touch users don't get a ring on every tap. */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* --- Disabled states --- */
+.btn:disabled,
+.icon-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:disabled:active {
+  transform: none;
+}
+
+/* --- Consistent form controls ---
+   Inputs were styled ad-hoc inline across pages; this gives every
+   control the same height, radius and focus treatment. */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  font-family: inherit;
+  font-size: var(--text-base);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-height: 44px;
+  width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+textarea {
+  min-height: 88px;
+  padding-top: 10px;
+  resize: vertical;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(30, 75, 163, 0.12);
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-ink-soft);
+  opacity: 0.75;
+}
+
+/* Checkbox labels shouldn't stretch full width like text inputs. */
+label > input[type="checkbox"],
+label > input[type="radio"] {
+  width: auto;
+  min-height: 0;
+  margin-inline-end: 6px;
+}
+
+/* --- Cards: subtle lift on interactive ones only --- */
+a.card,
+button.card {
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+  text-align: inherit;
+}
+
+a.card:hover,
+button.card:hover {
+  box-shadow: 0 6px 20px rgba(30, 75, 163, 0.12);
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.card:hover,
+  button.card:hover {
+    transform: none;
+  }
+}
+
+/* --- Admin: make wide tables/filter rows scroll rather than overflow --- */
+.mh-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+/* --- Section headings: consistent rhythm --- */
+h1, h2, h3 {
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+}
+
+/* --- Selection colour matches brand --- */
+::selection {
+  background: rgba(30, 75, 163, 0.15);
+}

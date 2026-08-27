@@ -1,0 +1,74 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Same role source as firestore.rules: Firebase Auth custom claims,
+    // never Firestore document content or anything client-supplied.
+    function isCatalogManager() {
+      return request.auth != null && "role" in request.auth.token &&
+        request.auth.token.role in ["SUPER_ADMIN", "ADMIN"];
+    }
+
+    // Reports live under reports/{userId}/{reportId}.pdf. Direct
+    // Storage reads are DENIED entirely — the only way to get a report
+    // is the getReportDownloadUrl Cloud Function, which re-checks
+    // ownership + status and issues a short-lived signed URL using the
+    // Admin SDK (which bypasses these rules, so the function still
+    // works). This means even a signed-in owner's own Firebase Storage
+    // SDK call against this path is rejected; only the signed URL from
+    // the function works, and only for ~10 minutes.
+    match /reports/{userId}/{fileName} {
+      allow read, write: if false;
+    }
+
+    match /profile-photos/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // Public-facing catalog/marketing imagery — intentionally public
+    // read (they're displayed on public pages), write restricted to
+    // SUPER_ADMIN/ADMIN. No in-panel uploader exists yet (admin
+    // currently pastes a Storage download URL after uploading via the
+    // Firebase Console — see AdminBrandingSettingsPage/AdminBannersPage
+    // notes), but these rules are ready for when one is built rather
+    // than leaving the paths to fall through to the deny-all below.
+    match /branding/{fileName} {
+      allow read: if true;
+      allow write: if isCatalogManager() &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+    match /banners/{fileName} {
+      allow read: if true;
+      allow write: if isCatalogManager() &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+    match /tests/{fileName} {
+      allow read: if true;
+      allow write: if isCatalogManager() &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+    match /packages/{fileName} {
+      allow read: if true;
+      allow write: if isCatalogManager() &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+    match /labs/{fileName} {
+      allow read: if true;
+      allow write: if isCatalogManager() &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

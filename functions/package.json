@@ -1,0 +1,29 @@
+{
+  "name": "metro-health-functions",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "npm run build && firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cloudinary": "^2.10.1",
+    "firebase-admin": "^12.3.1",
+    "firebase-functions": "^5.0.1",
+    "razorpay": "^2.9.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
+  }
+}
