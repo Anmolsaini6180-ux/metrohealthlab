@@ -1126,3 +1126,177 @@ h1, h2, h3 {
   max-height: calc(100vh - 2 * var(--space-lg));
   overflow-y: auto;
 }
+
+/* ---------- Safe icon box ----------
+   Material Icons renders an unrecognised ligature as its literal text.
+   Category icons come from admin-authored documents that can be years
+   old, so their box is clamped to the glyph size: a stale or invalid
+   name can never widen a card, a table row or the picker grid. */
+.mi-safe {
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+/* ---------- Admin icon picker ----------
+   Same overlay language as ConfirmDialog (fixed backdrop, .card panel,
+   token spacing) — just taller, scrollable and with its own grid. */
+.mh-icon-picker {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: var(--space-md);
+}
+
+.mh-icon-picker__panel {
+  width: 100%;
+  max-width: 720px;
+  max-height: calc(100vh - 2 * var(--space-md));
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.mh-icon-picker__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.mh-icon-picker__body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  gap: var(--space-sm);
+  padding-right: 2px;
+}
+
+.mh-icon-picker__group {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+  margin-bottom: 6px;
+}
+
+.mh-icon-picker__grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+}
+
+.mh-icon-picker__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  padding: 10px 4px;
+  min-height: 74px;
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-ink);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.mh-icon-picker__tile:hover {
+  background: var(--color-bg-tint);
+}
+
+.mh-icon-picker__tile.is-selected {
+  border-color: var(--color-primary);
+  background: var(--color-bg-tint);
+  color: var(--color-primary-deep);
+}
+
+.mh-icon-picker__tile-name {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--color-ink-soft);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.mh-icon-picker__tile.is-selected .mh-icon-picker__tile-name {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.mh-icon-picker__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-sm);
+}
+
+.mh-icon-picker__preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mh-icon-picker__actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-inline-start: auto;
+}
+
+.mh-icon-picker__actions .btn {
+  min-height: 40px;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+@media (max-width: 480px) {
+  .mh-icon-picker {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .mh-icon-picker__panel {
+    max-width: none;
+    max-height: 92vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .mh-icon-picker__grid {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  }
+}
+
+/* ---------- Category icon field (admin category form) ---------- */
+.mh-icon-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  min-height: 44px;
+  background: var(--color-surface);
+}
+
+.mh-icon-field__value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.mh-icon-field .btn {
+  min-height: 36px;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  margin-inline-start: auto;
+}

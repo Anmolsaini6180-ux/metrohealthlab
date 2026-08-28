@@ -1,5 +1,6 @@
-import { doc, getDoc, onSnapshot, setDoc, serverTimestamp, type Unsubscribe } from "firebase/firestore";
+import { deleteField, doc, getDoc, onSnapshot, setDoc, serverTimestamp, type Unsubscribe } from "firebase/firestore";
 import { getDb } from "@/firebase/firestore";
+import { optionalText, stripUndefined } from "@/utils/firestoreData";
 import type { BrandingSettings } from "@/types/settings";
 
 const SETTINGS = "settings";
@@ -27,15 +28,62 @@ export function subscribeToBrandingSettings(
   );
 }
 
+const OPTIONAL_BRANDING_FIELDS = [
+  "tagline",
+  "logoUrl",
+  "faviconUrl",
+  "phone",
+  "whatsapp",
+  "email",
+  "address",
+] as const;
+
+const OPTIONAL_SOCIAL_FIELDS = ["facebook", "instagram", "twitter", "youtube", "linkedin"] as const;
+
+// What the branding form hands over. Optional fields follow the same
+// three-way convention as the catalog service:
+//   absent    -> leave the stored value alone
+//   "" / null -> the admin cleared it; remove the field from the doc
+//   "value"   -> set it
+export interface BrandingSettingsInput
+  extends Partial<Record<(typeof OPTIONAL_BRANDING_FIELDS)[number], string | null>> {
+  businessName?: string;
+  socialLinks?: Partial<Record<(typeof OPTIONAL_SOCIAL_FIELDS)[number], string | null>>;
+}
+
 // Admin write — gated by firestore.rules (canManageCatalog() +
 // updatedBy must match the caller), same pattern as the rest of the
 // catalog. Uses set+merge against the fixed doc id rather than
 // addDoc/updateDoc since there's exactly one branding document, which
 // may not exist yet on a fresh project.
-export async function updateBrandingSettings(actorUid: string, data: Partial<BrandingSettings>): Promise<void> {
-  await setDoc(
-    doc(getDb(), SETTINGS, BRANDING_DOC_ID),
-    { ...data, updatedBy: actorUid, updatedAt: serverTimestamp() },
-    { merge: true }
-  );
+//
+// merge:true is precisely why a cleared field needs deleteField(): a
+// key that is simply left out keeps whatever is already stored, so
+// dropping the blanks would turn "remove my tagline" into a no-op.
+// Writing `undefined` is not an option either — setDoc() rejects it,
+// which is what used to make this whole screen fail to save.
+export async function updateBrandingSettings(actorUid: string, input: BrandingSettingsInput): Promise<void> {
+  const patch: Record<string, unknown> = { updatedBy: actorUid, updatedAt: serverTimestamp() };
+
+  if (input.businessName !== undefined) patch.businessName = input.businessName.trim();
+
+  for (const key of OPTIONAL_BRANDING_FIELDS) {
+    const value = input[key];
+    if (value === undefined) continue;
+    patch[key] = optionalText(value) ?? deleteField();
+  }
+
+  if (input.socialLinks) {
+    // deleteField() inside a nested map is honoured by set+merge, so a
+    // cleared handle disappears instead of lingering as an empty link.
+    const social: Record<string, unknown> = {};
+    for (const key of OPTIONAL_SOCIAL_FIELDS) {
+      const value = input.socialLinks[key];
+      if (value === undefined) continue;
+      social[key] = optionalText(value) ?? deleteField();
+    }
+    if (Object.keys(social).length > 0) patch.socialLinks = social;
+  }
+
+  await setDoc(doc(getDb(), SETTINGS, BRANDING_DOC_ID), stripUndefined(patch), { merge: true });
 }

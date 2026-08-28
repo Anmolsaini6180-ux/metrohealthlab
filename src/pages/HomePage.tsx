@@ -8,6 +8,7 @@ import LoadingState from "@/components/common/LoadingState";
 import CardGridSkeleton from "@/components/common/CardGridSkeleton";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import CategoryIcon from "@/components/common/CategoryIcon";
 import TestCard from "@/components/common/TestCard";
 import PackageCard from "@/components/common/PackageCard";
 
@@ -60,10 +61,14 @@ export default function HomePage() {
           <div className="card-grid card-grid--compact">
             {categories.data.map((c) => (
               <Link key={c.id} to={`/tests?category=${c.id}`} className="card" style={{ textAlign: "center" }}>
-                <span className="mi" style={{ fontSize: 28, color: "var(--color-primary)" }}>
-                  {c.icon ?? "science"}
-                </span>
+                {/* Categories created before the icon field exist, and
+                    an admin may deliberately save one without an icon —
+                    CategoryIcon falls back instead of rendering junk. */}
+                <CategoryIcon iconName={c.icon} size={28} color="var(--color-primary)" fallback="science" />
                 <p style={{ marginTop: 6, fontWeight: 600, fontSize: "var(--text-sm)" }}>{c.name}</p>
+                {c.subtitle && (
+                  <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{c.subtitle}</p>
+                )}
               </Link>
             ))}
           </div>

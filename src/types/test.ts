@@ -31,6 +31,16 @@ export interface TestCategory {
   id: string;
   name: string;
   slug: string;
+  /** Short line under the name on category cards, e.g. "Up to 70% off". */
+  subtitle?: string;
+  /**
+   * Material Icons ligature name, e.g. "bloodtype" — the same icon
+   * vocabulary the nav and empty states use. Optional fields are
+   * *absent* from the Firestore document when unset; they are never
+   * written as `undefined` (which the SDK rejects) or as an empty
+   * string. Read them through normalizeIconName/CategoryIcon, since
+   * older documents predate this field.
+   */
   icon?: string;
   displayOrder?: number;
   active: boolean;

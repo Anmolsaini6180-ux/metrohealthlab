@@ -58,17 +58,19 @@ export default function AdminBrandingSettingsPage() {
     try {
       await updateBrandingSettings(user.uid, {
         businessName: form.businessName,
-        tagline: form.tagline || undefined,
-        logoUrl: form.logoUrl || undefined,
-        faviconUrl: form.faviconUrl || undefined,
-        phone: form.phone || undefined,
-        whatsapp: form.whatsapp || undefined,
-        email: form.email || undefined,
-        address: form.address || undefined,
+        // Blank means "clear this field" — the service turns that into
+        // a deleteField() rather than an undefined the SDK rejects.
+        tagline: form.tagline,
+        logoUrl: form.logoUrl,
+        faviconUrl: form.faviconUrl,
+        phone: form.phone,
+        whatsapp: form.whatsapp,
+        email: form.email,
+        address: form.address,
         socialLinks: {
-          facebook: form.facebook || undefined,
-          instagram: form.instagram || undefined,
-          twitter: form.twitter || undefined,
+          facebook: form.facebook,
+          instagram: form.instagram,
+          twitter: form.twitter,
         },
       });
       setSaved(true);

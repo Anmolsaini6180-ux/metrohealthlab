@@ -4,6 +4,7 @@ import { subscribeToTestCategories } from "@/services/testService";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import CategoryIcon from "@/components/common/CategoryIcon";
 
 // Health concerns are modeled as an alternate entry point into the same
 // testCategories collection (e.g. "Diabetes", "Thyroid", "Heart Health")
@@ -23,8 +24,19 @@ export default function HealthConcernsPage() {
       {categories.data && categories.data.length > 0 && (
         <div className="card-grid">
           {categories.data.map((c) => (
-            <Link key={c.id} to={`/tests?category=${c.id}`} className="card">
-              <p style={{ fontWeight: 600 }}>{c.name}</p>
+            <Link
+              key={c.id}
+              to={`/tests?category=${c.id}`}
+              className="card"
+              style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}
+            >
+              <CategoryIcon iconName={c.icon} size={26} color="var(--color-primary)" fallback="favorite" />
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontWeight: 600 }}>{c.name}</p>
+                {c.subtitle && (
+                  <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{c.subtitle}</p>
+                )}
+              </div>
             </Link>
           ))}
         </div>

@@ -83,7 +83,7 @@ function LeadForm({ actorUid, onDone }: { actorUid: string; onDone: () => void }
     setBusy(true);
     setError(null);
     try {
-      await createLead(actorUid, { name, phone, email: email || undefined, source: source || undefined, status: "NEW" });
+      await createLead(actorUid, { name, phone, email, source, status: "NEW" });
       onDone();
     } catch (err) {
       setError(toUserMessage(err));

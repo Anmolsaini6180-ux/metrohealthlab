@@ -30,7 +30,7 @@ const CATEGORIES_SEED: CategorySeed[] = [
   { name: "CT Scan", slug: "ct", icon: "monitor_heart" },
   { name: "Ultrasound", slug: "usg", icon: "air" },
   { name: "ECG", slug: "ecg", icon: "favorite" },
-  { name: "Doctor Consult", slug: "doctor", icon: "stethoscope" },
+  { name: "Doctor Consult", slug: "doctor", icon: "medical_services" },
   { name: "Diet Consult", slug: "diet", icon: "restaurant" },
   { name: "Home Collection", slug: "home", icon: "local_shipping" },
   { name: "Mammography", slug: "mammo", icon: "monitor_heart" },
@@ -260,7 +260,12 @@ export const seedStarterCatalog = onCall(async (request) => {
       description: `Includes ${p.testNames.length} tests: ${p.testNames.join(", ")}.`,
       testIds: matchedTestIds, mrp: Math.round(sellingPrice * p.mrpMultiplier), sellingPrice,
       reportTat: "24 hours", homeCollection: true, gender: "all", labIds, rating: p.rating,
-      tag: p.tag || undefined, active: true, displayOrder: i, updatedBy: actorUid, createdAt: now, updatedAt: now,
+      // Three seed packages carry no tag. `tag: p.tag || undefined`
+      // wrote the key with an undefined value, which the Admin SDK
+      // refuses — and it would abort this one-time import midway,
+      // after categories/labs/tests had already been written.
+      ...(p.tag ? { tag: p.tag } : {}),
+      active: true, displayOrder: i, updatedBy: actorUid, createdAt: now, updatedAt: now,
     });
     allPackageIds.push(ref.id);
 

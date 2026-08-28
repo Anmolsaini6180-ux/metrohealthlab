@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { beforeAll, afterAll, beforeEach, describe, it } from "vitest";
+import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   assertFails,
   assertSucceeds,
@@ -16,6 +16,8 @@ import {
   getDocs,
   query,
   where,
+  addDoc,
+  deleteField,
 } from "firebase/firestore";
 
 // These tests run against the Firestore emulator and exercise the
@@ -943,5 +945,172 @@ describe("internal ledgers and audit", () => {
   it("keeps audit log reads to the super admin", async () => {
     await assertSucceeds(getDoc(doc(master(), "auditLogs", "log-1")));
     await assertFails(getDoc(doc(admin(), "auditLogs", "log-1")));
+  });
+});
+
+// Regression cover for the admin Categories screen. The bug this
+// guards against was client-side — the form built `icon: undefined`
+// and the SDK refused the write with "Unsupported field value:
+// undefined" — so what matters here is that BOTH shapes the form can
+// now produce actually land in Firestore under the real rules, and
+// that clearing an icon really removes the field.
+describe("test category writes", () => {
+  it("accepts a category with no icon field at all", async () => {
+    await assertSucceeds(
+      addDoc(collection(admin(), "testCategories"), {
+        name: "Blood Tests",
+        slug: "blood-tests",
+        subtitle: "Up to 70% off",
+        active: true,
+        displayOrder: 0,
+        updatedBy: ADMIN,
+      })
+    );
+  });
+
+  it("accepts a category carrying a material icon name", async () => {
+    await assertSucceeds(
+      addDoc(collection(admin(), "testCategories"), {
+        name: "Blood Tests",
+        slug: "blood-tests",
+        subtitle: "Up to 70% off",
+        icon: "bloodtype",
+        active: true,
+        displayOrder: 0,
+        updatedBy: ADMIN,
+      })
+    );
+  });
+
+  it("removes the icon from the document when an admin clears it", async () => {
+    const ref = doc(admin(), "testCategories", "clearable");
+    await assertSucceeds(setDoc(ref, { name: "Blood Tests", slug: "blood-tests", icon: "bloodtype", active: true, updatedBy: ADMIN }));
+    await assertSucceeds(updateDoc(ref, { icon: deleteField(), updatedBy: ADMIN }));
+
+    const after = await getDoc(doc(admin(), "testCategories", "clearable"));
+    expect(after.data()).toBeDefined();
+    expect("icon" in (after.data() ?? {})).toBe(false);
+  });
+
+  it("still refuses a category write that is not attributed to the caller", async () => {
+    await assertFails(
+      addDoc(collection(admin(), "testCategories"), { name: "Spoof", slug: "spoof", active: true, updatedBy: MASTER })
+    );
+  });
+});
+
+// Regression cover for the hardening pass over the remaining admin
+// write paths. Each of these screens used to build `field || undefined`
+// and fail on the SDK's "Unsupported field value: undefined". What is
+// proven here is the shape that reaches Firestore for real: blank
+// optional fields are absent, cleared ones are actually removed, and
+// the authorization model still behaves the same way around them.
+describe("branding settings writes", () => {
+  it("saves with every optional field left blank", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(admin(), "settings", "branding"),
+        { businessName: "Metro Health Lab", updatedBy: ADMIN },
+        { merge: true }
+      )
+    );
+
+    const snap = await getDoc(doc(admin(), "settings", "branding"));
+    expect("tagline" in (snap.data() ?? {})).toBe(false);
+  });
+
+  it("removes a cleared nested social link through set+merge, keeping its siblings", async () => {
+    const ref = doc(admin(), "settings", "branding");
+    await assertSucceeds(
+      setDoc(
+        ref,
+        {
+          businessName: "Metro Health Lab",
+          tagline: "Accurate tests. Better health.",
+          socialLinks: { facebook: "https://facebook.com/mh", instagram: "https://instagram.com/mh" },
+          updatedBy: ADMIN,
+        },
+        { merge: true }
+      )
+    );
+
+    await assertSucceeds(
+      setDoc(
+        ref,
+        { tagline: deleteField(), socialLinks: { instagram: deleteField() }, updatedBy: ADMIN },
+        { merge: true }
+      )
+    );
+
+    const after = (await getDoc(doc(admin(), "settings", "branding"))).data() ?? {};
+    expect("tagline" in after).toBe(false);
+    expect(after.businessName).toBe("Metro Health Lab");
+    const social = (after.socialLinks ?? {}) as Record<string, unknown>;
+    expect("instagram" in social).toBe(false);
+    expect(social.facebook).toBe("https://facebook.com/mh");
+  });
+
+  it("still refuses a branding write attributed to somebody else", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "settings", "branding"), { businessName: "Spoof", updatedBy: MASTER }, { merge: true })
+    );
+  });
+});
+
+describe("campaign and lead writes", () => {
+  it("accepts a campaign with no description, offer or coupon", async () => {
+    await assertSucceeds(
+      addDoc(collection(admin(), "campaigns"), {
+        name: "Diwali",
+        type: "seasonal",
+        startAt: "2026-10-01",
+        endAt: "2026-10-31",
+        status: "DRAFT",
+        createdBy: ADMIN,
+        updatedBy: ADMIN,
+      })
+    );
+  });
+
+  it("unlinks a campaign's offer by removing the field", async () => {
+    const ref = doc(admin(), "campaigns", "camp-1");
+    await assertSucceeds(
+      setDoc(ref, { name: "Diwali", type: "seasonal", status: "DRAFT", offerId: "offer-1", createdBy: ADMIN, updatedBy: ADMIN })
+    );
+    await assertSucceeds(updateDoc(ref, { offerId: deleteField(), updatedBy: ADMIN }));
+
+    const after = (await getDoc(doc(admin(), "campaigns", "camp-1"))).data() ?? {};
+    expect("offerId" in after).toBe(false);
+    expect(after.name).toBe("Diwali");
+  });
+
+  it("accepts a lead with no email, source or assignment", async () => {
+    await assertSucceeds(
+      addDoc(collection(admin(), "leads"), {
+        name: "Asha",
+        phone: "9990001111",
+        status: "NEW",
+        createdBy: ADMIN,
+        updatedBy: ADMIN,
+      })
+    );
+  });
+
+  // Omitting the assignment fields rather than storing "" keeps the
+  // scoped read rule honest: an unassigned lead stays invisible to a
+  // sub admin instead of matching on an empty string.
+  it("keeps an unassigned lead readable by an admin but not by a sub admin", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctxAdmin) => {
+      await setDoc(doc(ctxAdmin.firestore(), "leads", "unassigned"), {
+        name: "Asha",
+        phone: "9990001111",
+        status: "NEW",
+        createdBy: ADMIN,
+        updatedBy: ADMIN,
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(admin(), "leads", "unassigned")));
+    await assertFails(getDoc(doc(subAdmin(), "leads", "unassigned")));
   });
 });

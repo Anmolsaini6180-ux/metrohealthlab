@@ -107,12 +107,12 @@ function CampaignForm({
     try {
       const payload = {
         name: form.name,
-        description: form.description || undefined,
+        description: form.description,
         type: form.type,
         startAt: form.startAt,
         endAt: form.endAt,
-        offerId: form.offerId || undefined,
-        couponId: form.couponId || undefined,
+        offerId: form.offerId,
+        couponId: form.couponId,
       };
       if (existing) {
         await updateCampaign(actorUid, existing.id, payload);

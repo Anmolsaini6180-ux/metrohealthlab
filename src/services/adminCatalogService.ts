@@ -1,7 +1,8 @@
-import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, where, limit as fsLimit } from "firebase/firestore";
+import { addDoc, collection, deleteField, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, where, limit as fsLimit } from "firebase/firestore";
 
 const ADMIN_LIST_LIMIT = 300; // defensive cap — admin tables should not load thousands of records at once
 import { getDb } from "@/firebase/firestore";
+import { optionalText, stripUndefined } from "@/utils/firestoreData";
 import type { DiagnosticTest, TestCategory } from "@/types/test";
 import type { HealthPackage } from "@/types/package";
 import type { Lab, LabPricing } from "@/types/lab";
@@ -38,12 +39,12 @@ export async function createTest(
   actorUid: string,
   data: Omit<DiagnosticTest, "id" | "updatedBy" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "tests"), {
+  const ref = await addDoc(collection(getDb(), "tests"), stripUndefined({
     ...data,
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
@@ -52,33 +53,68 @@ export async function updateTest(
   testId: string,
   data: Partial<Omit<DiagnosticTest, "id" | "updatedBy" | "createdAt">>
 ): Promise<void> {
-  await updateDoc(doc(getDb(), "tests", testId), {
+  await updateDoc(doc(getDb(), "tests", testId), stripUndefined({
     ...data,
     updatedBy: actorUid,
     updatedAt: serverTimestamp(),
-  });
+  }));
 }
 
-export async function createTestCategory(
-  actorUid: string,
-  data: Omit<TestCategory, "id">
-): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "testCategories"), {
-    ...data,
-    updatedBy: actorUid,
-  });
+// ---------- Test categories ----------
+
+// What the admin category form hands over. Optional text fields use
+// `string | null` rather than `string | undefined` so the three cases
+// stay distinguishable on update:
+//   absent    -> leave the stored value alone
+//   "" / null -> the admin cleared it; remove the field from the doc
+//   "value"   -> set it
+// `undefined` is never a meaningful value here and is never written.
+export interface TestCategoryInput {
+  name: string;
+  slug: string;
+  subtitle?: string | null;
+  icon?: string | null;
+  active: boolean;
+  displayOrder?: number;
+}
+
+export async function createTestCategory(actorUid: string, input: TestCategoryInput): Promise<string> {
+  // Blank optional fields are dropped by stripUndefined, so the new
+  // document simply has no `icon`/`subtitle` key — rather than the
+  // `icon: undefined` that made addDoc() throw "Unsupported field
+  // value: undefined".
+  const ref = await addDoc(
+    collection(getDb(), "testCategories"),
+    stripUndefined({
+      name: input.name.trim(),
+      slug: input.slug.trim(),
+      subtitle: optionalText(input.subtitle),
+      icon: optionalText(input.icon),
+      active: input.active,
+      displayOrder: input.displayOrder ?? 0,
+      updatedBy: actorUid,
+    })
+  );
   return ref.id;
 }
 
 export async function updateTestCategory(
   actorUid: string,
   categoryId: string,
-  data: Partial<Omit<TestCategory, "id">>
+  input: Partial<TestCategoryInput>
 ): Promise<void> {
-  await updateDoc(doc(getDb(), "testCategories", categoryId), {
-    ...data,
-    updatedBy: actorUid,
-  });
+  const patch: Record<string, unknown> = { updatedBy: actorUid };
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.slug !== undefined) patch.slug = input.slug.trim();
+  if (input.active !== undefined) patch.active = input.active;
+  if (input.displayOrder !== undefined) patch.displayOrder = input.displayOrder;
+  // Clearing an optional field has to reach Firestore as deleteField();
+  // omitting the key would silently keep the old icon, and writing
+  // undefined/"" would either throw or leave a meaningless placeholder.
+  if (input.subtitle !== undefined) patch.subtitle = optionalText(input.subtitle) ?? deleteField();
+  if (input.icon !== undefined) patch.icon = optionalText(input.icon) ?? deleteField();
+
+  await updateDoc(doc(getDb(), "testCategories", categoryId), stripUndefined(patch));
 }
 
 // ---------- Packages ----------
@@ -93,12 +129,12 @@ export async function createPackage(
   actorUid: string,
   data: Omit<HealthPackage, "id" | "updatedBy" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "packages"), {
+  const ref = await addDoc(collection(getDb(), "packages"), stripUndefined({
     ...data,
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
@@ -107,11 +143,11 @@ export async function updatePackage(
   packageId: string,
   data: Partial<Omit<HealthPackage, "id" | "updatedBy" | "createdAt">>
 ): Promise<void> {
-  await updateDoc(doc(getDb(), "packages", packageId), {
+  await updateDoc(doc(getDb(), "packages", packageId), stripUndefined({
     ...data,
     updatedBy: actorUid,
     updatedAt: serverTimestamp(),
-  });
+  }));
 }
 
 // ---------- Labs ----------
@@ -126,12 +162,12 @@ export async function createLab(
   actorUid: string,
   data: Omit<Lab, "id" | "updatedBy" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "labs"), {
+  const ref = await addDoc(collection(getDb(), "labs"), stripUndefined({
     ...data,
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
@@ -140,11 +176,11 @@ export async function updateLab(
   labId: string,
   data: Partial<Omit<Lab, "id" | "updatedBy" | "createdAt">>
 ): Promise<void> {
-  await updateDoc(doc(getDb(), "labs", labId), {
+  await updateDoc(doc(getDb(), "labs", labId), stripUndefined({
     ...data,
     updatedBy: actorUid,
     updatedAt: serverTimestamp(),
-  });
+  }));
 }
 
 // ---------- Lab pricing ----------
@@ -160,12 +196,12 @@ export async function createLabPricing(
   actorUid: string,
   data: Omit<LabPricing, "id" | "updatedBy" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "labPricing"), {
+  const ref = await addDoc(collection(getDb(), "labPricing"), stripUndefined({
     ...data,
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
@@ -174,11 +210,11 @@ export async function updateLabPricing(
   pricingId: string,
   data: Partial<Omit<LabPricing, "id" | "updatedBy" | "createdAt">>
 ): Promise<void> {
-  await updateDoc(doc(getDb(), "labPricing", pricingId), {
+  await updateDoc(doc(getDb(), "labPricing", pricingId), stripUndefined({
     ...data,
     updatedBy: actorUid,
     updatedAt: serverTimestamp(),
-  });
+  }));
 }
 
 // ---------- Offers ----------
@@ -190,17 +226,17 @@ export async function getAllOffers(): Promise<Offer[]> {
 }
 
 export async function createOffer(actorUid: string, data: Omit<Offer, "id" | "updatedBy" | "createdAt" | "updatedAt">): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "offers"), {
+  const ref = await addDoc(collection(getDb(), "offers"), stripUndefined({
     ...data,
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
 export async function updateOffer(actorUid: string, offerId: string, data: Partial<Omit<Offer, "id" | "updatedBy" | "createdAt">>): Promise<void> {
-  await updateDoc(doc(getDb(), "offers", offerId), { ...data, updatedBy: actorUid, updatedAt: serverTimestamp() });
+  await updateDoc(doc(getDb(), "offers", offerId), stripUndefined({ ...data, updatedBy: actorUid, updatedAt: serverTimestamp() }));
 }
 
 // ---------- Banners ----------
@@ -212,17 +248,17 @@ export async function getAllBanners(): Promise<Banner[]> {
 }
 
 export async function createBanner(actorUid: string, data: Omit<Banner, "id" | "updatedBy" | "createdAt" | "updatedAt">): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "banners"), {
+  const ref = await addDoc(collection(getDb(), "banners"), stripUndefined({
     ...data,
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
 export async function updateBanner(actorUid: string, bannerId: string, data: Partial<Omit<Banner, "id" | "updatedBy" | "createdAt">>): Promise<void> {
-  await updateDoc(doc(getDb(), "banners", bannerId), { ...data, updatedBy: actorUid, updatedAt: serverTimestamp() });
+  await updateDoc(doc(getDb(), "banners", bannerId), stripUndefined({ ...data, updatedBy: actorUid, updatedAt: serverTimestamp() }));
 }
 
 // ---------- Coupons ----------
@@ -234,18 +270,18 @@ export async function getAllCoupons(): Promise<Coupon[]> {
 }
 
 export async function createCoupon(actorUid: string, data: Omit<Coupon, "id" | "updatedBy" | "createdAt" | "updatedAt">): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "coupons"), {
+  const ref = await addDoc(collection(getDb(), "coupons"), stripUndefined({
     ...data,
     code: data.code.toUpperCase(),
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
 export async function updateCoupon(actorUid: string, couponId: string, data: Partial<Omit<Coupon, "id" | "updatedBy" | "createdAt">>): Promise<void> {
-  await updateDoc(doc(getDb(), "coupons", couponId), { ...data, updatedBy: actorUid, updatedAt: serverTimestamp() });
+  await updateDoc(doc(getDb(), "coupons", couponId), stripUndefined({ ...data, updatedBy: actorUid, updatedAt: serverTimestamp() }));
 }
 
 // ---------- Slots ----------
@@ -259,18 +295,18 @@ export async function getAllSlots(areaId?: string): Promise<Slot[]> {
 }
 
 export async function createSlot(actorUid: string, data: Omit<Slot, "id" | "updatedBy" | "bookedCount" | "createdAt" | "updatedAt">): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "slots"), {
+  const ref = await addDoc(collection(getDb(), "slots"), stripUndefined({
     ...data,
     bookedCount: 0,
     updatedBy: actorUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
 export async function updateSlot(actorUid: string, slotId: string, data: Partial<Omit<Slot, "id" | "updatedBy" | "bookedCount" | "createdAt">>): Promise<void> {
-  await updateDoc(doc(getDb(), "slots", slotId), { ...data, updatedBy: actorUid, updatedAt: serverTimestamp() });
+  await updateDoc(doc(getDb(), "slots", slotId), stripUndefined({ ...data, updatedBy: actorUid, updatedAt: serverTimestamp() }));
 }
 
 // ---------- Service areas ----------
@@ -282,12 +318,12 @@ export async function getAllServiceAreas(): Promise<ServiceArea[]> {
 }
 
 export async function createServiceArea(actorUid: string, data: Omit<ServiceArea, "id" | "updatedBy">): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "serviceAreas"), { ...data, updatedBy: actorUid });
+  const ref = await addDoc(collection(getDb(), "serviceAreas"), stripUndefined({ ...data, updatedBy: actorUid }));
   return ref.id;
 }
 
 export async function updateServiceArea(actorUid: string, areaId: string, data: Partial<Omit<ServiceArea, "id" | "updatedBy">>): Promise<void> {
-  await updateDoc(doc(getDb(), "serviceAreas", areaId), { ...data, updatedBy: actorUid });
+  await updateDoc(doc(getDb(), "serviceAreas", areaId), stripUndefined({ ...data, updatedBy: actorUid }));
 }
 
 // ---------- Articles ----------
@@ -305,10 +341,10 @@ export async function getAllArticles(): Promise<Article[]> {
 }
 
 export async function createArticle(actorUid: string, data: Omit<Article, "id" | "updatedBy">): Promise<string> {
-  const ref = await addDoc(collection(getDb(), "articles"), { ...data, updatedBy: actorUid });
+  const ref = await addDoc(collection(getDb(), "articles"), stripUndefined({ ...data, updatedBy: actorUid }));
   return ref.id;
 }
 
 export async function updateArticle(actorUid: string, articleId: string, data: Partial<Omit<Article, "id" | "updatedBy">>): Promise<void> {
-  await updateDoc(doc(getDb(), "articles", articleId), { ...data, updatedBy: actorUid });
+  await updateDoc(doc(getDb(), "articles", articleId), stripUndefined({ ...data, updatedBy: actorUid }));
 }
