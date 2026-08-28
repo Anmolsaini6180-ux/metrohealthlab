@@ -1114,3 +1114,58 @@ describe("campaign and lead writes", () => {
     await assertFails(getDoc(doc(subAdmin(), "leads", "unassigned")));
   });
 });
+
+// The starter catalog import used to be a Cloud Function running with
+// Admin SDK privileges. It now runs in the browser as the signed-in
+// admin, so every document it writes has to satisfy validAdminWrite()
+// for real. These cases write the importer's actual payload shapes
+// through the rules to prove that, and to pin the two things that
+// differ from the old server-side version: deterministic ids (so a
+// re-run cannot duplicate) and an `updatedBy` on settings/seedStatus
+// (which the Cloud Function omitted, and which a browser cannot).
+describe("client-side starter catalog import", () => {
+  const stamp = { updatedBy: ADMIN, createdAt: new Date(), updatedAt: new Date() };
+
+  it("accepts every collection the importer writes", async () => {
+    const db = admin();
+    await assertSucceeds(setDoc(doc(db, "testCategories", "seed_blood"), { name: "Blood Tests", slug: "blood", icon: "water_drop", active: true, displayOrder: 0, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "labs", "seed_dr-lal-pathlabs"), { name: "Dr. Lal PathLabs", description: "NABL", serviceAreas: [], testIds: [], packageIds: [], active: true, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "tests", "seed_cbc"), { name: "CBC", slug: "cbc", categoryId: "seed_blood", description: "d", sampleType: "Blood", fastingRequired: false, preparation: "none", homeCollection: true, centerCollection: true, reportTat: "24 hours", mrp: 448, sellingPrice: 280, ageGroup: "All ages", gender: "all", labIds: ["seed_dr-lal-pathlabs"], active: true, displayOrder: 0, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "packages", "seed_full-body"), { name: "Full Body", slug: "full-body", category: "Full Body", description: "d", testIds: ["seed_cbc"], mrp: 3495, sellingPrice: 1299, reportTat: "24 hours", homeCollection: true, gender: "all", labIds: [], rating: 4.7, tag: "Popular", active: true, displayOrder: 0, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "labPricing", "seed_dr-lal-pathlabs_test_seed_cbc"), { labId: "seed_dr-lal-pathlabs", testId: "seed_cbc", price: 280, mrp: 448, collectionType: "both", reportTat: "24 hours", active: true, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "banners", "seed_up-to-70-off"), { title: "Up to 70% OFF", subtitle: "s", ctaLabel: "Go", ctaLink: "/tests", active: true, displayOrder: 0, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "coupons", "seed_welcome50"), { code: "WELCOME50", discountType: "flat", discountValue: 50, minimumOrder: 300, startDate: "2026-01-01", expiryDate: "2027-01-01", usedCount: 0, active: true, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "serviceAreas", "seed_201309"), { pincode: "201309", city: "Ghaziabad", area: "Sector 62", homeCollectionAvailable: true, collectionFee: 0, active: true, updatedBy: ADMIN }));
+    await assertSucceeds(setDoc(doc(db, "slots", "seed_201309_2026-09-01_0600_home"), { date: "2026-09-01", startTime: "06:00", endTime: "08:00", areaId: "seed_201309", collectionType: "home", capacity: 8, bookedCount: 0, active: true, ...stamp }));
+    await assertSucceeds(setDoc(doc(db, "articles", "seed_thyroid"), { title: "T", slug: "t", category: "Thyroid", excerpt: "e", body: "b", publishedAt: "2026-01-01", active: true, updatedBy: ADMIN }));
+    await assertSucceeds(setDoc(doc(db, "offers", "seed_welcome50"), { title: "o", subtitle: "s", description: "d", discountType: "flat", discountValue: 50, couponCode: "WELCOME50", active: true, displayOrder: 0, ...stamp }));
+  });
+
+  it("accepts settings/seedStatus only when the write names its author", async () => {
+    await assertSucceeds(
+      setDoc(doc(admin(), "settings", "seedStatus"), { completed: true, completedBy: ADMIN, completedAt: new Date(), updatedBy: ADMIN, updatedAt: new Date() }, { merge: true })
+    );
+    // Exactly the payload the old Cloud Function wrote — no updatedBy.
+    // Fine for the Admin SDK, rejected outright from a browser.
+    await assertFails(
+      setDoc(doc(admin(), "settings", "seedStatusNoAuthor"), { completed: true, completedBy: ADMIN, completedAt: new Date() }, { merge: true })
+    );
+  });
+
+  it("cannot be run by a sub admin or a collection agent", async () => {
+    await assertFails(setDoc(doc(subAdmin(), "tests", "seed_sneaky"), { name: "X", updatedBy: SUB_ADMIN }));
+    await assertFails(setDoc(doc(agent(), "testCategories", "seed_sneaky"), { name: "X", updatedBy: AGENT }));
+  });
+
+  // Deterministic ids are what make a re-run safe: the second write
+  // lands on the same document instead of creating a second one.
+  it("re-running writes the same document id rather than a duplicate", async () => {
+    const payload = { name: "Blood Tests", slug: "blood", icon: "water_drop", active: true, displayOrder: 0, ...stamp };
+    await assertSucceeds(setDoc(doc(admin(), "testCategories", "seed_blood"), payload));
+    await assertSucceeds(setDoc(doc(admin(), "testCategories", "seed_blood"), payload));
+
+    const all = await getDocs(collection(admin(), "testCategories"));
+    expect(all.size).toBe(1);
+    expect(all.docs[0].id).toBe("seed_blood");
+  });
+});
