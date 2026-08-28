@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
+  adminAccessDenialReason,
   adminHomePathForRole,
   adminMenuLabelForRole,
   assignableRoles,
@@ -288,5 +289,55 @@ describe("hierarchy table matches the security rules", () => {
     const canAssignBody = canAssignSource.slice(0, canAssignSource.indexOf("}"));
     expect(canAssignBody).not.toContain("targetRole == 'SUPER_ADMIN'");
     expect(canAssignBody).not.toContain("'SUPER_ADMIN']");
+  });
+});
+
+describe("explaining why an account resolved to no admin role", () => {
+  it("says nothing when the account DOES have a role", () => {
+    expect(adminAccessDenialReason(ctx({ uid: "u1", role: "ADMIN" }))).toBe("");
+    expect(adminAccessDenialReason(ctx({ uid: MASTER, role: "SUPER_ADMIN" }))).toBe("");
+  });
+
+  it("points at the bootstrap document when the project has no super admin yet", () => {
+    const notBootstrapped = { uid: "u1", role: null, status: null, isMaster: false, masterUid: "" };
+    expect(adminAccessDenialReason(notBootstrapped)).toContain("system/config.masterAdminUid");
+  });
+
+  it("distinguishes 'no staff record' from 'record is not active'", () => {
+    const noRecord = adminAccessDenialReason(ctx({ uid: "u1", role: null, status: null }));
+    const revoked = adminAccessDenialReason(ctx({ uid: "u1", role: null, status: "revoked" }));
+    expect(noRecord).toContain("no staff status");
+    expect(revoked).toContain('"revoked"');
+    expect(noRecord).not.toBe(revoked);
+  });
+
+  it("explains that a stored SUPER_ADMIN is never honoured", () => {
+    // Active record, but a role the model refuses to take from a
+    // document — the single most confusing way to end up locked out.
+    const storedSuper = ctx({ uid: "u1", role: null, status: "active" });
+    expect(adminAccessDenialReason(storedSuper)).toContain("SUPER_ADMIN");
+    expect(adminAccessDenialReason(storedSuper)).toContain("system/config");
+  });
+});
+
+describe("the admin record shape the app actually accepts", () => {
+  // Regression guard for the failure this fix was written for: an
+  // `admins/{uid}` document with role "superAdmin" / active true.
+  it("rejects the admins/{uid} shape outright", () => {
+    expect(roleFromStaffRecord({ role: "superAdmin", active: true } as never)).toBeNull();
+    expect(roleFromStaffRecord({ role: "superAdmin", status: "active" })).toBeNull();
+    expect(roleFromStaffRecord({ role: "SUPER_ADMIN", status: "active" })).toBeNull();
+    expect(roleFromStaffRecord({ role: "ADMIN", active: true } as never)).toBeNull();
+  });
+
+  it("accepts only status:'active' plus a delegable role", () => {
+    expect(roleFromStaffRecord({ role: "ADMIN", status: "active" })).toBe("ADMIN");
+    expect(roleFromStaffRecord({ role: "SUB_ADMIN", status: "active" })).toBe("SUB_ADMIN");
+    expect(roleFromStaffRecord({ role: "COLLECTION_AGENT", status: "active" })).toBe("COLLECTION_AGENT");
+  });
+
+  it("grants SUPER_ADMIN from the bootstrap document and nowhere else", () => {
+    expect(buildStaffContext("u1", "u1", null).role).toBe("SUPER_ADMIN");
+    expect(buildStaffContext("u1", "other", { role: "SUPER_ADMIN", status: "active" }).role).toBeNull();
   });
 });

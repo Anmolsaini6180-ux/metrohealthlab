@@ -2,6 +2,7 @@ import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/fires
 import type { User } from "firebase/auth";
 import { getDb } from "@/firebase/firestore";
 import { buildStaffContext } from "@/utils/roleAccess";
+import { firebaseErrorCode } from "@/utils/authErrors";
 import type { StaffContext } from "@/types/team";
 
 // ============================================================
@@ -50,25 +51,57 @@ export interface StaffRecordData {
   subAdminId?: string;
 }
 
+// Raised when an authorization document could not be READ at all.
+//
+// Deliberately distinct from "the record says you have no role". Both
+// fail closed — neither one grants anything — but only one of them is
+// a bug. Collapsing the two is what made a denied rule, a dropped
+// connection and a genuinely unauthorized account all surface as the
+// same "not authorized for admin access" message.
+export class StaffLookupError extends Error {
+  readonly code: string;
+  readonly source: string;
+  readonly reason: unknown;
+  constructor(source: string, reason: unknown) {
+    const code = firebaseErrorCode(reason) || "unknown";
+    super(`Could not read ${source} (${code}).`);
+    this.name = "StaffLookupError";
+    this.code = code;
+    this.source = source;
+    this.reason = reason;
+  }
+}
+
 // Reads the bootstrap document. A missing document is a normal,
 // expected state (the project has not been bootstrapped yet) and
-// resolves to an empty master uid rather than throwing — the app still
-// works, there is simply no super admin.
+// resolves to an empty master uid — the app still works, there is
+// simply no super admin. A document that cannot be read AT ALL is a
+// different case and throws (see StaffLookupError above).
 export async function getSystemConfig(): Promise<SystemConfig> {
   try {
     const snap = await getDoc(doc(getDb(), SYSTEM, CONFIG_DOC));
+    // A MISSING document is a normal, expected state — the project has
+    // not been bootstrapped yet, so there is simply no super admin.
     const masterAdminUid = snap.exists() ? (snap.data().masterAdminUid as string | undefined) : undefined;
     return { masterAdminUid: typeof masterAdminUid === "string" ? masterAdminUid : "" };
-  } catch {
-    // Unreadable (offline, or rules denied because nobody is signed
-    // in). Treat as "not bootstrapped" — never as "grant something".
-    return { masterAdminUid: "" };
+  } catch (err) {
+    // A FAILED read is a different thing entirely, and used to be
+    // swallowed into that same empty result — which is why a denied
+    // rule or a dropped connection was indistinguishable from "you are
+    // not an admin". This still fails closed: throwing grants nothing,
+    // and every caller treats a throw as "no role". The only thing
+    // that changes is that the real cause now reaches the console.
+    throw new StaffLookupError("system/config", err);
   }
 }
 
 export async function getStaffRecord(uid: string): Promise<StaffRecordData | null> {
-  const snap = await getDoc(doc(getDb(), USERS, uid));
-  return snap.exists() ? (snap.data() as StaffRecordData) : null;
+  try {
+    const snap = await getDoc(doc(getDb(), USERS, uid));
+    return snap.exists() ? (snap.data() as StaffRecordData) : null;
+  } catch (err) {
+    throw new StaffLookupError("users/{uid}", err);
+  }
 }
 
 // The master account's own users/{uid} document. firestore.rules lets

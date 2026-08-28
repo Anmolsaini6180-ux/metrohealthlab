@@ -4,8 +4,9 @@ import Logo from "@/components/brand/Logo";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { loginWithEmail, loginWithGoogle, logout } from "@/services/authService";
 import { resolveStaffContext } from "@/services/roleService";
-import { adminHomePathForRole } from "@/utils/roleAccess";
-import { toUserMessage } from "@/utils/errors";
+import { adminAccessDenialReason, adminHomePathForRole } from "@/utils/roleAccess";
+import { describeSignInError } from "@/utils/authErrors";
+import type { StaffContext } from "@/types/team";
 import type { User } from "firebase/auth";
 
 export default function AdminLoginPage() {
@@ -32,16 +33,55 @@ export default function AdminLoginPage() {
   // independently by firestore.rules on every request the admin
   // screens then make; landing on /admin proves nothing by itself.
   async function completeSignIn(user: User) {
-    const staff = await resolveStaffContext(user);
+    let staff: StaffContext;
+    try {
+      staff = await resolveStaffContext(user);
+    } catch (err) {
+      // The authorization record could not be READ — rules denied it,
+      // the network dropped, the transport was blocked. That is a
+      // technical failure, NOT a verdict about this account, and
+      // saying "you aren't authorized" here is what previously made
+      // the real problem invisible. Still fails closed: no role is
+      // granted and the session is ended.
+      const info = describeSignInError(err);
+      console.error(
+        `[admin-login] Could not resolve the staff role for uid ${user.uid} (${info.code}).`,
+        err
+      );
+      await logout();
+      setError(info.message);
+      return;
+    }
+
     const home = adminHomePathForRole(staff.role);
     if (!home) {
       // Valid Firebase credentials, but not a staff account — reject
-      // here rather than letting them into any part of /admin.
+      // here rather than letting them into any part of /admin. The
+      // user-facing wording stays deliberately vague; the console gets
+      // the specific reason so the project owner can fix the data.
+      console.error(
+        `[admin-login] Signed in as uid ${user.uid}, but this account resolves to no admin role. ` +
+          `${adminAccessDenialReason(staff)} ` +
+          'See DEPLOYMENT.md -> "First SUPER_ADMIN bootstrap".'
+      );
       await logout();
       setError("This account isn't authorized for admin access.");
       return;
     }
     navigate(from === "/admin" ? home : from, { replace: true });
+  }
+
+  // Both sign-in buttons funnel their failures through here so the
+  // nine distinct causes stay distinguishable in the console while the
+  // screen keeps a friendly, non-leaky message.
+  function reportSignInFailure(method: "Google" | "Email", err: unknown) {
+    const info = describeSignInError(err);
+    const line = `[admin-login] ${method} sign-in failed (${info.code}).`;
+    // Nothing here logs a token, a password or a credential — only
+    // Firebase's own error code and its error object.
+    if (info.silent) console.info(line);
+    else console.error(line, err);
+    setError(info.silent ? null : info.message);
   }
 
   async function handleEmailSubmit(e: React.FormEvent) {
@@ -51,7 +91,7 @@ export default function AdminLoginPage() {
     try {
       await completeSignIn(await loginWithEmail(email, password));
     } catch (err) {
-      setError(toUserMessage(err));
+      reportSignInFailure("Email", err);
     } finally {
       setBusy(null);
     }
@@ -63,7 +103,7 @@ export default function AdminLoginPage() {
     try {
       await completeSignIn(await loginWithGoogle());
     } catch (err) {
-      setError(toUserMessage(err));
+      reportSignInFailure("Google", err);
     } finally {
       setBusy(null);
     }

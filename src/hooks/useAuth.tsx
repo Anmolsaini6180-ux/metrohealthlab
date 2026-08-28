@@ -61,6 +61,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // A sign-in that happens WHILE the app is running arrives with
+      // `loading` already false — the app settled as signed-out while
+      // the login page was on screen — and the role below is resolved
+      // asynchronously. Without flipping this back first, every
+      // consumer briefly observes the impossible state "finished
+      // loading, signed in, no role". AdminProtectedRoute reads that
+      // as "not an admin" and bounces a legitimate admin straight back
+      // to /admin/login the moment the Google popup closes. Set
+      // synchronously, before the first await, so no render can land
+      // inside that gap. (On a cold load it is already true, so this
+      // is a no-op there.)
+      setLoading(true);
+
       let context: StaffContext = buildStaffContext(nextUser.uid, "", null);
       try {
         const nextProfile = await ensureUserProfile(nextUser);

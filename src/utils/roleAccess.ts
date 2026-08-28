@@ -67,6 +67,39 @@ export function adminHomePathForRole(role: unknown): string | null {
   return role === "COLLECTION_AGENT" ? "/agent" : "/admin";
 }
 
+// Explains, for the CONSOLE, why a signed-in account resolved to no
+// admin role. Pure diagnostics: it never changes the verdict, it is
+// never rendered to the user, and it reveals nothing about the project
+// that the signed-in account could not already read for itself.
+//
+// It exists because "this account isn't authorized for admin access"
+// is true of four completely different situations, and an operator
+// staring at that one sentence has no way to tell which one they are
+// in.
+export function adminAccessDenialReason(context: StaffContext): string {
+  if (context.role) return "";
+  if (!context.masterUid) {
+    return (
+      "system/config.masterAdminUid is missing or empty, so this project has no super admin at all yet. " +
+      "Create the Firestore document system/config with a string field masterAdminUid holding this uid."
+    );
+  }
+  if (context.status === null) {
+    return (
+      `users/${context.uid} carries no staff status, and this uid is not the bootstrapped master admin ` +
+      "(system/config.masterAdminUid holds a different uid)."
+    );
+  }
+  if (context.status !== "active") {
+    return `users/${context.uid} exists but its status is "${context.status}" rather than "active".`;
+  }
+  return (
+    `users/${context.uid} is active but its role is not one of ADMIN, SUB_ADMIN or COLLECTION_AGENT. ` +
+    'Note that a stored role of "SUPER_ADMIN" is deliberately never honoured — the super admin is ' +
+    "exclusively the uid in system/config."
+  );
+}
+
 export function adminMenuLabelForRole(role: unknown): string | null {
   if (!isAdminRole(role)) return null;
   return role === "COLLECTION_AGENT" ? "My Collections" : "Admin Dashboard";
