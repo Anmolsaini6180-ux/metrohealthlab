@@ -98,9 +98,17 @@ export interface BookingFilters {
   bookingStatus: string;
   paymentStatus: string;
   source: string;
+  /** Collection date, "YYYY-MM-DD". Empty means every date. */
+  date: string;
 }
 
-export const EMPTY_FILTERS: BookingFilters = { search: "", bookingStatus: "", paymentStatus: "", source: "" };
+export const EMPTY_FILTERS: BookingFilters = {
+  search: "",
+  bookingStatus: "",
+  paymentStatus: "",
+  source: "",
+  date: "",
+};
 
 /**
  * Applies the dashboard's search and filters. Search matches booking
@@ -114,6 +122,7 @@ export function filterBookings(bookings: Booking[], filters: BookingFilters): Bo
     if (filters.bookingStatus && b.bookingStatus !== filters.bookingStatus) return false;
     if (filters.paymentStatus && b.paymentStatus !== filters.paymentStatus) return false;
     if (filters.source && (b.source ?? "website") !== filters.source) return false;
+    if (filters.date && b.date !== filters.date) return false;
     if (!needle) return true;
 
     const haystack = [

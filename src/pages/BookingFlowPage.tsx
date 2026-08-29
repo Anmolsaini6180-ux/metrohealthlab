@@ -7,7 +7,7 @@ import { getAddresses } from "@/services/addressService";
 import { checkServiceability } from "@/services/serviceabilityService";
 import { subscribeToSlots } from "@/services/slotService";
 import { formatCurrencyInr } from "@/services/pricingService";
-import { createBooking, getBookingQuote, type GetBookingQuoteResponse } from "@/services/bookingService";
+import { createCashBooking, type GetBookingQuoteResponse } from "@/services/bookingService";
 import type { CollectionType } from "@/types/booking";
 import type { Slot } from "@/types/slot";
 import LoadingState from "@/components/common/LoadingState";
@@ -22,23 +22,28 @@ interface BookingSelection {
   refId: string;
   name: string;
   labId: string;
-  price: number; // display-only, from the catalog page — never sent as truth to the server
+  price: number; // display-only — firestore.rules re-derives it from pricingRefId
+  /** labPricing document the price came from; the rules verify against it. */
+  pricingRefId?: string;
+  labName?: string;
 }
 
-const STEPS = ["patient", "collection", "schedule", "coupon", "payment", "review"] as const;
+// No coupon step: redeeming a coupon means incrementing its usage
+// counters atomically, which a browser cannot do safely. Coupons are
+// applied by staff on an admin-created booking instead.
+const STEPS = ["patient", "collection", "schedule", "payment", "review"] as const;
 type Step = (typeof STEPS)[number];
 
 const STEP_LABELS: Record<Step, string> = {
   patient: "Patient",
   collection: "Collection",
   schedule: "Date & slot",
-  coupon: "Coupon",
   payment: "Payment",
   review: "Review",
 };
 
 export default function BookingFlowPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const selection = location.state as BookingSelection | null;
@@ -59,15 +64,12 @@ export default function BookingFlowPage() {
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [slotId, setSlotId] = useState<string | null>(null);
 
-  const [couponCode, setCouponCode] = useState("");
-
-  // The ONLY figures ever shown as "what you'll pay" — always the
-  // server's response from getBookingQuote, never computed here.
+  // What the customer is shown as "what you'll pay". Composed in
+  // fetchQuote() below and re-verified by firestore.rules on write.
   const [quote, setQuote] = useState<GetBookingQuoteResponse | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
+  const quoteLoading = false;
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
-  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [creatingBooking, setCreatingBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   // Distinguishes "the server rejected this booking" (retryable) from
@@ -163,27 +165,33 @@ export default function BookingFlowPage() {
       )
     : null;
 
-  async function fetchQuote(couponCodeToSend?: string) {
+  // The price shown before confirming.
+  //
+  // On this deployment there is no pricing Cloud Function, so the total
+  // is composed here from the two catalogue figures the customer has
+  // already been shown: the lab's price for this item, and the
+  // collection fee stored on their serviced pincode. That is safe
+  // because it is not the authority — firestore.rules re-derives both
+  // from `pricingRefId` and `serviceAreaId` when the booking is written
+  // and rejects anything that disagrees. Coupons are absent by design:
+  // redeeming one needs atomic usage counters a browser cannot do.
+  function fetchQuote() {
     if (!patientId || !pincodeChecked?.available) return;
-    setQuoteLoading(true);
     setQuoteError(null);
-    try {
-      const q = await getBookingQuote({
-        patientId,
-        items: [{ itemType: sel.itemType, refId: sel.refId, name: sel.name }],
-        labId: sel.labId,
-        collectionType,
-        addressId: collectionType === "home" ? addressId ?? undefined : undefined,
-        pincode,
-        couponCode: couponCodeToSend,
-      });
-      setQuote(q);
-    } catch (err) {
-      setQuote(null);
-      setQuoteError(toUserMessage(err));
-    } finally {
-      setQuoteLoading(false);
-    }
+
+    const collectionFee = collectionType === "home" ? pincodeChecked.collectionFee : 0;
+    const subtotal = sel.price;
+
+    setQuote({
+      quoteId: "",
+      subtotal,
+      collectionFee,
+      discount: 0,
+      finalAmount: subtotal + collectionFee,
+      currency: "INR",
+      couponApplied: false,
+      expiresAt: "",
+    });
   }
 
   async function handleCheckPincode() {
@@ -195,16 +203,12 @@ export default function BookingFlowPage() {
     setPincodeChecked({ areaId: area.id, collectionFee: area.collectionFee, available: area.homeCollectionAvailable || collectionType === "center" });
   }
 
-  async function handleApplyCoupon() {
-    await fetchQuote(couponCode.trim() || undefined);
-  }
-
   function handleNext() {
     if (step === "collection") {
       // Leaving the step that determines lab/collection type/area — get
       // (or refresh) the authoritative quote before the customer sees a
       // coupon or review screen.
-      fetchQuote(couponCode.trim() || undefined);
+      fetchQuote();
     }
     setStepIndex((i) => i + 1);
   }
@@ -214,25 +218,28 @@ export default function BookingFlowPage() {
     setCreatingBooking(true);
     setBookingError(null);
     try {
-      const result = await createBooking({
+      // Written straight to Firestore. firestore.rules verifies the
+      // price against `pricingRefId`, the fee against `serviceAreaId`,
+      // and pins the booking to start unpaid — so nothing here has to
+      // be trusted for the booking to be correct.
+      const result = await createCashBooking({
+        userId: user.uid,
         patientId,
-        items: [{ itemType: sel.itemType, refId: sel.refId, name: sel.name, labId: sel.labId, price: sel.price }],
+        item: { itemType: sel.itemType, refId: sel.refId, name: sel.name, labId: sel.labId, price: sel.price },
+        pricingRefId: sel.pricingRefId ?? "",
+        serviceAreaId: pincodeChecked.areaId,
         labId: sel.labId,
+        labName: sel.labName,
         collectionType,
         addressId: collectionType === "home" ? addressId ?? undefined : undefined,
         pincode,
+        collectionFee: quote.collectionFee,
         date,
         slotId,
-        // Only ever send the coupon code the quote actually confirmed as
-        // applied — never a code the customer typed but that the quote
-        // rejected, even if it's still sitting in the input.
-        couponCode: quote.couponApplied ? couponCode.trim() : undefined,
-        // Cash on home is the only method this deployment offers, so
-        // there is no gateway step after creation: a successful create
-        // IS the confirmed booking.
-        paymentMethod: "cash_on_home",
-        idempotencyKey,
-        quoteId: quote.quoteId,
+        contact: {
+          name: profile?.name ?? user.displayName ?? undefined,
+          phone: profile?.phone ?? user.phoneNumber ?? undefined,
+        },
       });
       setCreatedBooking(result);
       navigate(`/track/${result.bookingId}`, { replace: true });
@@ -436,31 +443,6 @@ export default function BookingFlowPage() {
         </section>
       )}
 
-      {step === "coupon" && (
-        <section>
-          <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Have a coupon?</h2>
-          <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-            <input
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              placeholder="Enter coupon code"
-              style={{ padding: 10, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)", flex: 1 }}
-            />
-            <button className="btn btn-outline" onClick={handleApplyCoupon} disabled={quoteLoading}>
-              {quoteLoading ? "Checking..." : "Apply"}
-            </button>
-          </div>
-          {quote && couponCode.trim() && quote.couponApplied && (
-            <p style={{ color: "var(--color-success)", fontSize: "var(--text-sm)", marginTop: 6 }}>
-              Coupon applied — {formatCurrencyInr(quote.discount)} off.
-            </p>
-          )}
-          {quote && couponCode.trim() && !quote.couponApplied && quote.couponMessage && (
-            <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", marginTop: 6 }}>{quote.couponMessage}</p>
-          )}
-        </section>
-      )}
-
       {step === "payment" && (
         <section>
           <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Payment method</h2>
@@ -486,7 +468,7 @@ export default function BookingFlowPage() {
           <h2 style={{ fontSize: "var(--text-lg)" }}>Review & confirm</h2>
 
           {quoteLoading && <LoadingState label="Getting the latest price..." rows={2} />}
-          {quoteError && <ErrorState message={quoteError} onRetry={() => fetchQuote(couponCode.trim() || undefined)} />}
+          {quoteError && <ErrorState message={quoteError} onRetry={() => fetchQuote()} />}
 
           {quote && (
             <>

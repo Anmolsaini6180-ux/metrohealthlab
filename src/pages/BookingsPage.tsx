@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useAsync } from "@/hooks/useAsync";
-import { getUserBookings } from "@/services/bookingService";
+import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
+import { subscribeToUserBookings } from "@/services/bookingService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import type { Booking, BookingStatus } from "@/types/booking";
 import LoadingState from "@/components/common/LoadingState";
@@ -44,7 +44,13 @@ function matchesTab(b: Booking, tab: Tab): boolean {
 
 export default function BookingsPage() {
   const { user } = useAuth();
-  const bookings = useAsync(() => (user ? getUserBookings(user.uid) : Promise.resolve([])), [user?.uid]);
+  // Live, so a status change or a cash collection made by staff shows
+  // up on the customer's own list without a refresh.
+  const bookings = useRealtimeQuery<Booking[]>(
+    (onData, onError) =>
+      user ? subscribeToUserBookings(user.uid, onData, onError) : (onData([]), () => {}),
+    [user?.uid]
+  );
   const [tab, setTab] = useState<Tab>("Upcoming");
 
   const filtered = useMemo(() => (bookings.data ?? []).filter((b) => matchesTab(b, tab)), [bookings.data, tab]);

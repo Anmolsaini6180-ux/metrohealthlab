@@ -43,8 +43,13 @@ export default function PackageDetailPage() {
 
   const p = pkg.data;
 
-  function bookWithLab(labId: string, price: number) {
-    navigate("/book", { state: { itemType: "package", refId: p.id, name: p.name, labId, price } });
+  // `pricingRefId` travels with the selection because firestore.rules
+  // re-derives the price from that labPricing row when the booking is
+  // written — the number alone is never trusted.
+  function bookWithLab(labId: string, price: number, pricingRefId: string, labName?: string) {
+    navigate("/book", {
+      state: { itemType: "package", refId: p.id, name: p.name, labId, price, pricingRefId, labName },
+    });
   }
 
   // Booking used to be reachable only by first picking a row out of
@@ -83,7 +88,7 @@ export default function PackageDetailPage() {
             </>
           )}
         </p>
-        <button className="btn btn-primary" onClick={() => bookWithLab(bookLabId, bookPrice)}>
+        <button className="btn btn-primary" onClick={() => bookWithLab(bookLabId, bookPrice, cheapest?.id ?? "", cheapest ? labNameById.get(cheapest.labId) : undefined)}>
           Book Now
         </button>
         {cheapest && labNameById.get(cheapest.labId) && (
@@ -117,7 +122,7 @@ export default function PackageDetailPage() {
                     {pr.collectionType === "both" ? "Home & Center" : pr.collectionType} • Reports in {pr.reportTat}
                   </p>
                 </div>
-                <button className="btn btn-accent" onClick={() => bookWithLab(pr.labId, pr.price)}>
+                <button className="btn btn-accent" onClick={() => bookWithLab(pr.labId, pr.price, pr.id, labNameById.get(pr.labId))}>
                   Book
                 </button>
               </div>

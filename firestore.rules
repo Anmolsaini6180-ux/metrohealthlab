@@ -387,6 +387,127 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------- Booking write validation ----------
+    // Re-derives every figure on a booking from the catalogue documents
+    // the booking itself points at. Used by the create rules below.
+
+    // The one priced line. `pricingRefId` names the labPricing row the
+    // customer was actually shown, and it must match the lab and the
+    // item on the booking — so quoting lab A's cheap price against lab
+    // B, or a different package entirely, is refused.
+    function itemPriceIsGenuine(d) {
+      let path = /databases/$(database)/documents/labPricing/$(d.pricingRefId);
+      let p = get(path).data;
+      let item = d.items[0];
+      return d.items.size() == 1
+        && exists(path)
+        && p.price == item.price
+        && p.labId == d.labId
+        && p.labId == item.labId
+        && (
+          (item.itemType == 'package' && p.get('packageId', '') == item.refId) ||
+          (item.itemType == 'test' && p.get('testId', '') == item.refId)
+        );
+    }
+
+    // Home collection carries the fee stored on the serviced pincode;
+    // a centre visit carries none. The booking names the area document
+    // so the claimed pincode and fee can both be checked against it.
+    function collectionFeeIsGenuine(d) {
+      let path = /databases/$(database)/documents/serviceAreas/$(d.serviceAreaId);
+      let area = get(path).data;
+      return exists(path)
+        && area.pincode == d.pincode
+        && area.get('active', false) == true
+        && d.collectionFee == (d.collectionType == 'home' ? area.get('collectionFee', 0) : 0);
+    }
+
+    function totalsAddUp(d) {
+      return d.subtotal == d.items[0].price
+        && d.discount == 0
+        && d.finalAmount == d.subtotal + d.collectionFee
+        && d.finalAmount >= 0;
+    }
+
+    // Cash on home always starts unpaid and fully outstanding.
+    function startsUnpaid(d) {
+      return d.paymentMethod == 'cash_on_home'
+        && d.paymentStatus == 'pending'
+        && d.amountReceived == 0
+        && d.pendingAmount == d.finalAmount;
+    }
+
+    // No booking may arrive pre-assigned into somebody's queue.
+    function carriesNoAssignment(d) {
+      return !('assignedAgentId' in d) && !('assignedAdminId' in d) && !('assignedSubAdminId' in d);
+    }
+
+    function isCustomerOwnBooking() {
+      let d = request.resource.data;
+      return isSignedIn()
+        && d.userId == request.auth.uid
+        // A customer can only ever file a website booking; the admin
+        // and whatsapp sources are staff pathways.
+        && d.source == 'website'
+        && d.bookingStatus == 'confirmed'
+        && d.collectionType in ['home', 'center']
+        && startsUnpaid(d)
+        && carriesNoAssignment(d)
+        && totalsAddUp(d)
+        && itemPriceIsGenuine(d)
+        && collectionFeeIsGenuine(d);
+    }
+
+    // Staff booking a customer in (phone call, pasted WhatsApp message,
+    // walk-in). Prices are not re-derived here — staff are trusted to
+    // agree a price, and the audit trail records who did — but the
+    // money still has to be internally consistent and start unpaid
+    // unless staff explicitly records cash taken up front.
+    function isStaffCreatedBooking() {
+      let d = request.resource.data;
+      return canManageCatalog()
+        && d.source in ['admin', 'whatsapp']
+        && d.paymentMethod == 'cash_on_home'
+        && d.finalAmount >= 0
+        && d.amountReceived >= 0
+        && d.amountReceived <= d.finalAmount
+        && d.pendingAmount == d.finalAmount - d.amountReceived
+        && d.paymentStatus == cashStatusFor(d.finalAmount, d.amountReceived)
+        && d.createdBy == request.auth.uid
+        && carriesNoAssignment(d);
+    }
+
+    // The single definition of what a cash payment status means, so a
+    // rule and the client cannot disagree about it.
+    function cashStatusFor(finalAmount, received) {
+      return received == 0 ? 'pending'
+        : (received >= finalAmount ? 'paid' : 'partially_paid');
+    }
+
+    // Staff edits: status moves and cash collection. The identity of
+    // the booking (who it belongs to, what was ordered, what it cost)
+    // is immutable — correcting those means cancelling and rebooking,
+    // not quietly rewriting history.
+    // Expressed as a whitelist of movable keys rather than a field-by-
+    // field comparison. That way userId / finalAmount / items / source
+    // are immutable because they simply cannot appear in the diff —
+    // and it works on bookings written before those fields existed,
+    // which a direct comparison does not (reading an absent key from a
+    // map errors, and the write is denied for the wrong reason).
+    function staffBookingUpdateIsSane() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly([
+        'bookingStatus', 'amountReceived', 'pendingAmount', 'paymentStatus',
+        'assignedAgentId', 'assignedSubAdminId', 'assignedAdminId',
+        'labName', 'contact', 'notes', 'updatedBy', 'updatedAt'
+      ])
+        && d.amountReceived >= 0
+        && d.amountReceived <= d.finalAmount
+        && d.pendingAmount == d.finalAmount - d.amountReceived
+        && d.paymentStatus == cashStatusFor(d.finalAmount, d.amountReceived)
+        && d.updatedBy == request.auth.uid;
+    }
+
     // Bookings: customers read only their own. Staff can `get` (not
     // `list`) an individual booking that's within their hierarchy scope
     // — SUPER_ADMIN sees any booking, ADMIN sees their assigned bookings
@@ -411,10 +532,38 @@ service cloud.firestore {
       // (see bookingService.getUserBookings). An unconstrained list, or
       // one asking for somebody else's uid, still fails closed.
       //
-      // Staff listing stays denied: scoping a staff list to a hierarchy
-      // cannot be expressed here, so it remains a server-side surface.
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
+      // Staff listing: SUPER_ADMIN/ADMIN may list the whole book, which
+      // IS expressible here because it does not depend on the document.
+      // SUB_ADMIN/COLLECTION_AGENT still get no list — their hierarchy
+      // scoping cannot be expressed on a list query, and granting them
+      // a global list "for now" is exactly the accident to avoid.
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || canManageCatalog()
+      );
+
+      // ---- Client-created bookings (Spark: no Cloud Functions) ----
+      //
+      // A booking is money, so nothing about its price is taken on
+      // trust. The document must NAME the catalogue rows it was priced
+      // from (pricingRefId -> labPricing, serviceAreaId -> serviceAreas)
+      // and every figure is re-derived from those documents here. A
+      // browser that edits the price simply fails the write.
+      //
+      // Deliberate restrictions on the customer path, each because it
+      // cannot be made safe without a server:
+      //   * exactly one item — rules cannot iterate an array, so a
+      //     multi-item basket could not be priced-checked.
+      //   * discount must be 0 — applying a coupon means incrementing
+      //     its usage counters atomically, which a client cannot do.
+      //   * amountReceived must be 0 and status must be pending — a
+      //     customer never marks their own booking paid.
+      allow create: if isCustomerOwnBooking() || isStaffCreatedBooking();
+
+      // Only staff move a booking after creation. The customer has no
+      // update path at all, so financial and status fields are
+      // immutable to them by construction rather than by field list.
+      allow update: if canManageCatalog() && staffBookingUpdateIsSane();
+      allow delete: if false;
     }
 
     match /bookingItems/{id} {

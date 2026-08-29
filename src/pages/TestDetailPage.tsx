@@ -46,8 +46,10 @@ export default function TestDetailPage() {
 
   const t = test.data;
 
-  function bookWithLab(labId: string, price: number) {
-    navigate("/book", { state: { itemType: "test", refId: t.id, name: t.name, labId, price } });
+  function bookWithLab(labId: string, price: number, pricingRefId: string, labName?: string) {
+    navigate("/book", {
+      state: { itemType: "test", refId: t.id, name: t.name, labId, price, pricingRefId, labName },
+    });
   }
 
   return (
@@ -91,7 +93,7 @@ export default function TestDetailPage() {
                     {p.collectionType === "both" ? "Home & Center" : p.collectionType} • Reports in {p.reportTat}
                   </p>
                 </div>
-                <button className="btn btn-accent" onClick={() => bookWithLab(p.labId, p.price)}>
+                <button className="btn btn-accent" onClick={() => bookWithLab(p.labId, p.price, p.id, labNameById.get(p.labId))}>
                   Book
                 </button>
               </div>

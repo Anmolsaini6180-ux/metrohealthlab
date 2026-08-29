@@ -224,6 +224,22 @@ beforeEach(async () => {
       paymentStatus: "success",
       finalAmount: 1200,
     });
+    // Catalogue rows a client-created booking must price itself
+    // against. The booking names these documents and the rules
+    // re-derive every figure from them.
+    await setDoc(doc(db, "labPricing", "lp-1"), {
+      labId: "lab-1",
+      packageId: "pkg-1",
+      price: 1000,
+      active: true,
+    });
+    await setDoc(doc(db, "serviceAreas", "sa-1"), {
+      pincode: "201301",
+      city: "Noida",
+      homeCollectionAvailable: true,
+      collectionFee: 50,
+      active: true,
+    });
     await setDoc(doc(db, "payments", "payment-a"), {
       userId: CUSTOMER_A,
       bookingId: "booking-a",
@@ -866,10 +882,13 @@ describe("bookings and payments", () => {
     );
   });
 
-  it("denies an unscoped booking list, so the collection cannot be dumped", async () => {
+  // A customer's list must stay scoped to their own uid. Admins DO get
+  // an unscoped list (the admin booking dashboard reads it directly on
+  // Spark) — that is covered in the booking administration suite below.
+  it("denies a customer an unscoped booking list, so the collection cannot be dumped", async () => {
     await assertFails(getDocs(collection(customerA(), "bookings")));
-    await assertFails(getDocs(collection(admin(), "bookings")));
-    await assertFails(getDocs(collection(master(), "bookings")));
+    await assertFails(getDocs(collection(subAdmin(), "bookings")));
+    await assertFails(getDocs(collection(agent(), "bookings")));
   });
 
   it("denies an anonymous visitor listing bookings", async () => {
@@ -1192,5 +1211,244 @@ describe("client-side starter catalog import", () => {
     const all = await getDocs(collection(admin(), "testCategories"));
     expect(all.size).toBe(1);
     expect(all.docs[0].id).toBe("seed_blood");
+  });
+});
+
+// ============================================================
+// Client-created bookings (Spark: no Cloud Functions).
+//
+// Booking creation moved from a Cloud Function to a direct Firestore
+// write, so these rules are now the ONLY thing standing between a
+// browser and the price of a booking. Each case below is a specific
+// way that could be abused.
+// ============================================================
+describe("customer-created cash bookings", () => {
+  // The exact shape the website booking flow writes.
+  function websiteBooking(overrides: Record<string, unknown> = {}) {
+    return {
+      userId: CUSTOMER_A,
+      patientId: "patient-a",
+      items: [{ itemType: "package", refId: "pkg-1", name: "Full Body", labId: "lab-1", price: 1000 }],
+      labId: "lab-1",
+      pricingRefId: "lp-1",
+      serviceAreaId: "sa-1",
+      pincode: "201301",
+      collectionType: "home",
+      date: "2026-09-10",
+      slotId: "slot-1",
+      subtotal: 1000,
+      collectionFee: 50,
+      discount: 0,
+      finalAmount: 1050,
+      amountReceived: 0,
+      pendingAmount: 1050,
+      paymentMethod: "cash_on_home",
+      paymentStatus: "pending",
+      bookingStatus: "confirmed",
+      source: "website",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  it("lets a customer create their own cash-on-home website booking", async () => {
+    await assertSucceeds(addDoc(collection(customerA(), "bookings"), websiteBooking()));
+  });
+
+  it("denies creating a booking under another customer uid", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ userId: CUSTOMER_B })));
+  });
+
+  it("denies an anonymous visitor creating a booking", async () => {
+    await assertFails(addDoc(collection(anonymous(), "bookings"), websiteBooking()));
+  });
+
+  // The price is re-derived from labPricing, so editing it in the
+  // browser fails rather than under-charging the business.
+  it("denies a discounted price that no lab actually offers", async () => {
+    await assertFails(
+      addDoc(collection(customerA(), "bookings"), websiteBooking({
+        items: [{ itemType: "package", refId: "pkg-1", name: "Full Body", labId: "lab-1", price: 1 }],
+        subtotal: 1,
+        finalAmount: 51,
+        pendingAmount: 51,
+      }))
+    );
+  });
+
+  it("denies a booking whose totals do not add up", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ finalAmount: 100, pendingAmount: 100 })));
+  });
+
+  it("denies skipping the home-collection fee", async () => {
+    await assertFails(
+      addDoc(collection(customerA(), "bookings"), websiteBooking({ collectionFee: 0, finalAmount: 1000, pendingAmount: 1000 }))
+    );
+  });
+
+  it("denies pricing against a lab pricing row that belongs to another lab", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ labId: "lab-other" })));
+  });
+
+  it("denies claiming a pincode the named service area does not cover", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ pincode: "999999" })));
+  });
+
+  it("denies a self-declared discount", async () => {
+    await assertFails(
+      addDoc(collection(customerA(), "bookings"), websiteBooking({ discount: 500, finalAmount: 550, pendingAmount: 550 }))
+    );
+  });
+
+  // A customer marking their own booking paid is the whole reason the
+  // cash fields are pinned at creation.
+  it("denies a customer marking their own booking paid", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ paymentStatus: "paid" })));
+  });
+
+  it("denies a customer recording cash against their own booking", async () => {
+    await assertFails(
+      addDoc(collection(customerA(), "bookings"), websiteBooking({ amountReceived: 1050, pendingAmount: 0 }))
+    );
+  });
+
+  it("denies a customer creating an admin or whatsapp source booking", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ source: "admin" })));
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ source: "whatsapp" })));
+  });
+
+  it("denies a booking that arrives pre-assigned to staff", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ assignedAgentId: AGENT })));
+  });
+
+  it("denies an online payment method", async () => {
+    await assertFails(addDoc(collection(customerA(), "bookings"), websiteBooking({ paymentMethod: "upi" })));
+  });
+
+  it("denies a customer updating their own booking after creation", async () => {
+    await assertFails(updateDoc(doc(customerA(), "bookings", "booking-a"), { bookingStatus: "completed" }));
+    await assertFails(updateDoc(doc(customerA(), "bookings", "booking-a"), { amountReceived: 1200 }));
+  });
+});
+
+describe("staff-created bookings and booking administration", () => {
+  function staffBooking(overrides: Record<string, unknown> = {}) {
+    return {
+      userId: CUSTOMER_A,
+      patientId: "patient-a",
+      items: [{ itemType: "package", refId: "pkg-1", name: "Full Body", labId: "lab-1", price: 1000 }],
+      labId: "lab-1",
+      collectionType: "home",
+      date: "2026-09-10",
+      slotId: "slot-1",
+      subtotal: 1000,
+      collectionFee: 50,
+      discount: 0,
+      finalAmount: 1050,
+      amountReceived: 0,
+      pendingAmount: 1050,
+      paymentMethod: "cash_on_home",
+      paymentStatus: "pending",
+      bookingStatus: "confirmed",
+      source: "whatsapp",
+      createdBy: ADMIN,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  it("lets an admin create a WhatsApp booking", async () => {
+    await assertSucceeds(addDoc(collection(admin(), "bookings"), staffBooking()));
+  });
+
+  it("lets an admin create an admin-source booking", async () => {
+    await assertSucceeds(addDoc(collection(admin(), "bookings"), staffBooking({ source: "admin" })));
+  });
+
+  it("lets an admin record cash taken up front, with a consistent status", async () => {
+    await assertSucceeds(
+      addDoc(collection(admin(), "bookings"), staffBooking({ amountReceived: 1050, pendingAmount: 0, paymentStatus: "paid" }))
+    );
+    await assertSucceeds(
+      addDoc(collection(admin(), "bookings"), staffBooking({ amountReceived: 500, pendingAmount: 550, paymentStatus: "partially_paid" }))
+    );
+  });
+
+  it("denies an inconsistent cash state, even from an admin", async () => {
+    await assertFails(
+      addDoc(collection(admin(), "bookings"), staffBooking({ amountReceived: 500, pendingAmount: 550, paymentStatus: "paid" }))
+    );
+    await assertFails(
+      addDoc(collection(admin(), "bookings"), staffBooking({ amountReceived: 2000, pendingAmount: -950 }))
+    );
+  });
+
+  it("denies a staff booking that misattributes who created it", async () => {
+    await assertFails(addDoc(collection(admin(), "bookings"), staffBooking({ createdBy: MASTER })));
+  });
+
+  it("denies a sub admin and a collection agent creating bookings", async () => {
+    await assertFails(addDoc(collection(subAdmin(), "bookings"), staffBooking({ createdBy: SUB_ADMIN })));
+    await assertFails(addDoc(collection(agent(), "bookings"), staffBooking({ createdBy: AGENT })));
+  });
+
+  it("lets an admin list the whole booking book", async () => {
+    await assertSucceeds(getDocs(collection(admin(), "bookings")));
+    await assertSucceeds(getDocs(collection(master(), "bookings")));
+  });
+
+  it("still denies a sub admin, agent and customer an unscoped booking list", async () => {
+    await assertFails(getDocs(collection(subAdmin(), "bookings")));
+    await assertFails(getDocs(collection(agent(), "bookings")));
+    await assertFails(getDocs(collection(customerA(), "bookings")));
+  });
+
+  it("lets an admin record cash and move status on an existing booking", async () => {
+    await assertSucceeds(
+      updateDoc(doc(admin(), "bookings", "booking-a"), {
+        bookingStatus: "completed",
+        amountReceived: 1200,
+        pendingAmount: 0,
+        paymentStatus: "paid",
+        updatedBy: ADMIN,
+      })
+    );
+  });
+
+  it("denies an admin update that leaves the cash arithmetic wrong", async () => {
+    await assertFails(
+      updateDoc(doc(admin(), "bookings", "booking-a"), {
+        amountReceived: 500,
+        pendingAmount: 0,
+        paymentStatus: "paid",
+        updatedBy: ADMIN,
+      })
+    );
+  });
+
+  // Rewriting what a booking was for, or who it belongs to, is not an
+  // edit - it is a different booking.
+  it("denies an admin rewriting the amount, owner or items of a booking", async () => {
+    await assertFails(
+      updateDoc(doc(admin(), "bookings", "booking-a"), { finalAmount: 1, pendingAmount: 1, amountReceived: 0, paymentStatus: "pending", updatedBy: ADMIN })
+    );
+    await assertFails(
+      updateDoc(doc(admin(), "bookings", "booking-a"), { userId: CUSTOMER_B, amountReceived: 0, pendingAmount: 1200, paymentStatus: "pending", updatedBy: ADMIN })
+    );
+  });
+
+  it("denies a sub admin, agent, customer and anonymous visitor updating a booking", async () => {
+    const patch = { bookingStatus: "completed", amountReceived: 0, pendingAmount: 1200, paymentStatus: "pending", updatedBy: SUB_ADMIN };
+    await assertFails(updateDoc(doc(subAdmin(), "bookings", "booking-a"), patch));
+    await assertFails(updateDoc(doc(agent(), "bookings", "booking-a"), patch));
+    await assertFails(updateDoc(doc(customerB(), "bookings", "booking-a"), patch));
+    await assertFails(updateDoc(doc(anonymous(), "bookings", "booking-a"), patch));
+  });
+
+  it("denies deleting a booking outright", async () => {
+    await assertFails(deleteDoc(doc(admin(), "bookings", "booking-a")));
+    await assertFails(deleteDoc(doc(master(), "bookings", "booking-a")));
   });
 });

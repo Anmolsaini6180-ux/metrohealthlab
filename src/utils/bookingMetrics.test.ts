@@ -144,6 +144,15 @@ describe("filterBookings", () => {
     ).toEqual(["MH1"]);
   });
 
+  it("filters by collection date", () => {
+    const dated = [
+      booking({ id: "MH1", date: "2026-09-02" }),
+      booking({ id: "MH2", date: "2026-09-03" }),
+    ];
+    expect(filterBookings(dated, { ...EMPTY_FILTERS, date: "2026-09-02" }).map((b) => b.id)).toEqual(["MH1"]);
+    expect(filterBookings(dated, { ...EMPTY_FILTERS, date: "" })).toHaveLength(2);
+  });
+
   it("treats a booking with no source as a website booking", () => {
     const legacy = [booking({ id: "MH9", source: undefined })];
     expect(filterBookings(legacy, { ...EMPTY_FILTERS, source: "website" })).toHaveLength(1);
