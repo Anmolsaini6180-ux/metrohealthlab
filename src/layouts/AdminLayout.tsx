@@ -8,6 +8,7 @@ import { logout } from "@/services/authService";
 const NAV_ITEMS = [
   { to: "/admin", label: "Dashboard", icon: "space_dashboard", end: true, roles: null },
   { to: "/admin/bookings", label: "Bookings", icon: "calendar_month", roles: null },
+  { to: "/admin/bookings/dashboard", label: "Booking Dashboard", icon: "insights", roles: null },
   { to: "/admin/tests", label: "Tests", icon: "science", roles: CAN_MANAGE_CATALOG },
   { to: "/admin/categories", label: "Categories", icon: "category", roles: CAN_MANAGE_CATALOG },
   { to: "/admin/packages", label: "Packages", icon: "inventory_2", roles: CAN_MANAGE_CATALOG },

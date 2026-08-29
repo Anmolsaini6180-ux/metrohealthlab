@@ -1,46 +1,22 @@
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { Link, useParams } from "react-router-dom";
 import { useAsync } from "@/hooks/useAsync";
 import { getBookingById } from "@/services/bookingService";
 import { formatCurrencyInr } from "@/services/pricingService";
-import { usePaymentCheckout } from "@/hooks/usePaymentCheckout";
-import type { PaymentMethod } from "@/types/payment";
+import { pendingFor } from "@/utils/bookingMetrics";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 
-const METHODS: PaymentMethod[] = ["upi", "card", "netbanking", "wallet"];
-
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-  const navigate = useNavigate();
   const booking = useAsync(() => getBookingById(id!), [id]);
-  const paymentCheckout = usePaymentCheckout();
-  const [retryMethod, setRetryMethod] = useState<PaymentMethod>("upi");
 
   if (booking.loading) return <LoadingState label="Loading booking..." />;
   if (booking.error) return <ErrorState message={booking.error} onRetry={booking.retry} />;
   if (!booking.data) return <EmptyState icon="search_off" title="Booking not found" />;
 
   const b = booking.data;
-  // A booking left in payment_pending (payment never succeeded, or
-  // failed and the customer didn't retry immediately) is the only state
-  // that's ever safe/sensible to retry payment from.
-  const canRetryPayment = b.bookingStatus === "payment_pending" && b.paymentStatus !== "success";
-
-  async function handleRetry() {
-    const result = await paymentCheckout.pay(b.id, retryMethod, {
-      email: user?.email ?? undefined,
-      contact: user?.phoneNumber ?? undefined,
-    });
-    if (result.outcome === "success" || result.outcome === "delayed") {
-      navigate(`/track/${b.id}`);
-    } else {
-      booking.retry();
-    }
-  }
+  const pendingAmount = pendingFor(b);
 
   return (
     <div style={{ display: "grid", gap: "var(--space-md)" }}>
@@ -63,32 +39,15 @@ export default function BookingDetailPage() {
         <Row label="Payment status" value={b.paymentStatus.replace(/_/g, " ")} />
       </div>
 
-      {canRetryPayment && (
-        <div className="card" style={{ display: "grid", gap: "var(--space-sm)" }}>
-          <p style={{ fontWeight: 600 }}>Payment not completed yet</p>
+      {/* Cash on Home: nothing is collected online, so the amount owed
+          is shown as what to hand the collection agent rather than as
+          an unfinished payment with a gateway button behind it. */}
+      {pendingAmount > 0 && b.bookingStatus !== "cancelled" && (
+        <div className="card" style={{ display: "grid", gap: 4 }}>
+          <p style={{ fontWeight: 600 }}>Pay {formatCurrencyInr(pendingAmount)} in cash</p>
           <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-            Your booking is held — finish payment to confirm it.
+            Hand this to the collection agent when they visit. Nothing is charged online.
           </p>
-          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-            {METHODS.map((m) => (
-              <button
-                key={m}
-                className={retryMethod === m ? "btn btn-primary" : "btn btn-outline"}
-                onClick={() => setRetryMethod(m)}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          {paymentCheckout.phase === "verifying" && <p className="text-soft">Payment verification in progress...</p>}
-          {paymentCheckout.error && <ErrorState message={paymentCheckout.error} />}
-          <button
-            className="btn btn-accent"
-            onClick={handleRetry}
-            disabled={paymentCheckout.phase === "opening" || paymentCheckout.phase === "verifying"}
-          >
-            {paymentCheckout.phase === "opening" ? "Opening payment..." : "Retry payment"}
-          </button>
         </div>
       )}
 

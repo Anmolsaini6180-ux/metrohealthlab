@@ -24,7 +24,20 @@
 // can't express "recompute this from trusted data".
 export { createBooking } from "./createBooking";
 export { getBookingQuote } from "./getBookingQuote";
-export { createPaymentOrder, razorpayWebhook } from "./payments";
+export { recordCashReceived, setBookingStatus } from "./cashCollection";
+
+// ---------------------------------------------------------------
+// ONLINE PAYMENT IS OUT OF SCOPE FOR THIS DEPLOYMENT.
+//
+// This build offers cash on home only. payments.ts (Razorpay order
+// creation + webhook signature verification) is intentionally NOT
+// exported, so it is not deployed and needs no key id, key secret or
+// webhook secret to exist anywhere. The file is kept because the
+// implementation is complete and correct; re-export it here, add the
+// Razorpay secrets to Secret Manager and re-enable the checkout in the
+// frontend when online payment is wanted.
+// export { createPaymentOrder, razorpayWebhook } from "./payments";
+// ---------------------------------------------------------------
 export {
   getReportDownloadUrl,
   getReportUploadSignature,

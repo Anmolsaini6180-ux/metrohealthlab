@@ -26,7 +26,13 @@ export interface CreateBookingRequest {
   date: string;
   slotId: string;
   couponCode?: string;
-  paymentMethod: "upi" | "card" | "netbanking" | "wallet" | "cash_on_collection";
+  // Cash on home is the only method this deployment offers; online
+  // payment is deliberately out of scope, so no gateway method exists
+  // here and nothing can mark a booking paid at creation time. Mirrors
+  // functions/src/createBooking.ts.
+  paymentMethod: "cash_on_home";
+  /** Contact snapshot stored on the booking for the admin screen. */
+  contact?: { name?: string; phone?: string; address?: string };
   idempotencyKey: string;
   // Purely informational — links the booking to the quote shown on the
   // review screen for support/audit purposes. Never trusted for pricing.

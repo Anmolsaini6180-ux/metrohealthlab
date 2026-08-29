@@ -403,7 +403,17 @@ service cloud.firestore {
           (role() == "COLLECTION_AGENT" && resource.data.assignedAgentId == request.auth.uid)
         ))
       );
-      allow list: if false;
+      // A customer may list their OWN bookings — "My bookings" was
+      // failing with permission-denied because every list was refused.
+      // This is the standard owner-scoped list: the rule is evaluated
+      // against each candidate document, so Firestore only serves the
+      // query when it is already constrained to userId == the caller
+      // (see bookingService.getUserBookings). An unconstrained list, or
+      // one asking for somebody else's uid, still fails closed.
+      //
+      // Staff listing stays denied: scoping a staff list to a hierarchy
+      // cannot be expressed here, so it remains a server-side surface.
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow write: if false;
     }
 

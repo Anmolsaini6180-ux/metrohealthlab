@@ -7,6 +7,8 @@ import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import { toUserMessage } from "@/utils/errors";
+import { optionalText } from "@/utils/firestoreData";
+import MediaUploader from "@/components/admin/MediaUploader";
 
 export default function AdminOffersPage() {
   const { user } = useAuth();
@@ -61,6 +63,7 @@ function OfferForm({ actorUid, existing, onDone }: { actorUid: string; existing?
     discountType: existing?.discountType ?? "percentage",
     discountValue: existing?.discountValue ?? 0,
     couponCode: existing?.couponCode ?? "",
+    imageUrl: existing?.imageUrl ?? "",
     startAt: existing?.startAt ?? "",
     endAt: existing?.endAt ?? "",
     displayOrder: existing?.displayOrder ?? 0,
@@ -77,10 +80,25 @@ function OfferForm({ actorUid, existing, onDone }: { actorUid: string; existing?
     setBusy(true);
     setError(null);
     try {
+      // Blank optional boxes were being stored as empty strings, which
+      // then render as empty coupon pills and "Valid until Invalid
+      // Date" on the customer offers page. Drop them instead.
+      const payload = {
+        title: form.title.trim(),
+        subtitle: optionalText(form.subtitle),
+        description: optionalText(form.description),
+        discountType: form.discountType as "flat" | "percentage",
+        discountValue: form.discountValue,
+        couponCode: optionalText(form.couponCode)?.toUpperCase(),
+        imageUrl: optionalText(form.imageUrl),
+        startAt: optionalText(form.startAt),
+        endAt: optionalText(form.endAt),
+        displayOrder: form.displayOrder,
+      };
       if (existing) {
-        await updateOffer(actorUid, existing.id, form as Partial<Offer>);
+        await updateOffer(actorUid, existing.id, payload as Partial<Offer>);
       } else {
-        await createOffer(actorUid, { ...form, discountType: form.discountType as "flat" | "percentage", active: true });
+        await createOffer(actorUid, { ...payload, active: true });
       }
       onDone();
     } catch (err) {
@@ -103,6 +121,15 @@ function OfferForm({ actorUid, existing, onDone }: { actorUid: string; existing?
         <input type="number" placeholder="Discount value" value={form.discountValue} onChange={(e) => update("discountValue", Number(e.target.value))} style={{ flex: 1 }} />
       </div>
       <input placeholder="Coupon code (optional)" value={form.couponCode} onChange={(e) => update("couponCode", e.target.value)} />
+      <MediaUploader
+        label="Offer image"
+        category="banners"
+        relatedId={existing?.id ?? "offer"}
+        value={form.imageUrl}
+        hint="Optional banner shown on the customer Offers page."
+        onChange={(url) => update("imageUrl", url)}
+        onClear={() => update("imageUrl", "")}
+      />
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
         <input type="date" value={form.startAt} onChange={(e) => update("startAt", e.target.value)} style={{ flex: 1 }} />
         <input type="date" value={form.endAt} onChange={(e) => update("endAt", e.target.value)} style={{ flex: 1 }} />

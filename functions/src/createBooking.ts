@@ -7,6 +7,22 @@ import { evaluateCoupon, recordCouponUsage } from "./coupons";
 import { resolveItems, resolveServiceArea, verifyPatientOwnership, verifyAddressOwnership, type ItemInput } from "./bookingResolution";
 import { writeNotification } from "./notifications";
 import { writeAuditLog } from "./audit";
+import { initialCashState } from "./cashPayment";
+import { CASH_ON_HOME_INITIAL_STATUS } from "./bookingStatus";
+
+/** Trims a contact snapshot down to the fields worth storing. */
+function contactSnapshot(input: { name?: string; phone?: string; address?: string } | undefined) {
+  if (!input) return null;
+  const name = input.name?.trim();
+  const phone = input.phone?.trim();
+  const address = input.address?.trim();
+  if (!name && !phone && !address) return null;
+  return {
+    ...(name ? { name: name.slice(0, 120) } : {}),
+    ...(phone ? { phone: phone.slice(0, 20) } : {}),
+    ...(address ? { address: address.slice(0, 400) } : {}),
+  };
+}
 
 interface CreateBookingInput {
   patientId: string;
@@ -18,7 +34,12 @@ interface CreateBookingInput {
   date: string;
   slotId: string;
   couponCode?: string;
-  paymentMethod: "upi" | "card" | "netbanking" | "wallet" | "cash_on_collection";
+  // This deployment offers cash on home only. Online payment is
+  // deliberately out of scope, so there is no gateway method here and
+  // nothing that could mark a booking paid at creation time.
+  paymentMethod: "cash_on_home";
+  /** Optional contact snapshot shown on the admin booking screen. */
+  contact?: { name?: string; phone?: string; address?: string };
   // Client-generated once per booking attempt (crypto.randomUUID()) and
   // reused across retries of the *same* attempt so we never create two
   // bookings for one user action.
@@ -68,6 +89,8 @@ export const createBooking = onCall<CreateBookingInput>(async (request) => {
       throw new HttpsError("invalid-argument", "Address pincode doesn't match the serviceability check.");
     }
   }
+
+  const contact = contactSnapshot(input.contact);
 
   const result = await db.runTransaction<CreateBookingResult>(async (tx) => {
     // ---- Idempotency: replay of an earlier attempt returns the same result ----
@@ -126,10 +149,12 @@ export const createBooking = onCall<CreateBookingInput>(async (request) => {
     const bookingId = await generateBookingId(tx, new Date());
     const bookingRef = db.collection("bookings").doc(bookingId);
 
-    // Every booking starts here regardless of payment method —
-    // createPaymentOrder is what moves cash-on-collection straight to
-    // "confirmed", and the Razorpay webhook is what moves online
-    // payments to "confirmed" once payment is verified.
+    // Cash on home has no payment step to wait on, so the booking is
+    // confirmed immediately — but explicitly UNPAID. amountReceived
+    // starts at 0 and the whole amount is outstanding; only
+    // recordCashReceived can move that, and only for staff.
+    const cash = initialCashState(finalAmount);
+
     tx.set(bookingRef, {
       userId: uid,
       patientId: input.patientId,
@@ -144,8 +169,15 @@ export const createBooking = onCall<CreateBookingInput>(async (request) => {
       collectionFee,
       discount,
       finalAmount,
-      paymentStatus: "pending",
-      bookingStatus: "payment_pending",
+      amountReceived: cash.amountReceived,
+      pendingAmount: cash.pendingAmount,
+      paymentStatus: cash.paymentStatus,
+      paymentMethod: "cash_on_home",
+      // Set by the pathway, never accepted from the request body:
+      // this callable IS the website pathway.
+      source: "website",
+      ...(contact ? { contact } : {}),
+      bookingStatus: CASH_ON_HOME_INITIAL_STATUS,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

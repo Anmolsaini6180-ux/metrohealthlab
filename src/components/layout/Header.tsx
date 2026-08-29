@@ -39,6 +39,7 @@ export default function Header() {
         <nav className="mh-header__nav">
           <Link to="/tests">Tests</Link>
           <Link to="/packages">Packages</Link>
+          <Link to="/offers">Offers</Link>
           <Link to="/labs">Compare Labs</Link>
           <Link to="/health-concerns">Health Concerns</Link>
           <Link to="/radiology">Radiology</Link>

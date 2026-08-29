@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
-import { usePaymentCheckout } from "@/hooks/usePaymentCheckout";
 import { getPatients, addPatient } from "@/services/patientService";
 import { getAddresses } from "@/services/addressService";
 import { checkServiceability } from "@/services/serviceabilityService";
@@ -11,11 +10,12 @@ import { formatCurrencyInr } from "@/services/pricingService";
 import { createBooking, getBookingQuote, type GetBookingQuoteResponse } from "@/services/bookingService";
 import type { CollectionType } from "@/types/booking";
 import type { Slot } from "@/types/slot";
-import type { PaymentMethod } from "@/types/payment";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
-import { toUserMessage } from "@/utils/errors";
+import { isCallableUnavailable, logOperationError, toUserMessage } from "@/utils/errors";
+import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import { buildWhatsAppLink } from "@/utils/whatsappBooking";
 
 interface BookingSelection {
   itemType: "test" | "package";
@@ -67,13 +67,16 @@ export default function BookingFlowPage() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("upi");
-
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [creatingBooking, setCreatingBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  // Distinguishes "the server rejected this booking" (retryable) from
+  // "the booking backend is not reachable at all" (not retryable).
+  const [bookingUnavailable, setBookingUnavailable] = useState(false);
   const [createdBooking, setCreatedBooking] = useState<{ bookingId: string; finalAmount: number } | null>(null);
-  const paymentCheckout = usePaymentCheckout();
+
+  const { settings } = useBrandingSettings();
+  const contactPhone = settings?.phone?.trim() || null;
 
   const patients = useAsync(() => (user ? getPatients(user.uid) : Promise.resolve([])), [user?.uid]);
   const addresses = useAsync(() => (user ? getAddresses(user.uid) : Promise.resolve([])), [user?.uid]);
@@ -136,6 +139,29 @@ export default function BookingFlowPage() {
   // defined below (which TS can't narrow `selection` through) are typed
   // correctly without repeated non-null assertions.
   const sel: BookingSelection = selection;
+
+  // Fallback route when automatic booking is unavailable: hand the
+  // customer's own details to the business over WhatsApp so a human can
+  // complete the booking. Uses the configured business number only —
+  // nothing is sent automatically, the customer taps to open WhatsApp.
+  const whatsappBusiness = settings?.whatsapp?.trim() || settings?.phone?.trim() || "";
+  const whatsappLink = whatsappBusiness
+    ? buildWhatsAppLink(
+        whatsappBusiness,
+        [
+          "Booking request",
+          "",
+          `Item: ${sel.name}`,
+          quote ? `Amount: ₹${quote.finalAmount.toLocaleString("en-IN")}` : "",
+          `Collection: ${collectionType === "home" ? "Home" : "Center"}`,
+          date ? `Preferred date: ${date}` : "",
+          pincode ? `Pincode: ${pincode}` : "",
+          "Payment: Cash on Home",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      )
+    : null;
 
   async function fetchQuote(couponCodeToSend?: string) {
     if (!patientId || !pincodeChecked?.available) return;
@@ -201,41 +227,29 @@ export default function BookingFlowPage() {
         // applied — never a code the customer typed but that the quote
         // rejected, even if it's still sitting in the input.
         couponCode: quote.couponApplied ? couponCode.trim() : undefined,
-        paymentMethod,
+        // Cash on home is the only method this deployment offers, so
+        // there is no gateway step after creation: a successful create
+        // IS the confirmed booking.
+        paymentMethod: "cash_on_home",
         idempotencyKey,
         quoteId: quote.quoteId,
       });
       setCreatedBooking(result);
-      await runPayment(result.bookingId);
+      navigate(`/track/${result.bookingId}`, { replace: true });
     } catch (err) {
-      // A price/slot/coupon check that changed between the quote and
-      // submission (or any other server-side validation failure) lands
-      // here — the booking was never created, so the customer just goes
-      // back a step and re-submits; nothing to roll back.
+      // Two very different things land here and the customer deserves
+      // to be told which. A server-side validation failure (price, slot
+      // or coupon changed since the quote) means nothing was created
+      // and re-submitting is the fix. An unreachable callable means the
+      // booking backend simply is not running, which no amount of
+      // retrying will change — so say so plainly instead of offering a
+      // retry that cannot succeed.
+      logOperationError("createBooking", err, { collectionType, date });
+      setBookingUnavailable(isCallableUnavailable(err));
       setBookingError(toUserMessage(err));
     } finally {
       setCreatingBooking(false);
     }
-  }
-
-  async function runPayment(bookingId: string) {
-    const result = await paymentCheckout.pay(bookingId, paymentMethod, {
-      email: user?.email ?? undefined,
-      contact: user?.phoneNumber ?? undefined,
-    });
-    if (result.outcome === "success" || result.outcome === "delayed") {
-      // "delayed" means Razorpay's modal closed but the webhook hasn't
-      // confirmed yet — the tracking page keeps watching indefinitely
-      // and shows the right "waiting" state, so it's still safe to
-      // navigate there rather than block on this screen.
-      navigate(`/track/${bookingId}`, { replace: true });
-    }
-    // outcome === "failed": stay here — the retry button below calls
-    // runPayment again without ever calling createBooking a second time.
-  }
-
-  function handleRetryPayment() {
-    if (createdBooking) runPayment(createdBooking.bookingId);
   }
 
   function canGoNext(): boolean {
@@ -450,17 +464,19 @@ export default function BookingFlowPage() {
       {step === "payment" && (
         <section>
           <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Payment method</h2>
-          <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-            {(["upi", "card", "netbanking", "wallet", "cash_on_collection"] as PaymentMethod[]).map((m) => (
-              <button
-                key={m}
-                className={paymentMethod === m ? "btn btn-primary" : "card"}
-                style={{ textAlign: "left" }}
-                onClick={() => setPaymentMethod(m)}
-              >
-                {m.replace(/_/g, " ")}
-              </button>
-            ))}
+          {/* Cash on home is the only method offered. It is shown as a
+              settled choice rather than a one-option picker, because a
+              list you cannot choose differently from is just noise. */}
+          <div className="card" style={{ display: "flex", gap: "var(--space-sm)", alignItems: "flex-start" }}>
+            <span className="mi" style={{ fontSize: 24, color: "var(--color-primary)" }} aria-hidden="true">
+              payments
+            </span>
+            <div>
+              <p style={{ fontWeight: 700 }}>Cash on Home</p>
+              <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+                Pay the collection agent in cash when they visit. Nothing is charged now.
+              </p>
+            </div>
           </div>
         </section>
       )}
@@ -479,41 +495,45 @@ export default function BookingFlowPage() {
                 <Row label="Collection fee" value={formatCurrencyInr(quote.collectionFee)} />
                 <Row label="Discount" value={`- ${formatCurrencyInr(quote.discount)}`} />
                 <Row label="Total" value={formatCurrencyInr(quote.finalAmount)} bold />
+                <Row label="Payment method" value="Cash on Home" />
+                <Row label="Pay on collection" value={formatCurrencyInr(quote.finalAmount)} bold />
               </div>
               <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
-                This is the price the server will actually charge — not an estimate.
+                This is the price the server will actually charge — not an estimate. Nothing is
+                charged online; you pay the collection agent in cash.
               </p>
             </>
           )}
 
-          {bookingError && <ErrorState message={bookingError} />}
+          {/* An unreachable booking backend is not a retryable error, so
+              it gets its own honest message and a way to reach a human
+              rather than a Retry button that cannot ever succeed. */}
+          {bookingUnavailable ? (
+            <div className="card" style={{ display: "grid", gap: "var(--space-sm)", borderColor: "var(--color-amber)" }}>
+              <p style={{ fontWeight: 700 }}>Booking confirmation is temporarily unavailable</p>
+              <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+                We could not complete your booking automatically. Nothing has been charged and no
+                booking was created. Please contact us and we will book this for you.
+              </p>
+              {contactPhone && (
+                <a className="btn btn-primary" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
+                  Call {contactPhone} to book
+                </a>
+              )}
+              {whatsappLink && (
+                <a className="btn btn-outline" href={whatsappLink} target="_blank" rel="noreferrer">
+                  Send these details on WhatsApp
+                </a>
+              )}
+            </div>
+          ) : (
+            bookingError && <ErrorState message={bookingError} />
+          )}
 
-          {!createdBooking && (
+          {!createdBooking && !bookingUnavailable && (
             <button className="btn btn-accent" onClick={handleConfirm} disabled={creatingBooking || !quote || quoteLoading}>
               {creatingBooking ? "Confirming..." : "Confirm booking"}
             </button>
-          )}
-
-          {createdBooking && paymentCheckout.phase === "opening" && <p className="text-soft">Opening payment...</p>}
-
-          {createdBooking && paymentCheckout.phase === "verifying" && (
-            <p className="text-soft">Payment verification in progress...</p>
-          )}
-
-          {createdBooking && paymentCheckout.phase === "success" && (
-            <p className="text-soft">Payment successful — redirecting...</p>
-          )}
-
-          {createdBooking && paymentCheckout.phase === "failed" && (
-            <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-              <ErrorState message={paymentCheckout.error ?? "Payment wasn't completed."} />
-              <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-                Your booking {createdBooking.bookingId} is saved — it just isn't paid yet.
-              </p>
-              <button className="btn btn-accent" onClick={handleRetryPayment}>
-                Retry payment
-              </button>
-            </div>
           )}
         </section>
       )}

@@ -63,10 +63,15 @@ import AdminTeamPerformancePage from "@/pages/admin/AdminTeamPerformancePage";
 import AgentProtectedRoute from "@/components/common/AgentProtectedRoute";
 import AgentDashboardPage from "@/pages/AgentDashboardPage";
 import AdminAuditLogsPage from "@/pages/admin/AdminAuditLogsPage";
+import ScrollToTop from "@/components/common/ScrollToTop";
+import OffersPage from "@/pages/OffersPage";
+import AdminBookingDashboardPage from "@/pages/admin/AdminBookingDashboardPage";
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/tests" element={<TestsPage />} />
@@ -74,6 +79,7 @@ export default function App() {
         <Route path="/packages" element={<PackagesPage />} />
         <Route path="/packages/:slug" element={<PackageDetailPage />} />
         <Route path="/labs" element={<LabsPage />} />
+        <Route path="/offers" element={<OffersPage />} />
         <Route path="/health-concerns" element={<HealthConcernsPage />} />
         <Route path="/radiology" element={<RadiologyPage />} />
         <Route path="/articles" element={<ArticlesPage />} />
@@ -211,6 +217,7 @@ export default function App() {
       >
         <Route index element={<AdminDashboardPage />} />
         <Route path="bookings" element={<AdminBookingsPage />} />
+        <Route path="bookings/dashboard" element={<AdminBookingDashboardPage />} />
         <Route path="tests" element={<AdminTestsPage />} />
         <Route path="categories" element={<AdminCategoriesPage />} />
         <Route path="packages" element={<AdminPackagesPage />} />
@@ -249,7 +256,8 @@ export default function App() {
         }
       >
         <Route index element={<AgentDashboardPage />} />
-      </Route>
-    </Routes>
+        </Route>
+      </Routes>
+    </>
   );
 }

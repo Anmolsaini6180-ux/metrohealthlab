@@ -851,6 +851,31 @@ describe("bookings and payments", () => {
     await assertFails(getDoc(doc(agent(), "bookings", "booking-a")));
   });
 
+  // "My bookings" listed every booking for the signed-in customer and
+  // was refused outright, which surfaced as "You do not have permission
+  // to do that" on the customer Bookings screen.
+  it("lets a customer list their own bookings", async () => {
+    await assertSucceeds(
+      getDocs(query(collection(customerA(), "bookings"), where("userId", "==", CUSTOMER_A)))
+    );
+  });
+
+  it("denies listing another customer's bookings", async () => {
+    await assertFails(
+      getDocs(query(collection(customerA(), "bookings"), where("userId", "==", CUSTOMER_B)))
+    );
+  });
+
+  it("denies an unscoped booking list, so the collection cannot be dumped", async () => {
+    await assertFails(getDocs(collection(customerA(), "bookings")));
+    await assertFails(getDocs(collection(admin(), "bookings")));
+    await assertFails(getDocs(collection(master(), "bookings")));
+  });
+
+  it("denies an anonymous visitor listing bookings", async () => {
+    await assertFails(getDocs(query(collection(anonymous(), "bookings"), where("userId", "==", CUSTOMER_A))));
+  });
+
   it("denies any client write to a booking, including the owner", async () => {
     await assertFails(updateDoc(doc(customerA(), "bookings", "booking-a"), { bookingStatus: "completed" }));
   });

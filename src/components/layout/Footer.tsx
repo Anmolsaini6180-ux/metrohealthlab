@@ -15,6 +15,7 @@ export default function Footer() {
             <p style={{ fontWeight: 600, marginBottom: 6, fontSize: "var(--text-sm)" }}>Explore</p>
             <Link to="/tests">Tests</Link>
             <Link to="/packages">Packages</Link>
+            <Link to="/offers">Offers</Link>
             <Link to="/labs">Compare labs</Link>
             <Link to="/health-concerns">Health concerns</Link>
             <Link to="/radiology">Radiology</Link>
