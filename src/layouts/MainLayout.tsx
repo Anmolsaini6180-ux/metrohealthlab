@@ -5,6 +5,7 @@ import Footer from "@/components/layout/Footer";
 import { firebaseConfigured } from "@/firebase/config";
 import FirebaseSetupNotice from "@/components/common/FirebaseSetupNotice";
 import InstallAppPrompt from "@/components/common/InstallAppPrompt";
+import CallToBookButton from "@/components/layout/CallToBookButton";
 
 export default function MainLayout() {
   return (
@@ -24,6 +25,7 @@ export default function MainLayout() {
           bottom nav on mobile. */}
       {firebaseConfigured && <Footer />}
       <InstallAppPrompt />
+      {firebaseConfigured && <CallToBookButton />}
       <BottomNav />
     </div>
   );

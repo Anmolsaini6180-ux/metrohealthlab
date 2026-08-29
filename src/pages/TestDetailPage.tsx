@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAsync } from "@/hooks/useAsync";
+import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { getTestBySlug } from "@/services/testService";
-import { subscribeToLabPricingForTest } from "@/services/labService";
+import { subscribeToActiveLabs, subscribeToLabPricingForTest } from "@/services/labService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import type { LabPricing } from "@/types/lab";
 import LoadingState from "@/components/common/LoadingState";
@@ -17,6 +18,11 @@ export default function TestDetailPage() {
   // Realtime — this is the customer actively deciding whether to book,
   // so a price change from the admin panel should appear without them
   // needing to refresh.
+  // Each labPricing row only stores a labId; without this the
+  // "Compare labs" list showed prices with no lab name at all.
+  const labs = useRealtimeQuery(subscribeToActiveLabs, []);
+  const labNameById = new Map((labs.data ?? []).map((l) => [l.id, l.name]));
+
   const [pricingState, setPricingState] = useState<{ data: LabPricing[] | null; loading: boolean; error: string | null }>({
     data: null,
     loading: true,
@@ -78,8 +84,9 @@ export default function TestDetailPage() {
                 className="card"
                 style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-sm)" }}
               >
-                <div>
-                  <p style={{ fontWeight: 600 }}>{formatCurrencyInr(p.price)}</p>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontWeight: 700 }}>{labNameById.get(p.labId) ?? "Partner lab"}</p>
+                  <p style={{ fontWeight: 600, color: "var(--color-primary)" }}>{formatCurrencyInr(p.price)}</p>
                   <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
                     {p.collectionType === "both" ? "Home & Center" : p.collectionType} • Reports in {p.reportTat}
                   </p>

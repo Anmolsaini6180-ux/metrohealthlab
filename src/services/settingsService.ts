@@ -36,6 +36,7 @@ const OPTIONAL_BRANDING_FIELDS = [
   "whatsapp",
   "email",
   "address",
+  "city",
 ] as const;
 
 const OPTIONAL_SOCIAL_FIELDS = ["facebook", "instagram", "twitter", "youtube", "linkedin"] as const;

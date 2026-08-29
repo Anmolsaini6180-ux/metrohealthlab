@@ -4,10 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import Logo from "@/components/brand/Logo";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
+import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 
 export default function Header() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { settings } = useBrandingSettings();
   const [q, setQ] = useState("");
 
   function handleSearchSubmit(e: React.FormEvent) {
@@ -16,6 +18,10 @@ export default function Header() {
   }
 
   const firstName = profile?.name?.split(" ")[0];
+  // Shown next to the wordmark on mobile. Comes from Branding Settings
+  // so it reflects the business the admin configured, and simply does
+  // not render when no address has been set.
+  const city = settings?.city?.trim();
 
   return (
     <header className="mh-header">
@@ -69,12 +75,23 @@ export default function Header() {
         <div className="mh-header__mobile-top">
           <Link to="/" className="mh-header__wordmark" aria-label="Metro Health Lab home">
             <Logo variant="icon" height={40} />
-            <span className="mh-header__wordmark-text">
-              Metro <span className="mh-header__wordmark-accent">health</span>
+            <span>
+              <span className="mh-header__wordmark-text">
+                Metro <span className="mh-header__wordmark-accent">health</span>
+              </span>
+              {city && (
+                <span className="mh-header__city">
+                  <span className="mi" aria-hidden="true">location_on</span>
+                  {city}
+                </span>
+              )}
             </span>
           </Link>
           <div className="mh-header__icons">
             <NotificationBell />
+            <Link to="/bookings" className="icon-btn" aria-label="My bookings">
+              <span className="mi" aria-hidden="true">assignment</span>
+            </Link>
             <ProfileMenu />
           </div>
         </div>
@@ -97,6 +114,9 @@ export default function Header() {
               onChange={(e) => setQ(e.target.value)}
               style={{ flex: 1, border: "none", background: "transparent", fontSize: "var(--text-sm)" }}
             />
+            <button type="submit" className="mh-header__search-filter" aria-label="Search">
+              <span className="mi" aria-hidden="true">tune</span>
+            </button>
           </div>
         </form>
       </div>

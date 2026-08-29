@@ -20,6 +20,7 @@ export default function AdminBrandingSettingsPage() {
     whatsapp: "",
     email: "",
     address: "",
+    city: "",
     facebook: "",
     instagram: "",
     twitter: "",
@@ -39,6 +40,7 @@ export default function AdminBrandingSettingsPage() {
       whatsapp: settings.data.whatsapp ?? "",
       email: settings.data.email ?? "",
       address: settings.data.address ?? "",
+      city: settings.data.city ?? "",
       facebook: settings.data.socialLinks?.facebook ?? "",
       instagram: settings.data.socialLinks?.instagram ?? "",
       twitter: settings.data.socialLinks?.twitter ?? "",
@@ -67,6 +69,7 @@ export default function AdminBrandingSettingsPage() {
         whatsapp: form.whatsapp,
         email: form.email,
         address: form.address,
+        city: form.city,
         socialLinks: {
           facebook: form.facebook,
           instagram: form.instagram,
@@ -119,6 +122,26 @@ export default function AdminBrandingSettingsPage() {
         <input placeholder="WhatsApp" value={form.whatsapp} onChange={(e) => update("whatsapp", e.target.value)} />
         <input type="email" placeholder="Email" value={form.email} onChange={(e) => update("email", e.target.value)} />
         <textarea placeholder="Address" rows={2} value={form.address} onChange={(e) => update("address", e.target.value)} />
+        {/* Labelled rather than placeholder-only: the rest of this form
+            identifies each box by placeholder, which disappears the
+            moment a value is typed. That is tolerable for "Phone" or
+            "Email", but this field needs to say where the value shows
+            up. Uses the same label/hint styling MediaUploader already
+            renders above, so nothing new is introduced. */}
+        <div style={{ display: "grid", gap: 6 }}>
+          <label htmlFor="branding-city" style={{ fontSize: "var(--text-sm)", fontWeight: 600 }}>
+            Service area shown in the app header
+          </label>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+            Appears next to the logo on mobile. Leave empty to hide it.
+          </p>
+          <input
+            id="branding-city"
+            placeholder="Ghaziabad, UP"
+            value={form.city}
+            onChange={(e) => update("city", e.target.value)}
+          />
+        </div>
         <input placeholder="Facebook URL" value={form.facebook} onChange={(e) => update("facebook", e.target.value)} />
         <input placeholder="Instagram URL" value={form.instagram} onChange={(e) => update("instagram", e.target.value)} />
         <input placeholder="Twitter/X URL" value={form.twitter} onChange={(e) => update("twitter", e.target.value)} />

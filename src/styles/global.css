@@ -1300,3 +1300,708 @@ h1, h2, h3 {
   font-size: var(--text-sm);
   margin-inline-start: auto;
 }
+
+/* ============================================================
+   HOME PAGE — target layout
+   Section rhythm, horizontally scrolling rails and the card
+   families used across the landing page. All colours come from
+   the existing tokens; nothing new is introduced.
+   ============================================================ */
+
+.mh-home {
+  display: grid;
+  /* A grid item defaults to min-width:auto, so the horizontally
+     scrolling rails inside a section would widen the whole column to
+     their full content width instead of scrolling. minmax(0,1fr) plus
+     min-width:0 is what actually lets them scroll. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xl);
+}
+
+.mh-home > * {
+  min-width: 0;
+}
+
+.mh-section-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+  margin-bottom: var(--space-sm);
+}
+
+@media (min-width: 1024px) {
+  .mh-section-title {
+    font-size: 23px;
+  }
+}
+
+.mh-section-subtitle {
+  color: var(--color-ink-soft);
+  font-size: 12.5px;
+  margin-top: -6px;
+  margin-bottom: var(--space-sm);
+}
+
+/* Shared horizontal rail. Bleeds to the viewport edge on mobile so
+   cards run under the screen edge like the target, and re-pads itself
+   so the first card still lines up with the page gutter. */
+.mh-hscroll {
+  display: flex;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  padding-bottom: 4px;
+  margin-inline: calc(-1 * var(--space-md));
+  padding-inline: var(--space-md);
+  scrollbar-width: none;
+}
+
+.mh-hscroll::-webkit-scrollbar {
+  display: none;
+}
+
+.mh-hscroll > * {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+}
+
+@media (min-width: 1024px) {
+  .mh-hscroll {
+    margin-inline: 0;
+    padding-inline: 0;
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+/* ---------- Quick categories ---------- */
+.mh-quickcat {
+  width: 90px;
+  min-height: 104px;
+  padding: 10px 6px;
+  border-radius: 12px;
+  background: var(--color-bg-warm);
+  border: 1px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mh-quickcat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
+}
+
+.mh-quickcat__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mh-quickcat__title {
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.mh-quickcat__price {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+/* ---------- Banner carousel ---------- */
+.mh-banner-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* Bleed to the viewport edge so the following card peeks in from the
+     right exactly as it does in the target. */
+  margin-inline: calc(-1 * var(--space-md));
+  padding-inline: var(--space-md);
+}
+
+.mh-banner-track::-webkit-scrollbar {
+  display: none;
+}
+
+.mh-banner {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  /* Leaves ~44px of the next card visible. */
+  width: calc(100% - 44px);
+  max-width: 560px;
+  min-height: 128px;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  color: #fff;
+}
+
+.mh-banner.is-primary { background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary)); }
+.mh-banner.is-ink     { background: linear-gradient(135deg, #1d2733, #33414f); }
+.mh-banner.is-accent  { background: linear-gradient(135deg, #d75f12, var(--color-accent)); }
+.mh-banner.is-deep    { background: linear-gradient(135deg, #123a7a, #2f6bd0); }
+
+.mh-banner__title {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+}
+
+.mh-banner__subtitle {
+  font-size: 14px;
+  opacity: 0.92;
+}
+
+.mh-banner__cta {
+  align-self: flex-start;
+  margin-top: 11px;
+  padding: 5px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.mh-banner__cta:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.mh-banner-dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: var(--space-sm);
+}
+
+.mh-banner-dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-line);
+  cursor: pointer;
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.mh-banner-dots button.is-active {
+  width: 22px;
+  background: var(--color-primary);
+}
+
+/* ---------- Filter chips ---------- */
+.mh-chip-row {
+  margin-bottom: var(--space-sm);
+}
+
+.mh-chip {
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  min-height: 40px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mh-chip:hover {
+  border-color: var(--color-primary);
+}
+
+.mh-chip.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+/* ---------- Package cards ---------- */
+.mh-pkg-card {
+  width: min(63vw, 260px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mh-pkg-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 28px;
+}
+
+.mh-pkg-card__tag {
+  background: #f6ecd9;
+  color: #8a5a00;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.mh-pkg-card__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  margin-inline-start: auto;
+}
+
+.mh-pkg-card__rating .mi {
+  font-size: 18px;
+  color: var(--color-amber);
+}
+
+.mh-pkg-card__name {
+  /* Body grotesque, not the display face: the reference sets these in
+     the narrower family, which is also what keeps a long package name
+     on one line. */
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.mh-pkg-card__count,
+.mh-pkg-card__meta {
+  color: var(--color-ink-soft);
+  font-size: 12.5px;
+}
+
+.mh-pkg-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.mh-pkg-card__meta .mi {
+  font-size: 17px;
+}
+
+.mh-pkg-card__prices {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mh-pkg-card__price {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+.mh-pkg-card__mrp {
+  color: var(--color-ink-soft);
+  font-size: 12.5px;
+}
+
+.mh-pkg-card__off {
+  color: #e5484d;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.mh-pkg-card__cta {
+  margin-top: auto;
+  text-align: center;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px;
+  border-radius: var(--radius-sm);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mh-pkg-card__cta:hover {
+  background: #dde8f8;
+}
+
+/* ---------- Compare labs promo ---------- */
+.mh-promo {
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg) var(--space-md);
+  background: linear-gradient(135deg, var(--color-primary-deep), #2f6bd0);
+  color: #fff;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.mh-promo__title {
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.mh-promo__text {
+  opacity: 0.92;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.mh-promo__cta {
+  margin-top: var(--space-sm);
+  background: #fff;
+  color: var(--color-primary-deep);
+  font-weight: 700;
+  padding: 12px 22px;
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---------- Health concern grid ---------- */
+.mh-concern-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+@media (min-width: 768px) {
+  .mh-concern-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}
+
+.mh-concern {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.mh-concern__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-warm);
+  border: 1px solid var(--color-line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.mh-concern:hover .mh-concern__icon {
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+}
+
+@media (max-width: 340px) {
+  .mh-concern__label {
+    font-size: 10px;
+  }
+}
+
+.mh-concern__label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* ---------- Family care ---------- */
+.mh-family {
+  width: min(70vw, 260px);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: grid;
+  gap: 6px;
+  background: var(--color-surface);
+}
+
+.mh-family:hover {
+  border-color: var(--color-primary);
+}
+
+.mh-family__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-sm);
+}
+
+.mh-family__icon.is-pink  { background: #fbe6ef; color: #b03a6d; }
+.mh-family__icon.is-blue  { background: var(--color-bg-tint); color: var(--color-primary); }
+.mh-family__icon.is-peach { background: #fdece0; color: #c2521a; }
+.mh-family__icon.is-mint  { background: #e2f4ec; color: #1a9c6b; }
+
+.mh-family__label {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.mh-family__link {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Radiology ---------- */
+.mh-radiology {
+  width: min(64vw, 240px);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  background: var(--color-surface);
+}
+
+.mh-radiology__name {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.mh-radiology__mode {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
+.mh-radiology__price {
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 4px;
+}
+
+.mh-radiology__cta {
+  margin-top: var(--space-sm);
+  text-align: center;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+  font-weight: 700;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- Doorstep steps ---------- */
+.mh-doorstep {
+  background: var(--color-bg-warm);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.mh-doorstep__title {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.mh-doorstep__subtitle {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-md);
+}
+
+.mh-doorstep__steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.mh-doorstep__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: var(--text-sm);
+  line-height: 1.3;
+}
+
+.mh-doorstep__num {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- Why choose us ---------- */
+.mh-reason-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+@media (min-width: 1024px) {
+  .mh-reason-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.mh-reason {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  background: var(--color-surface);
+}
+
+.mh-reason__title {
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.mh-reason__text {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+
+/* ---------- Health insights ---------- */
+.mh-insight {
+  width: min(78vw, 300px);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  background: var(--color-surface);
+}
+
+.mh-insight:hover {
+  border-color: var(--color-primary);
+}
+
+.mh-insight__tag {
+  justify-self: start;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.mh-insight__title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.mh-insight__meta {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Header: city line + search filter ---------- */
+.mh-header__city {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  line-height: 1.1;
+  margin-top: 1px;
+}
+
+.mh-header__city .mi {
+  font-size: 15px;
+  color: var(--color-primary);
+}
+
+.mh-header__wordmark {
+  align-items: flex-start;
+}
+
+.mh-header__search-filter {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px;
+}
+
+/* ---------- Floating call-to-book ---------- */
+.mh-call-fab {
+  position: fixed;
+  right: var(--space-md);
+  bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px) + var(--space-md));
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+  height: 37px;
+}
+
+.mh-call-fab .mi {
+  font-size: 19px;
+}
+
+.mh-call-fab:hover {
+  background: #2f3a3a;
+}
+
+@media (min-width: 1024px) {
+  .mh-call-fab {
+    bottom: var(--space-lg);
+    right: var(--space-lg);
+  }
+}

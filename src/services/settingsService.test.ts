@@ -105,6 +105,32 @@ describe("updateBrandingSettings", () => {
     expectNoUndefinedValues(data);
   });
 
+  // The service area shown beside the mobile wordmark. Same three-way
+  // contract as every other optional branding field.
+  it("saves the service area city typed into the branding form", async () => {
+    await updateBrandingSettings(ACTOR, { businessName: "Metro Health Lab", city: "Ghaziabad, UP" });
+
+    const { data, options } = lastWrite();
+    expect(data.city).toBe("Ghaziabad, UP");
+    expect(options).toEqual({ merge: true });
+    expectNoUndefinedValues(data);
+  });
+
+  it("trims the city before storing it", async () => {
+    await updateBrandingSettings(ACTOR, { city: "  Ghaziabad, UP  " });
+    expect(lastWrite().data.city).toBe("Ghaziabad, UP");
+  });
+
+  it("removes the city with deleteField() when the admin clears the box", async () => {
+    await updateBrandingSettings(ACTOR, { city: "" });
+    expect(lastWrite().data.city).toBe(fs.DELETE_SENTINEL);
+  });
+
+  it("leaves a stored city untouched when the form does not mention it", async () => {
+    await updateBrandingSettings(ACTOR, { phone: "+91 99999 88888" });
+    expect("city" in lastWrite().data).toBe(false);
+  });
+
   it("does not write a socialLinks key at all when none were mentioned", async () => {
     await updateBrandingSettings(ACTOR, { businessName: "Metro Health Lab" });
     expect("socialLinks" in lastWrite().data).toBe(false);

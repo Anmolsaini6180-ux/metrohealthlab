@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAsync } from "@/hooks/useAsync";
+import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { getPackageBySlug } from "@/services/packageService";
-import { subscribeToLabPricingForPackage } from "@/services/labService";
+import { subscribeToActiveLabs, subscribeToLabPricingForPackage } from "@/services/labService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import type { LabPricing } from "@/types/lab";
 import LoadingState from "@/components/common/LoadingState";
@@ -13,6 +14,11 @@ export default function PackageDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const pkg = useAsync(() => getPackageBySlug(slug!), [slug]);
+
+  // Each labPricing row only stores a labId; without this the
+  // "Compare labs" list showed prices with no lab name at all.
+  const labs = useRealtimeQuery(subscribeToActiveLabs, []);
+  const labNameById = new Map((labs.data ?? []).map((l) => [l.id, l.name]));
 
   const [pricingState, setPricingState] = useState<{ data: LabPricing[] | null; loading: boolean; error: string | null }>({
     data: null,
@@ -67,8 +73,9 @@ export default function PackageDetailPage() {
                 className="card"
                 style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-sm)" }}
               >
-                <div>
-                  <p style={{ fontWeight: 600 }}>{formatCurrencyInr(pr.price)}</p>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontWeight: 700 }}>{labNameById.get(pr.labId) ?? "Partner lab"}</p>
+                  <p style={{ fontWeight: 600, color: "var(--color-primary)" }}>{formatCurrencyInr(pr.price)}</p>
                   <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
                     {pr.collectionType === "both" ? "Home & Center" : pr.collectionType} • Reports in {pr.reportTat}
                   </p>

@@ -1,6 +1,6 @@
-import { Link } from "react-router-dom";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
-import { subscribeToBanners } from "@/services/contentService";
+import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import { subscribeToArticles, subscribeToBanners } from "@/services/contentService";
 import { subscribeToTestCategories, subscribeToTests } from "@/services/testService";
 import { subscribeToPackages } from "@/services/packageService";
 import { subscribeToActiveLabs } from "@/services/labService";
@@ -8,135 +8,94 @@ import LoadingState from "@/components/common/LoadingState";
 import CardGridSkeleton from "@/components/common/CardGridSkeleton";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
-import CategoryIcon from "@/components/common/CategoryIcon";
-import TestCard from "@/components/common/TestCard";
-import PackageCard from "@/components/common/PackageCard";
+import QuickCategories from "@/components/home/QuickCategories";
+import BannerCarousel from "@/components/home/BannerCarousel";
+import PackageShowcase from "@/components/home/PackageShowcase";
+import {
+  CompareLabsPromo,
+  DoorstepSteps,
+  FamilyCareRow,
+  HealthConcernGrid,
+  HealthInsights,
+  RadiologyRow,
+  WhyChooseUs,
+  isHealthConcern,
+} from "@/components/home/HomeSections";
+import type { DiagnosticTest } from "@/types/test";
+import type { HealthPackage } from "@/types/package";
+import type { Article } from "@/types/content";
 
+// The customer landing page. Every section below is driven by real
+// Firestore data through the same realtime subscriptions the rest of
+// the site uses, so an admin edit appears here without a refresh, and
+// a section with nothing to show removes itself rather than rendering
+// an empty shell.
 export default function HomePage() {
+  const { settings } = useBrandingSettings();
   const banners = useRealtimeQuery(subscribeToBanners, []);
   const categories = useRealtimeQuery(subscribeToTestCategories, []);
-  const featuredTests = useRealtimeQuery<import("@/types/test").DiagnosticTest[]>(
-    (cb, err) => subscribeToTests({ max: 8 }, cb, err),
-    []
-  );
-  const featuredPackages = useRealtimeQuery<import("@/types/package").HealthPackage[]>(
-    (cb, err) => subscribeToPackages(undefined, cb, err),
-    []
-  );
+  const tests = useRealtimeQuery<DiagnosticTest[]>((cb, err) => subscribeToTests({ max: 60 }, cb, err), []);
+  const packages = useRealtimeQuery<HealthPackage[]>((cb, err) => subscribeToPackages(undefined, cb, err), []);
   const labs = useRealtimeQuery(subscribeToActiveLabs, []);
+  const articles = useRealtimeQuery<Article[]>((cb, err) => subscribeToArticles(undefined, cb, err), []);
+
+  const businessName = settings?.businessName ?? "Metro Health";
+  const categoryList = categories.data ?? [];
+  const testList = tests.data ?? [];
+
+  // The two category rails show different things: services/modalities
+  // up top, symptoms and conditions further down. When nothing matches
+  // the concern list, everything stays in Quick Categories rather than
+  // disappearing.
+  const concernCategories = categoryList.filter(isHealthConcern);
+  const quickCategories = concernCategories.length > 0 ? categoryList.filter((c) => !isHealthConcern(c)) : categoryList;
 
   return (
-    <div style={{ display: "grid", gap: "var(--space-xl)" }}>
-      <section>
-        {banners.loading && <LoadingState rows={1} label="Loading offers..." />}
-        {banners.error && <ErrorState message={banners.error} onRetry={banners.retry} />}
-        {banners.data && banners.data.length === 0 && (
-          <EmptyState icon="local_offer" title="No current offers" />
-        )}
-        {banners.data && banners.data.length > 0 && (
-          <div className="card-grid">
-            {banners.data.map((b) => (
-              <div key={b.id} className="card" style={{ background: "var(--color-bg-tint)" }}>
-                <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>{b.title}</p>
-                {b.subtitle && <p className="text-soft">{b.subtitle}</p>}
-                {b.ctaLabel && b.ctaLink && (
-                  <Link className="btn btn-accent" style={{ marginTop: "var(--space-sm)" }} to={b.ctaLink}>
-                    {b.ctaLabel}
-                  </Link>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+    <div className="mh-home">
+      {/* ---- Quick categories ---- */}
+      {categories.loading && <LoadingState rows={1} label="Loading categories..." />}
+      {categories.error && <ErrorState message={categories.error} onRetry={categories.retry} />}
+      {categories.data && <QuickCategories categories={quickCategories} tests={testList} />}
 
-      <section>
-        <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-md)" }}>Browse by category</h2>
-        {categories.loading && <LoadingState rows={2} />}
-        {categories.error && <ErrorState message={categories.error} onRetry={categories.retry} />}
-        {categories.data && categories.data.length === 0 && (
-          <EmptyState icon="category" title="No categories yet" description="Add testCategories in Firestore to populate this section." />
-        )}
-        {categories.data && categories.data.length > 0 && (
-          <div className="card-grid card-grid--compact">
-            {categories.data.map((c) => (
-              <Link key={c.id} to={`/tests?category=${c.id}`} className="card" style={{ textAlign: "center" }}>
-                {/* Categories created before the icon field exist, and
-                    an admin may deliberately save one without an icon —
-                    CategoryIcon falls back instead of rendering junk. */}
-                <CategoryIcon iconName={c.icon} size={28} color="var(--color-primary)" fallback="science" />
-                <p style={{ marginTop: 6, fontWeight: 600, fontSize: "var(--text-sm)" }}>{c.name}</p>
-                {c.subtitle && (
-                  <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{c.subtitle}</p>
-                )}
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* ---- Offer carousel ---- */}
+      {banners.loading && <LoadingState rows={1} label="Loading offers..." />}
+      {banners.error && <ErrorState message={banners.error} onRetry={banners.retry} />}
+      {banners.data && <BannerCarousel banners={banners.data} />}
 
-      <section>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)" }}>Popular tests</h2>
-          <Link to="/tests" className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-            View all
-          </Link>
-        </div>
-        {featuredTests.loading && <CardGridSkeleton count={4} variant="test" />}
-        {featuredTests.error && <ErrorState message={featuredTests.error} onRetry={featuredTests.retry} />}
-        {featuredTests.data && featuredTests.data.length === 0 && (
-          <EmptyState icon="science" title="No tests available yet" description="Add documents to the tests collection in Firestore." />
-        )}
-        {featuredTests.data && featuredTests.data.length > 0 && (
-          <div className="card-grid">
-            {featuredTests.data.map((t) => (
-              <TestCard key={t.id} test={t} />
-            ))}
-          </div>
-        )}
-      </section>
+      {/* ---- Packages ---- */}
+      {packages.loading && <CardGridSkeleton count={3} variant="package" />}
+      {packages.error && <ErrorState message={packages.error} onRetry={packages.retry} />}
+      {packages.data && packages.data.length === 0 && (
+        <EmptyState icon="inventory_2" title="No packages available yet" />
+      )}
+      {packages.data && packages.data.length > 0 && <PackageShowcase packages={packages.data} />}
 
-      <section>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)" }}>Health packages</h2>
-          <Link to="/packages" className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-            View all
-          </Link>
-        </div>
-        {featuredPackages.loading && <CardGridSkeleton count={3} variant="package" />}
-        {featuredPackages.error && <ErrorState message={featuredPackages.error} onRetry={featuredPackages.retry} />}
-        {featuredPackages.data && featuredPackages.data.length === 0 && (
-          <EmptyState icon="inventory_2" title="No packages available yet" />
-        )}
-        {featuredPackages.data && featuredPackages.data.length > 0 && (
-          <div className="card-grid">
-            {featuredPackages.data.slice(0, 6).map((p) => (
-              <PackageCard key={p.id} pkg={p} />
-            ))}
-          </div>
-        )}
-      </section>
+      {/* ---- Compare labs ---- */}
+      <CompareLabsPromo labCount={labs.data?.length ?? 0} />
 
-      <section>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)" }}>Trusted labs</h2>
-          <Link to="/labs" className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-            Compare labs
-          </Link>
-        </div>
-        {labs.loading && <LoadingState rows={2} />}
-        {labs.error && <ErrorState message={labs.error} onRetry={labs.retry} />}
-        {labs.data && labs.data.length > 0 && (
-          <div className="card-grid">
-            {labs.data.slice(0, 4).map((lab) => (
-              <div key={lab.id} className="card">
-                <p style={{ fontWeight: 600 }}>{lab.name}</p>
-                {lab.description && <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{lab.description}</p>}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* ---- Health concerns ---- */}
+      {categories.data && categories.data.length === 0 && (
+        <EmptyState
+          icon="category"
+          title="No categories yet"
+          description="Add testCategories in Firestore to populate this section."
+        />
+      )}
+      {categories.data && <HealthConcernGrid categories={concernCategories} />}
+
+      {/* ---- Family care ---- */}
+      {categories.data && <FamilyCareRow categories={categoryList} />}
+
+      {/* ---- Radiology ---- */}
+      {tests.error && <ErrorState message={tests.error} onRetry={tests.retry} />}
+      {tests.data && <RadiologyRow categories={categoryList} tests={testList} />}
+
+      {/* ---- Static explainers ---- */}
+      <DoorstepSteps />
+      <WhyChooseUs businessName={businessName} />
+
+      {/* ---- Articles ---- */}
+      {articles.data && <HealthInsights articles={articles.data.slice(0, 8)} />}
     </div>
   );
 }
