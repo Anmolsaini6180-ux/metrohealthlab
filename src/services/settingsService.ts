@@ -79,8 +79,12 @@ export async function updateBrandingSettings(actorUid: string, input: BrandingSe
     else delete next.socialLinks;
   }
 
+  // actorUid is the caller's FIREBASE uid (StaffContext.uid), not a
+  // Supabase auth uuid — it must go into updated_by_firebase_uid (text),
+  // never updated_by (uuid FK to profiles), which would otherwise throw
+  // "invalid input syntax for type uuid" on every real save.
   const { error } = await client
     .from("settings")
-    .upsert({ id: BRANDING_ID, data: next, updated_by: actorUid }, { onConflict: "id" });
+    .upsert({ id: BRANDING_ID, data: next, updated_by_firebase_uid: actorUid }, { onConflict: "id" });
   if (error) throw error;
 }

@@ -53,7 +53,7 @@ describe("updateBrandingSettings", () => {
     const { row, options } = lastUpsert();
     expect(options).toEqual({ onConflict: "id" });
     expect(row.id).toBe("branding");
-    expect(row.updated_by).toBe(ACTOR);
+    expect(row.updated_by_firebase_uid).toBe(ACTOR);
     const data = lastData();
     expect(data.businessName).toBe("Metro Health Lab");
     expect(data.tagline).toBe("Accurate tests. Better health.");

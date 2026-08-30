@@ -1,26 +1,46 @@
-import { addDoc, collection, deleteField, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
-import { callFunction } from "@/firebase/functions";
-import { optionalText, stripUndefined } from "@/utils/firestoreData";
+// Supabase-backed. Campaigns/leads are direct table CRUD gated by RLS
+// (campaigns_all_staff / leads_all_staff = can_manage_catalog(), i.e.
+// SUPER_ADMIN/ADMIN) -- the same boundary shape the Firestore rules
+// used. Segments are computed from real booking/profile rows the
+// caller can actually see, rather than a Cloud Function that was never
+// deployed.
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToCampaign, rowToLead } from "@/supabase/mappers";
 import type { Campaign, CampaignStatus, Lead, LeadStatus } from "@/types/marketing";
 
-// Optional text fields follow the same three-way convention as the
-// catalog service (see adminCatalogService.TestCategoryInput):
-//   absent    -> leave the stored value alone
-//   "" / null -> the admin cleared it; remove the field from the doc
-//   "value"   -> set it
-// `undefined` is never a meaningful value and is never written —
-// Firestore rejects it outright.
+// Segments are computed, not stored documents.
+export interface CustomerSegmentsResult {
+  segments: { key: string; label: string; criteria: string; count: number }[];
+  sampledBookings: number;
+  approximate: boolean;
+}
+
+// null/undefined -> null; a blank string also clears the field -> null
+// (same convention the Firestore version used via optionalText(), just
+// landing on a real SQL NULL instead of an omitted key).
+function optional<T>(value: T | null | undefined): T | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return (trimmed === "" ? null : trimmed) as T | null;
+  }
+  return value;
+}
+
+// created_by is a uuid FK to profiles(id) -- the live Supabase session's
+// own id, not the Firebase-shaped actorUid this file otherwise carries
+// purely for updated_by_firebase_uid provenance.
+async function currentSupabaseUserId(): Promise<string | null> {
+  const { data } = await getSupabaseClient().auth.getUser();
+  return data.user?.id ?? null;
+}
 
 // ---------- Campaigns ----------
-// Direct Firestore writes, same rules-gated pattern as the catalog
-// (canManageCatalog() + updatedBy check) — campaigns aren't money- or
-// capacity-sensitive the way bookings/payments are.
 
 export async function getAllCampaigns(): Promise<Campaign[]> {
-  const q = query(collection(getDb(), "campaigns"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Campaign));
+  const { data, error } = await getSupabaseClient().from("campaigns").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(rowToCampaign);
 }
 
 export interface CampaignInput {
@@ -36,49 +56,41 @@ export interface CampaignInput {
 }
 
 export async function createCampaign(actorUid: string, input: CampaignInput): Promise<string> {
-  // Blank optional fields are dropped, so a new campaign simply has no
-  // `description`/`offerId`/`couponId` key rather than an `undefined`
-  // one that addDoc() would refuse.
-  const ref = await addDoc(
-    collection(getDb(), "campaigns"),
-    stripUndefined({
+  const { data: row, error } = await getSupabaseClient()
+    .from("campaigns")
+    .insert({
       name: input.name.trim(),
       type: input.type.trim(),
-      startAt: input.startAt,
-      endAt: input.endAt,
+      start_at: input.startAt,
+      end_at: input.endAt,
       status: input.status,
-      description: optionalText(input.description),
-      offerId: optionalText(input.offerId),
-      couponId: optionalText(input.couponId),
-      targetSegment: optionalText(input.targetSegment),
-      createdBy: actorUid,
-      updatedBy: actorUid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      description: optional(input.description),
+      offer_id: optional(input.offerId),
+      coupon_id: optional(input.couponId),
+      target_segment: optional(input.targetSegment),
+      created_by: await currentSupabaseUserId(),
+      updated_by_firebase_uid: actorUid,
     })
-  );
-  return ref.id;
+    .select("id")
+    .single();
+  if (error) throw error;
+  return row.id;
 }
 
-export async function updateCampaign(
-  actorUid: string,
-  campaignId: string,
-  input: Partial<CampaignInput>
-): Promise<void> {
-  const patch: Record<string, unknown> = { updatedBy: actorUid, updatedAt: serverTimestamp() };
+export async function updateCampaign(actorUid: string, campaignId: string, input: Partial<CampaignInput>): Promise<void> {
+  const patch: Record<string, unknown> = { updated_by_firebase_uid: actorUid, updated_at: new Date().toISOString() };
   if (input.name !== undefined) patch.name = input.name.trim();
   if (input.type !== undefined) patch.type = input.type.trim();
-  if (input.startAt !== undefined) patch.startAt = input.startAt;
-  if (input.endAt !== undefined) patch.endAt = input.endAt;
+  if (input.startAt !== undefined) patch.start_at = input.startAt;
+  if (input.endAt !== undefined) patch.end_at = input.endAt;
   if (input.status !== undefined) patch.status = input.status;
-  // Unlinking an offer or coupon from a campaign has to remove the
-  // field; omitting the key would silently keep the old link.
-  if (input.description !== undefined) patch.description = optionalText(input.description) ?? deleteField();
-  if (input.offerId !== undefined) patch.offerId = optionalText(input.offerId) ?? deleteField();
-  if (input.couponId !== undefined) patch.couponId = optionalText(input.couponId) ?? deleteField();
-  if (input.targetSegment !== undefined) patch.targetSegment = optionalText(input.targetSegment) ?? deleteField();
+  if (input.description !== undefined) patch.description = optional(input.description);
+  if (input.offerId !== undefined) patch.offer_id = optional(input.offerId);
+  if (input.couponId !== undefined) patch.coupon_id = optional(input.couponId);
+  if (input.targetSegment !== undefined) patch.target_segment = optional(input.targetSegment);
 
-  await updateDoc(doc(getDb(), "campaigns", campaignId), stripUndefined(patch));
+  const { error } = await getSupabaseClient().from("campaigns").update(patch).eq("id", campaignId);
+  if (error) throw error;
 }
 
 // ---------- Leads ----------
@@ -91,10 +103,20 @@ export interface GetLeadsRequest {
   filterStatus?: string;
 }
 
-// Hierarchy-scoped server-side — see functions/src/adminQueries.ts.
 export async function getLeads(payload: GetLeadsRequest): Promise<Lead[]> {
-  const result = await callFunction<GetLeadsRequest, { leads: Lead[] }>("getLeads", payload);
-  return result.leads;
+  let query = getSupabaseClient()
+    .from("leads")
+    .select("*")
+    .gte("created_at", payload.startDate)
+    .lte("created_at", payload.endDate)
+    .order("created_at", { ascending: false });
+  if (payload.filterAdminId) query = query.eq("assigned_admin_id", payload.filterAdminId);
+  if (payload.filterSubAdminId) query = query.eq("assigned_sub_admin_id", payload.filterSubAdminId);
+  if (payload.filterStatus) query = query.eq("status", payload.filterStatus);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map(rowToLead);
 }
 
 export interface LeadInput {
@@ -109,63 +131,99 @@ export interface LeadInput {
   assignedCollectionAgentId?: string | null;
 }
 
-// The optional assignment fields are what the hierarchy-scoped read
-// rules key off (see firestore.rules leads/{id}), so they are cleared
-// by removing them rather than by storing an empty string that would
-// never match a uid.
-const OPTIONAL_LEAD_FIELDS = [
-  "email",
-  "source",
-  "campaignId",
-  "assignedAdminId",
-  "assignedSubAdminId",
-  "assignedCollectionAgentId",
-] as const;
-
 export async function createLead(actorUid: string, input: LeadInput): Promise<string> {
-  const payload: Record<string, unknown> = {
-    name: input.name.trim(),
-    phone: input.phone.trim(),
-    status: input.status,
-    createdBy: actorUid,
-    updatedBy: actorUid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-  for (const key of OPTIONAL_LEAD_FIELDS) {
-    payload[key] = optionalText(input[key]);
-  }
-
-  const ref = await addDoc(collection(getDb(), "leads"), stripUndefined(payload));
-  return ref.id;
+  const { data: row, error } = await getSupabaseClient()
+    .from("leads")
+    .insert({
+      name: input.name.trim(),
+      phone: input.phone.trim(),
+      status: input.status,
+      email: optional(input.email),
+      source: optional(input.source),
+      campaign_id: optional(input.campaignId),
+      assigned_admin_id: optional(input.assignedAdminId),
+      assigned_sub_admin_id: optional(input.assignedSubAdminId),
+      assigned_collection_agent_id: optional(input.assignedCollectionAgentId),
+      created_by: await currentSupabaseUserId(),
+      updated_by_firebase_uid: actorUid,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return row.id;
 }
 
 export async function updateLead(actorUid: string, leadId: string, input: Partial<LeadInput>): Promise<void> {
-  const patch: Record<string, unknown> = { updatedBy: actorUid, updatedAt: serverTimestamp() };
+  const patch: Record<string, unknown> = { updated_by_firebase_uid: actorUid, updated_at: new Date().toISOString() };
   if (input.name !== undefined) patch.name = input.name.trim();
   if (input.phone !== undefined) patch.phone = input.phone.trim();
   if (input.status !== undefined) patch.status = input.status;
-  for (const key of OPTIONAL_LEAD_FIELDS) {
-    const value = input[key];
-    if (value === undefined) continue;
-    patch[key] = optionalText(value) ?? deleteField();
-  }
+  if (input.email !== undefined) patch.email = optional(input.email);
+  if (input.source !== undefined) patch.source = optional(input.source);
+  if (input.campaignId !== undefined) patch.campaign_id = optional(input.campaignId);
+  if (input.assignedAdminId !== undefined) patch.assigned_admin_id = optional(input.assignedAdminId);
+  if (input.assignedSubAdminId !== undefined) patch.assigned_sub_admin_id = optional(input.assignedSubAdminId);
+  if (input.assignedCollectionAgentId !== undefined) patch.assigned_collection_agent_id = optional(input.assignedCollectionAgentId);
 
-  await updateDoc(doc(getDb(), "leads", leadId), stripUndefined(patch));
+  const { error } = await getSupabaseClient().from("leads").update(patch).eq("id", leadId);
+  if (error) throw error;
 }
 
 export async function updateLeadStatus(actorUid: string, leadId: string, status: LeadStatus): Promise<void> {
-  await updateDoc(doc(getDb(), "leads", leadId), { status, updatedBy: actorUid, updatedAt: serverTimestamp() });
+  const { error } = await getSupabaseClient()
+    .from("leads")
+    .update({ status, updated_by_firebase_uid: actorUid, updated_at: new Date().toISOString() })
+    .eq("id", leadId);
+  if (error) throw error;
 }
 
 // ---------- Segments ----------
-
-export interface CustomerSegmentsResult {
-  segments: { key: string; label: string; criteria: string; count: number }[];
-  sampledBookings: number;
-  approximate: boolean;
-}
-
+// Computed from real rows the caller's own RLS visibility allows, not a
+// Cloud Function. `approximate: true` is always reported honestly: a
+// SUPER_ADMIN sees every booking so the counts are exact for them; any
+// other can_manage_catalog() role is scoped by bookings_select to
+// assigned/confirmed bookings only, so their counts reflect their own
+// visible slice, not the whole business.
 export async function getCustomerSegments(): Promise<CustomerSegmentsResult> {
-  return callFunction<Record<string, never>, CustomerSegmentsResult>("getCustomerSegments", {});
+  const client = getSupabaseClient();
+  const { data: bookingRows, error: bookingError } = await client.from("bookings").select("user_id, created_at, coupon_id").limit(5000);
+  if (bookingError) throw bookingError;
+  const { count: customerCount, error: countError } = await client.from("profiles").select("id", { count: "exact", head: true });
+  if (countError) throw countError;
+
+  const byUser = new Map<string, { count: number; usedCoupon: boolean }>();
+  for (const b of bookingRows ?? []) {
+    if (!b.user_id) continue;
+    const entry = byUser.get(b.user_id) ?? { count: 0, usedCoupon: false };
+    entry.count += 1;
+    if (b.coupon_id) entry.usedCoupon = true;
+    byUser.set(b.user_id, entry);
+  }
+
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  let newCount = 0;
+  let returningCount = 0;
+  for (const b of bookingRows ?? []) {
+    if (!b.user_id) continue;
+    const isFirst = byUser.get(b.user_id)!.count === 1;
+    const isRecent = new Date(b.created_at as string).getTime() >= thirtyDaysAgo;
+    if (isFirst && isRecent) newCount++;
+  }
+  returningCount = [...byUser.values()].filter((v) => v.count > 1).length;
+  const couponUsers = [...byUser.values()].filter((v) => v.usedCoupon).length;
+  const withBooking = byUser.size;
+  const noBooking = Math.max((customerCount ?? 0) - withBooking, 0);
+
+  return {
+    segments: [
+      { key: "all", label: "All customers", criteria: "Every registered customer", count: customerCount ?? 0 },
+      { key: "new", label: "New (first booking, last 30 days)", criteria: "1 booking, created in the last 30 days", count: newCount },
+      { key: "returning", label: "Returning", criteria: "More than one booking", count: returningCount },
+      { key: "inactive", label: "No booking yet", criteria: "Registered but never booked", count: noBooking },
+      { key: "couponUsers", label: "Coupon users", criteria: "At least one booking used a coupon", count: couponUsers },
+      { key: "noBooking", label: "No booking yet", criteria: "Registered but never booked", count: noBooking },
+    ],
+    sampledBookings: (bookingRows ?? []).length,
+    approximate: true,
+  };
 }

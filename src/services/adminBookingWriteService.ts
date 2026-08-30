@@ -1,9 +1,14 @@
-// Supabase-backed. createStaffBooking is a direct table insert, same
-// shape as the Firestore version's own design: RLS's bookings_insert_staff
-// policy is the boundary (staff-only, source pinned to admin/whatsapp,
-// created_by must match the caller, no assignment fields at creation) —
-// staff are trusted to type the correct price for a phone/WhatsApp
-// booking, same as the old firestore.rules never re-derived it either.
+// Supabase-backed. createStaffBooking goes through the create_staff_booking
+// RPC (SECURITY DEFINER) rather than a direct table insert: the actorUid
+// this file used to write straight into created_by/updated_by is the
+// app's FIREBASE uid (StaffContext.uid stays Firebase-shaped — see
+// src/supabase/roleService.ts), never the live Supabase session's real
+// auth.uid(). A direct insert with created_by = actorUid would never
+// satisfy an RLS with_check requiring created_by = auth.uid(), so this
+// would have silently failed for every real booking made through the
+// actual admin UI. The RPC derives created_by from the session itself,
+// removing the client-supplied uid from the trust boundary entirely —
+// exactly like create_website_booking already does for customers.
 //
 // recordCashReceived/setBookingStatus go through the record_cash_received/
 // set_booking_status RPCs (Phase A) instead of a raw update: both are
@@ -14,7 +19,6 @@
 // original file's own comment: "the rules re-verify the arithmetic on
 // every update" was the entire boundary, with no history recorded).
 import { getSupabaseClient } from "@/supabase/client";
-import { cashStateFor } from "@/utils/cashState";
 import type { Booking, BookingItem, BookingSource, BookingStatus, CollectionType } from "@/types/booking";
 
 export interface StaffBookingInput {
@@ -35,73 +39,39 @@ export interface StaffBookingInput {
   notes?: string;
 }
 
-function generateReference(): string {
-  const datePart = new Date().toISOString().slice(2, 10).replace(/-/g, "");
-  const randomPart = crypto.randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase();
-  return `MH${datePart}${randomPart}`;
-}
-
 /**
  * Creates a booking taken by staff — a phone call, a walk-in, or a
- * pasted WhatsApp message. Source is set by the caller and constrained
- * by RLS to admin/whatsapp, so it can never be passed off as a website
- * booking.
+ * pasted WhatsApp message. Source is set by the caller and validated
+ * server-side to admin/whatsapp, so it can never be passed off as a
+ * website booking. `actorUid` is accepted for call-site compatibility
+ * but intentionally unused — see the header comment above.
  */
 export async function createStaffBooking(
-  actorUid: string,
+  _actorUid: string,
   input: StaffBookingInput
 ): Promise<{ bookingId: string }> {
-  const cash = cashStateFor(input.finalAmount, input.amountReceived);
-  const client = getSupabaseClient();
-
-  const { data: booking, error } = await client
-    .from("bookings")
-    .insert({
-      reference: generateReference(),
-      user_id: input.userId ?? null,
-      patient_id: input.patientId ?? null,
-      lab_id: input.labId,
-      lab_name: input.labName ?? null,
-      collection_type: input.collectionType,
-      pincode: input.pincode ?? null,
-      date: input.date,
-      slot_id: input.slotId ?? null,
-      subtotal: input.item.price,
-      collection_fee: Math.max(input.finalAmount - input.item.price, 0),
-      discount: 0,
-      final_amount: input.finalAmount,
-      amount_received: cash.amountReceived,
-      payment_status: cash.paymentStatus,
-      payment_method: "cash_on_home",
-      source: input.source,
-      booking_status: "confirmed",
-      contact: input.contact,
-      notes: input.notes ?? null,
-      created_by: actorUid,
-      updated_by: actorUid,
-    })
-    .select("id")
-    .single();
+  const { data, error } = await getSupabaseClient().rpc("create_staff_booking", {
+    p_user_id: input.userId ?? null,
+    p_patient_id: input.patientId ?? null,
+    p_lab_id: input.labId,
+    p_lab_name: input.labName ?? null,
+    p_collection_type: input.collectionType,
+    p_pincode: input.pincode ?? null,
+    p_date: input.date,
+    p_slot_id: input.slotId ?? null,
+    p_final_amount: input.finalAmount,
+    p_amount_received: input.amountReceived,
+    p_source: input.source,
+    p_contact: input.contact,
+    p_notes: input.notes ?? null,
+    p_item_type: input.item.itemType,
+    p_item_ref_id: input.item.refId,
+    p_item_name: input.item.name,
+    p_item_lab_id: input.item.labId || input.labId,
+    p_item_price: input.item.price,
+  });
   if (error) throw error;
-
-  const { error: itemError } = await client.from("booking_items").insert({
-    booking_id: booking.id,
-    item_type: input.item.itemType,
-    ref_id: input.item.refId,
-    name: input.item.name,
-    lab_id: input.item.labId || input.labId,
-    price: input.item.price,
-  });
-  if (itemError) throw itemError;
-
-  const { error: historyError } = await client.from("booking_status_history").insert({
-    booking_id: booking.id,
-    status: "confirmed",
-    created_by: actorUid,
-  });
-  if (historyError) throw historyError;
-
-  return { bookingId: booking.id };
+  return { bookingId: (data as unknown as { id: string }).id };
 }
 
 /**

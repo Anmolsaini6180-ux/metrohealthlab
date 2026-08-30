@@ -1,45 +1,66 @@
-import { collection, getDocs, orderBy, query, where, limit as fsLimit } from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
-import { callFunction } from "@/firebase/functions";
+// Supabase-backed.
+//
+// getAllPayments always returns [] now: this project is cash-on-home
+// only (see paymentService.ts's removal) -- there is no online payment
+// gateway, so a "payments" ledger genuinely has nothing to show, ever.
+// Returning an honest empty list beats faking a ledger or repurposing
+// cash_collections into a shape it was never designed to have.
+//
+// sendAdminNotification goes through the send_admin_notification RPC:
+// `notifications` has no client INSERT policy at all, on purpose, so a
+// staff account cannot write into another user's feed directly — the
+// scope check has to run server-side, same as the Cloud Function this
+// replaces was meant to do (and never was, on Spark).
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToNotification } from "@/supabase/mappers";
 import type { Report } from "@/types/report";
 import type { Payment } from "@/types/payment";
 import type { AppNotification } from "@/types/notification";
 
-// ---------- Reports (admin) ----------
-// READ-ONLY here. Report files are uploaded through the Cloudinary
-// signed-upload flow in mediaService.ts (uploadReportFile /
-// setReportReady), which is backed by Cloud Functions; firestore.rules
-// denies all client writes to `reports`, so creating or mutating a
-// report record from this file is no longer possible — and shouldn't
-// be, since the customer a report belongs to must be derived from the
-// booking server-side rather than typed in by a human.
+// ---------- Reports (admin, read-only) ----------
 
 export async function getAllReports(bookingId?: string): Promise<Report[]> {
-  const q = bookingId
-    ? query(collection(getDb(), "reports"), where("bookingId", "==", bookingId))
-    : query(collection(getDb(), "reports"), orderBy("createdAt", "desc"), fsLimit(200));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Report));
+  const base = getSupabaseClient().from("reports").select("*");
+  const { data, error } = bookingId
+    ? await base.eq("booking_id", bookingId)
+    : await base.order("created_at", { ascending: false }).limit(200);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    patientId: r.patient_id ?? "",
+    bookingId: r.booking_id ?? "",
+    testId: r.test_id ?? undefined,
+    packageId: r.package_id ?? undefined,
+    labId: r.lab_id ?? "",
+    status: r.status,
+    storageProvider: r.storage_provider ?? undefined,
+    publicId: r.public_id ?? undefined,
+    assetId: r.asset_id ?? undefined,
+    resourceType: r.resource_type ?? undefined,
+    format: r.format ?? undefined,
+    bytes: r.bytes ?? undefined,
+    filename: r.filename ?? undefined,
+    folder: r.folder ?? undefined,
+    uploadedBy: r.uploaded_by ?? undefined,
+    uploadedAt: r.uploaded_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }) as Report);
 }
 
-// ---------- Payments (admin, read-only) ----------
-// Never written from the client — createPaymentOrder/the Razorpay
-// webhook are the only writers. This is a read-only ledger view.
+// ---------- Payments (admin) — cash on home only, no online gateway ----------
 
-export async function getAllPayments(status?: string): Promise<Payment[]> {
-  const q = status
-    ? query(collection(getDb(), "payments"), where("status", "==", status), orderBy("createdAt", "desc"), fsLimit(200))
-    : query(collection(getDb(), "payments"), orderBy("createdAt", "desc"), fsLimit(200));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Payment));
+export async function getAllPayments(_status?: string): Promise<Payment[]> {
+  return [];
 }
 
 // ---------- Notifications (admin) ----------
 
 export async function getAllNotifications(): Promise<AppNotification[]> {
-  const q = query(collection(getDb(), "notifications"), orderBy("createdAt", "desc"), fsLimit(200));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppNotification));
+  const { data, error } = await getSupabaseClient().from("notifications").select("*").order("created_at", { ascending: false }).limit(200);
+  if (error) throw error;
+  return (data ?? []).map(rowToNotification);
 }
 
 export interface SendNotificationRequest {
@@ -49,7 +70,13 @@ export interface SendNotificationRequest {
   message: string;
 }
 
-// Hierarchy-scope checked server-side — see functions/src/adminNotifications.ts.
 export async function sendAdminNotification(payload: SendNotificationRequest): Promise<{ ok: true }> {
-  return callFunction<SendNotificationRequest, { ok: true }>("sendAdminNotification", payload);
+  const { error } = await getSupabaseClient().rpc("send_admin_notification", {
+    p_customer_id: payload.customerUid,
+    p_type: payload.type,
+    p_title: payload.title,
+    p_message: payload.message,
+  });
+  if (error) throw error;
+  return { ok: true };
 }

@@ -7,6 +7,8 @@ import { getAllLabs } from "@/services/adminCatalogService";
 import { getTests } from "@/services/testService";
 import { getPackages } from "@/services/packageService";
 import { getStarterCatalogState, seedStarterCatalog, type SeedProgress } from "@/services/adminSeedService";
+import { getAllTestCategories, getAllServiceAreas, getAllCoupons } from "@/services/adminCatalogService";
+import { getAllReports } from "@/services/adminOpsService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import BarList from "@/components/admin/BarList";
@@ -14,7 +16,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
-import { CALLABLE_UNAVAILABLE_MESSAGE, logOperationError, toUserMessage } from "@/utils/errors";
+import { logOperationError, toUserMessage } from "@/utils/errors";
 import { useToast } from "@/hooks/useToast";
 
 const COLLECTED_STATUSES = ["sample_collected", "received_at_lab", "testing", "report_ready", "completed"];
@@ -56,6 +58,11 @@ export default function AdminDashboardPage() {
   const labs = useAsync(getAllLabs, []);
   const activeTests = useAsync(() => getTests(), []);
   const activePackages = useAsync(() => getPackages(), []);
+  const categories = useAsync(getAllTestCategories, []);
+  const serviceAreas = useAsync(getAllServiceAreas, []);
+  const coupons = useAsync(getAllCoupons, []);
+  const reports = useAsync(() => getAllReports(), []);
+
   // Real database state, so the import offer is made against facts
   // rather than a guess about whether anything is there already.
   const catalogState = useAsync(
@@ -76,11 +83,6 @@ export default function AdminDashboardPage() {
     range.startDate, range.endDate, filterAdminId, filterSubAdminId, filterAgentId, filterLabId, filterBookingStatus, filterPaymentStatus,
   ]);
 
-  // A callable that isn't deployed comes back as the bare code
-  // "internal". Distinguish that from a real query failure so the page
-  // can explain the cause instead of printing the word.
-  const bookingsUnavailable = bookings.error === CALLABLE_UNAVAILABLE_MESSAGE;
-
   const stats = useMemo(() => {
     const b = bookings.data ?? [];
     return {
@@ -88,7 +90,10 @@ export default function AdminDashboardPage() {
       completed: b.filter((x) => x.bookingStatus === "completed").length,
       pending: b.filter((x) => x.bookingStatus === "payment_pending" || x.bookingStatus === "confirmed").length,
       cancelled: b.filter((x) => x.bookingStatus === "cancelled" || x.bookingStatus === "refunded").length,
-      revenue: b.filter((x) => x.paymentStatus === "success").reduce((sum, x) => sum + x.finalAmount, 0),
+      // Cash on home only: "revenue" is what has actually been
+      // collected in hand, not a paid/unpaid online-gateway split.
+      cashCollected: b.reduce((sum, x) => sum + (x.amountReceived ?? 0), 0),
+      cashPending: b.reduce((sum, x) => sum + (x.pendingAmount ?? 0), 0),
       customers: new Set(b.map((x) => x.userId)).size,
       collections: b.filter((x) => COLLECTED_STATUSES.includes(x.bookingStatus)).length,
       reportsReady: b.filter((x) => x.bookingStatus === "report_ready").length,
@@ -224,28 +229,22 @@ export default function AdminDashboardPage() {
         <FilterSelect label="Payment" value={filterPaymentStatus} onChange={setFilterPaymentStatus} options={["pending", "processing", "success", "failed", "refunded", "cash_pending"].map((s) => ({ value: s, label: s.replace(/_/g, " ") }))} />
       </div>
 
-      {/* Catalog counters come straight from Firestore and stay useful
-          even when the booking analytics below cannot load. */}
+      {/* Catalog counters read straight from Supabase and stay useful
+          even if the booking analytics below are still loading. */}
       <div className="mh-stat-grid">
         <Stat label="Active tests" value={activeTests.data?.length ?? (activeTests.loading ? "…" : 0)} />
         <Stat label="Active packages" value={activePackages.data?.length ?? (activePackages.loading ? "…" : 0)} />
+        <Stat label="Categories" value={categories.data?.length ?? (categories.loading ? "…" : 0)} />
         <Stat label="Labs" value={labs.data?.length ?? (labs.loading ? "…" : 0)} />
+        <Stat label="Service areas" value={serviceAreas.data?.length ?? (serviceAreas.loading ? "…" : 0)} />
+        <Stat label="Active coupons" value={coupons.data?.filter((c) => c.active).length ?? (coupons.loading ? "…" : 0)} />
+        <Stat label="Cash collected" value={bookings.data ? formatCurrencyInr(stats.cashCollected) : "…"} />
+        <Stat label="Cash pending" value={bookings.data ? formatCurrencyInr(stats.cashPending) : "…"} />
+        <Stat label="Reports filed" value={reports.data?.length ?? (reports.loading ? "…" : 0)} />
       </div>
 
       {bookings.loading && <LoadingState label="Loading dashboard..." rows={3} />}
-      {bookings.error && !bookingsUnavailable && <ErrorState message={bookings.error} onRetry={bookings.retry} />}
-      {bookingsUnavailable && (
-        <div className="card">
-          <p style={{ fontWeight: 600 }}>Booking analytics are unavailable on this project</p>
-          <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginTop: 4 }}>
-            Booking figures are served by a Cloud Function (<code>getAdminBookings</code>) that is not
-            deployed — this Firebase project is on the Spark plan, which cannot host Cloud Functions.
-            Firestore security rules also deliberately forbid listing bookings from a browser, so this
-            cannot be recalculated client-side without changing the security model. Everything above
-            and every catalog page in the sidebar is unaffected.
-          </p>
-        </div>
-      )}
+      {bookings.error && <ErrorState message={bookings.error} onRetry={bookings.retry} />}
 
       {bookings.data && (
         <>
@@ -254,7 +253,6 @@ export default function AdminDashboardPage() {
             <Stat label="Completed" value={stats.completed} />
             <Stat label="Pending" value={stats.pending} />
             <Stat label="Cancelled" value={stats.cancelled} />
-            <Stat label="Revenue (collected)" value={formatCurrencyInr(stats.revenue)} />
             <Stat label="Customers" value={stats.customers} />
             <Stat label="Collections done" value={stats.collections} />
             <Stat label="Reports ready" value={stats.reportsReady} />

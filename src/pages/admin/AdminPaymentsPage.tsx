@@ -16,7 +16,9 @@ export default function AdminPaymentsPage() {
     <div>
       <h1 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-md)" }}>Payments</h1>
       <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginBottom: "var(--space-md)" }}>
-        Read-only — payment success is only ever set by the signature-verified Razorpay webhook, never editable here.
+        This project accepts cash on home collection only — there is no online payment gateway, so no
+        payment records exist or ever will. To see cash actually collected, open a booking's detail
+        view; every collection is recorded there with a full audit trail.
       </p>
 
       <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)", marginBottom: "var(--space-md)" }}>

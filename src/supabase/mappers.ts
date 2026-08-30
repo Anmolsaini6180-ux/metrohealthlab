@@ -16,6 +16,9 @@ import type { Patient } from "@/types/patient";
 import type { Address } from "@/types/address";
 import type { AppNotification } from "@/types/notification";
 import type { SupportTicket } from "@/types/support";
+import type { Coupon } from "@/types/coupon";
+import type { Campaign, Lead } from "@/types/marketing";
+import type { MediaAsset } from "@/types/media";
 
 export function rowToTestCategory(r: Record<string, unknown>): TestCategory {
   return {
@@ -46,9 +49,13 @@ export function rowToTest(r: Record<string, unknown>): DiagnosticTest {
     reportTat: (r.report_tat as string) ?? "",
     mrp: Number(r.mrp ?? 0),
     sellingPrice: Number(r.selling_price ?? 0),
+    discount: r.discount != null ? Number(r.discount) : undefined,
     gender: (r.gender as DiagnosticTest["gender"]) ?? undefined,
     ageGroup: (r.age_group as string) ?? undefined,
     labIds: [], // authoritative relationship now lives in lab_pricing
+    faq: (r.faq as DiagnosticTest["faq"]) ?? undefined,
+    seoTitle: (r.seo_title as string) ?? undefined,
+    seoDescription: (r.seo_description as string) ?? undefined,
     active: r.active as boolean,
     displayOrder: (r.display_order as number) ?? undefined,
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
@@ -67,11 +74,17 @@ export function rowToPackage(r: Record<string, unknown>): HealthPackage {
     testIds: [], // authoritative relationship lives in package_tests
     mrp: Number(r.mrp ?? 0),
     sellingPrice: Number(r.selling_price ?? 0),
+    discount: r.discount != null ? Number(r.discount) : undefined,
     reportTat: (r.report_tat as string) ?? "",
     homeCollection: !!r.home_collection,
+    gender: (r.gender as HealthPackage["gender"]) ?? undefined,
+    ageGroup: (r.age_group as string) ?? undefined,
     labIds: [],
     rating: r.rating != null ? Number(r.rating) : undefined,
     tag: (r.tag as string) ?? undefined,
+    faq: (r.faq as HealthPackage["faq"]) ?? undefined,
+    seoTitle: (r.seo_title as string) ?? undefined,
+    seoDescription: (r.seo_description as string) ?? undefined,
     displayOrder: (r.display_order as number) ?? undefined,
     active: r.active as boolean,
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
@@ -84,10 +97,14 @@ export function rowToLab(r: Record<string, unknown>): Lab {
   return {
     id: r.id as string,
     name: r.name as string,
+    logo: (r.logo as string) ?? undefined,
     description: (r.description as string) ?? undefined,
-    serviceAreas: [],
-    testIds: [],
-    packageIds: [],
+    address: (r.address as string) ?? undefined,
+    phone: (r.phone as string) ?? undefined,
+    email: (r.email as string) ?? undefined,
+    serviceAreas: (r.service_area_ids as string[]) ?? [],
+    testIds: [], // authoritative relationship lives in lab_pricing
+    packageIds: [], // authoritative relationship lives in lab_pricing
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
     active: r.active as boolean,
     createdAt: r.created_at,
@@ -190,6 +207,8 @@ export function rowToArticle(r: Record<string, unknown>): Article {
     excerpt: (r.excerpt as string) ?? "",
     body: (r.body as string) ?? "",
     coverImage: (r.cover_image as string) ?? undefined,
+    seoTitle: (r.seo_title as string) ?? undefined,
+    seoDescription: (r.seo_description as string) ?? undefined,
     active: r.active as boolean,
     publishedAt: r.published_at,
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
@@ -243,6 +262,89 @@ export function rowToNotification(r: Record<string, unknown>): AppNotification {
     type: r.type as AppNotification["type"],
     read: !!r.read,
     createdAt: r.created_at,
+  };
+}
+
+export function rowToCoupon(r: Record<string, unknown>): Coupon {
+  return {
+    id: r.id as string,
+    code: r.code as string,
+    discountType: r.discount_type as Coupon["discountType"],
+    discountValue: Number(r.discount_value ?? 0),
+    minimumOrder: r.minimum_order != null ? Number(r.minimum_order) : undefined,
+    maximumDiscount: r.maximum_discount != null ? Number(r.maximum_discount) : undefined,
+    applicableTests: (r.applicable_tests as string[]) ?? undefined,
+    applicablePackages: (r.applicable_packages as string[]) ?? undefined,
+    applicableLabs: (r.applicable_labs as string[]) ?? undefined,
+    applicableCities: (r.applicable_cities as string[]) ?? undefined,
+    firstOrderOnly: r.first_order_only != null ? !!r.first_order_only : undefined,
+    usageLimit: r.usage_limit != null ? Number(r.usage_limit) : undefined,
+    usedCount: r.used_count != null ? Number(r.used_count) : undefined,
+    perUserLimit: r.per_user_limit != null ? Number(r.per_user_limit) : undefined,
+    startDate: r.start_date as string,
+    expiryDate: r.expiry_date as string,
+    active: r.active as boolean,
+    updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function rowToCampaign(r: Record<string, unknown>): Campaign {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    description: (r.description as string) ?? undefined,
+    type: r.type as string,
+    startAt: r.start_at as string,
+    endAt: r.end_at as string,
+    status: r.status as Campaign["status"],
+    offerId: (r.offer_id as string) ?? undefined,
+    couponId: (r.coupon_id as string) ?? undefined,
+    targetSegment: (r.target_segment as string) ?? undefined,
+    createdBy: (r.created_by as string) ?? "",
+    updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function rowToLead(r: Record<string, unknown>): Lead {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    phone: r.phone as string,
+    email: (r.email as string) ?? undefined,
+    source: (r.source as string) ?? undefined,
+    campaignId: (r.campaign_id as string) ?? undefined,
+    status: r.status as Lead["status"],
+    assignedAdminId: (r.assigned_admin_id as string) ?? undefined,
+    assignedSubAdminId: (r.assigned_sub_admin_id as string) ?? undefined,
+    assignedCollectionAgentId: (r.assigned_collection_agent_id as string) ?? undefined,
+    createdBy: (r.created_by as string) ?? "",
+    updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function rowToMediaAsset(r: Record<string, unknown>): MediaAsset {
+  return {
+    id: r.id as string,
+    publicId: r.public_id as string,
+    assetId: r.asset_id as string,
+    category: r.category as MediaAsset["category"],
+    relatedId: (r.related_id as string) ?? null,
+    resourceType: r.resource_type as string,
+    format: r.format as string,
+    bytes: Number(r.bytes ?? 0),
+    width: r.width != null ? Number(r.width) : null,
+    height: r.height != null ? Number(r.height) : null,
+    folder: r.folder as string,
+    filename: r.filename as string,
+    secureUrl: r.secure_url as string,
+    uploadedBy: (r.uploaded_by_firebase_uid as string) ?? (r.uploaded_by as string) ?? "",
+    uploadedAt: r.uploaded_at,
   };
 }
 
