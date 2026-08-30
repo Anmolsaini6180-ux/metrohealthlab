@@ -1,6 +1,6 @@
 // Supabase-backed. Same exported shapes as the Firestore version — see
 // testService.ts's header comment for the pattern this follows.
-import { getSupabaseClient } from "@/supabase/client";
+import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
 import { rowToPackage } from "@/supabase/mappers";
 import type { HealthPackage } from "@/types/package";
 
@@ -51,11 +51,13 @@ export function subscribeToPackages(
 ): Unsubscribe {
   const refetch = () => getPackages(options).then(callback).catch((err) => onError?.(err));
   refetch();
-  const channel = getSupabaseClient()
-    .channel(`packages-${options?.category ?? "all"}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "packages" }, refetch)
-    .subscribe();
-  return () => {
-    getSupabaseClient().removeChannel(channel);
-  };
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`packages-${options?.category ?? "all"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "packages" }, refetch)
+      .subscribe();
+    return () => {
+      getSupabaseClient().removeChannel(channel);
+    };
+  }, onError);
 }

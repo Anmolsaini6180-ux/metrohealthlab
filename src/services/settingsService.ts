@@ -1,7 +1,7 @@
 // Supabase-backed. settings.data is a single jsonb column holding the
 // whole branding document — same shape Firestore's settings/branding
 // document always had, so BrandingSettings itself is unchanged.
-import { getSupabaseClient } from "@/supabase/client";
+import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
 import { optionalText } from "@/utils/firestoreData";
 import type { BrandingSettings } from "@/types/settings";
 
@@ -25,11 +25,13 @@ export function subscribeToBrandingSettings(
 ): Unsubscribe {
   const refetch = () => getBrandingSettings().then(callback).catch((err) => onError?.(err));
   refetch();
-  const channel = getSupabaseClient()
-    .channel("settings-branding")
-    .on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: `id=eq.${BRANDING_ID}` }, refetch)
-    .subscribe();
-  return () => getSupabaseClient().removeChannel(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel("settings-branding")
+      .on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: `id=eq.${BRANDING_ID}` }, refetch)
+      .subscribe();
+    return () => getSupabaseClient().removeChannel(channel);
+  }, onError);
 }
 
 const OPTIONAL_BRANDING_FIELDS = ["tagline", "logoUrl", "faviconUrl", "phone", "whatsapp", "email", "address", "city"] as const;

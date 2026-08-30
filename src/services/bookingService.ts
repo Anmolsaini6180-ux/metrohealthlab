@@ -11,7 +11,7 @@
 // are removed: nothing in the app called them (grepped for
 // "getBookingQuote"/`from ".../bookingService"` — no live caller), and
 // they pointed at Cloud Functions that were never deployed on Spark.
-import { getSupabaseClient } from "@/supabase/client";
+import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
 import { rowToBooking, rowToBookingStatusHistory } from "@/supabase/bookingMappers";
 import type { Booking, BookingItem, BookingStatusHistoryEntry, CollectionType } from "@/types/booking";
 
@@ -93,11 +93,13 @@ export function subscribeToUserBookings(
 ): Unsubscribe {
   const refetch = () => fetchUserBookings(userId).then(callback).catch((err) => onError?.(err));
   refetch();
-  const channel = getSupabaseClient()
-    .channel(`bookings-user-${userId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `user_id=eq.${userId}` }, refetch)
-    .subscribe();
-  return () => getSupabaseClient().removeChannel(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`bookings-user-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `user_id=eq.${userId}` }, refetch)
+      .subscribe();
+    return () => getSupabaseClient().removeChannel(channel);
+  }, onError);
 }
 
 /**
@@ -126,11 +128,13 @@ export function subscribeToAdminBookings(
     }
   };
   refetch();
-  const channel = getSupabaseClient()
-    .channel("bookings-admin-all")
-    .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, refetch)
-    .subscribe();
-  return () => getSupabaseClient().removeChannel(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel("bookings-admin-all")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, refetch)
+      .subscribe();
+    return () => getSupabaseClient().removeChannel(channel);
+  }, onError);
 }
 
 export async function getUserBookings(userId: string): Promise<Booking[]> {
@@ -152,11 +156,13 @@ export function subscribeToBooking(
 ): Unsubscribe {
   const refetch = () => getBookingById(bookingId).then(callback).catch((err) => onError?.(err));
   refetch();
-  const channel = getSupabaseClient()
-    .channel(`booking-${bookingId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `id=eq.${bookingId}` }, refetch)
-    .subscribe();
-  return () => getSupabaseClient().removeChannel(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`booking-${bookingId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `id=eq.${bookingId}` }, refetch)
+      .subscribe();
+    return () => getSupabaseClient().removeChannel(channel);
+  }, onError);
 }
 
 export function subscribeToBookingStatusHistory(
@@ -178,9 +184,11 @@ export function subscribeToBookingStatusHistory(
     }
   };
   refetch();
-  const channel = getSupabaseClient()
-    .channel(`booking-status-history-${bookingId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "booking_status_history", filter: `booking_id=eq.${bookingId}` }, refetch)
-    .subscribe();
-  return () => getSupabaseClient().removeChannel(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`booking-status-history-${bookingId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "booking_status_history", filter: `booking_id=eq.${bookingId}` }, refetch)
+      .subscribe();
+    return () => getSupabaseClient().removeChannel(channel);
+  }, onError);
 }

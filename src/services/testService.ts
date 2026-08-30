@@ -3,7 +3,7 @@
 // so no page or component needed to change — only where the data comes
 // from changed. See src/supabase/mappers.ts for the snake_case ->
 // camelCase translation shared by every catalogue service.
-import { getSupabaseClient } from "@/supabase/client";
+import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
 import { rowToTest, rowToTestCategory } from "@/supabase/mappers";
 import type { DiagnosticTest, TestCategory } from "@/types/test";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -82,11 +82,13 @@ export function subscribeToTests(
 ): Unsubscribe {
   const refetch = () => getTests(options).then(callback).catch((err) => onError?.(err));
   refetch();
-  const channel = getSupabaseClient()
-    .channel(`tests-${options?.categoryId ?? "all"}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "tests" }, refetch)
-    .subscribe();
-  return channelUnsubscribe(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`tests-${options?.categoryId ?? "all"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tests" }, refetch)
+      .subscribe();
+    return channelUnsubscribe(channel);
+  }, onError);
 }
 
 export function subscribeToTestCategories(
@@ -95,11 +97,13 @@ export function subscribeToTestCategories(
 ): Unsubscribe {
   const refetch = () => getTestCategories().then(callback).catch((err) => onError?.(err));
   refetch();
-  const channel = getSupabaseClient()
-    .channel("test-categories-all")
-    .on("postgres_changes", { event: "*", schema: "public", table: "test_categories" }, refetch)
-    .subscribe();
-  return channelUnsubscribe(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel("test-categories-all")
+      .on("postgres_changes", { event: "*", schema: "public", table: "test_categories" }, refetch)
+      .subscribe();
+    return channelUnsubscribe(channel);
+  }, onError);
 }
 
 // Single query across up to 30 category IDs at once — same limit and
@@ -131,9 +135,11 @@ export function subscribeToTestsByCategoryIds(
     }
   };
   refetch();
-  const channel = getSupabaseClient()
-    .channel(`tests-by-categories-${ids.join(",")}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "tests" }, refetch)
-    .subscribe();
-  return channelUnsubscribe(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`tests-by-categories-${ids.join(",")}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tests" }, refetch)
+      .subscribe();
+    return channelUnsubscribe(channel);
+  }, onError);
 }

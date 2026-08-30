@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { getSupabaseClient } from "./client";
+import { getSupabaseClient, safeSubscribe } from "./client";
 import { getCurrentSession } from "./auth";
 import { buildStaffContext } from "@/utils/roleAccess";
 import type { StaffContext } from "@/types/team";
@@ -136,30 +136,32 @@ export function subscribeToStaffRecord(
   masterUid: string,
   callback: (context: StaffContext) => void
 ): () => void {
-  const channel = getSupabaseClient()
-    .channel(`staff-role-${userId}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "staff_roles", filter: `user_id=eq.${userId}` },
-      (payload) => {
-        const row = (payload.new ?? null) as Record<string, unknown> | null;
-        const record: StaffRecordData | null = row
-          ? {
-              role: row.role,
-              status: row.status,
-              superAdminId: (row.super_admin_id as string | undefined) ?? undefined,
-              adminId: (row.admin_id as string | undefined) ?? undefined,
-              subAdminId: (row.sub_admin_id as string | undefined) ?? undefined,
-            }
-          : null;
-        callback(buildStaffContext(userId, masterUid, record));
-      }
-    )
-    .subscribe();
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`staff-role-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "staff_roles", filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const row = (payload.new ?? null) as Record<string, unknown> | null;
+          const record: StaffRecordData | null = row
+            ? {
+                role: row.role,
+                status: row.status,
+                superAdminId: (row.super_admin_id as string | undefined) ?? undefined,
+                adminId: (row.admin_id as string | undefined) ?? undefined,
+                subAdminId: (row.sub_admin_id as string | undefined) ?? undefined,
+              }
+            : null;
+          callback(buildStaffContext(userId, masterUid, record));
+        }
+      )
+      .subscribe();
 
-  return () => {
-    getSupabaseClient().removeChannel(channel);
-  };
+    return () => {
+      getSupabaseClient().removeChannel(channel);
+    };
+  });
 }
 
 /**

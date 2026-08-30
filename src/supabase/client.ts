@@ -55,3 +55,32 @@ export function getSupabaseClient(): SupabaseClient {
   }
   return client;
 }
+
+/**
+ * Every `subscribeTo*` function in the app builds its Realtime channel
+ * synchronously, inline, in the body of a `useEffect` — including one
+ * (BrandingSettingsProvider) mounted unconditionally at the app root.
+ * getSupabaseClient() THROWS when Supabase isn't configured, and a
+ * throw from inside a useEffect callback is uncaught: React unmounts
+ * the whole tree, producing a completely blank page with no error UI
+ * at all. This was a real production incident (metrohealthlab.in white
+ * screen, VITE_SUPABASE_URL/VITE_SUPABASE_PUBLISHABLE_KEY missing from
+ * the Vercel environment) — the fix is BOTH setting those variables in
+ * Vercel AND making the client-side code below never able to crash the
+ * app again regardless of configuration state.
+ *
+ * Wrap every channel-setup call site in this: on any synchronous
+ * failure (not configured, or anything else), it reports through
+ * onError exactly like an async fetch failure already does, and hands
+ * back a harmless no-op unsubscribe instead of propagating the throw.
+ * The public site must render — and its non-realtime data must still
+ * load once configured — independent of Realtime ever connecting.
+ */
+export function safeSubscribe(setup: () => () => void, onError?: (error: Error) => void): () => void {
+  try {
+    return setup();
+  } catch (err) {
+    onError?.(err instanceof Error ? err : new Error(String(err)));
+    return () => {};
+  }
+}

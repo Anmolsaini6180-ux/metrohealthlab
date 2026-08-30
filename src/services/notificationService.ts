@@ -1,6 +1,6 @@
 // Supabase-backed. RLS: notifications_select allows own row or staff;
 // notifications_mark_read allows only the owner to flip `read`.
-import { getSupabaseClient } from "@/supabase/client";
+import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
 import { rowToNotification } from "@/supabase/mappers";
 import type { AppNotification } from "@/types/notification";
 
@@ -23,11 +23,13 @@ export function subscribeToNotifications(
 ): Unsubscribe {
   const refetch = () => fetchNotifications(userId).then(callback).catch((err) => onError?.(err));
   refetch();
-  const channel = getSupabaseClient()
-    .channel(`notifications-${userId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, refetch)
-    .subscribe();
-  return () => getSupabaseClient().removeChannel(channel);
+  return safeSubscribe(() => {
+    const channel = getSupabaseClient()
+      .channel(`notifications-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, refetch)
+      .subscribe();
+    return () => getSupabaseClient().removeChannel(channel);
+  }, onError);
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
