@@ -11,8 +11,10 @@ import { toUserMessage } from "@/utils/errors";
 const RELATIONSHIPS: PatientRelationship[] = ["self", "father", "mother", "spouse", "son", "daughter", "other"];
 
 export default function FamilyPage() {
-  const { user } = useAuth();
-  const patients = useAsync(() => (user ? getPatients(user.uid) : Promise.resolve([])), [user?.uid]);
+  // patients.user_id is a Supabase uuid FK to profiles.id — never the
+  // Firebase user.uid (see src/supabase/identity.ts).
+  const { supabaseUserId } = useAuth();
+  const patients = useAsync(() => (supabaseUserId ? getPatients(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
   const [showForm, setShowForm] = useState(false);
 
   async function handleDelete(id: string) {
@@ -29,9 +31,9 @@ export default function FamilyPage() {
         </button>
       </div>
 
-      {showForm && user && (
+      {showForm && supabaseUserId && (
         <AddPatientForm
-          userId={user.uid}
+          userId={supabaseUserId}
           onAdded={() => {
             setShowForm(false);
             patients.retry();

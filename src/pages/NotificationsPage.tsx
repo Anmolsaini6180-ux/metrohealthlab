@@ -7,15 +7,17 @@ import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 
 export default function NotificationsPage() {
-  const { user } = useAuth();
+  // notifications.user_id is a Supabase uuid FK to profiles.id — never
+  // the Firebase user.uid (see src/supabase/identity.ts).
+  const { supabaseUserId } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    const unsubscribe = subscribeToNotifications(user.uid, setNotifications, (e) => setError(e.message));
+    if (!supabaseUserId) return;
+    const unsubscribe = subscribeToNotifications(supabaseUserId, setNotifications, (e) => setError(e.message));
     return unsubscribe;
-  }, [user?.uid]);
+  }, [supabaseUserId]);
 
   if (error) return <ErrorState message={error} />;
 
@@ -25,8 +27,8 @@ export default function NotificationsPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
         <h1 style={{ fontSize: "var(--text-2xl)" }}>Notifications</h1>
-        {hasUnread && user && (
-          <button className="btn btn-outline" onClick={() => markAllNotificationsRead(user.uid)}>
+        {hasUnread && supabaseUserId && (
+          <button className="btn btn-outline" onClick={() => markAllNotificationsRead(supabaseUserId)}>
             Mark all as read
           </button>
         )}

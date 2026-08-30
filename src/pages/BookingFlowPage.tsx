@@ -43,7 +43,10 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 export default function BookingFlowPage() {
-  const { user, profile } = useAuth();
+  // patients/addresses/bookings are keyed by the Supabase uuid, never
+  // the Firebase user.uid (see src/supabase/identity.ts) — user itself
+  // is still needed for display fields (displayName/phoneNumber).
+  const { user, profile, supabaseUserId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const selection = location.state as BookingSelection | null;
@@ -80,8 +83,8 @@ export default function BookingFlowPage() {
   const { settings } = useBrandingSettings();
   const contactPhone = settings?.phone?.trim() || null;
 
-  const patients = useAsync(() => (user ? getPatients(user.uid) : Promise.resolve([])), [user?.uid]);
-  const addresses = useAsync(() => (user ? getAddresses(user.uid) : Promise.resolve([])), [user?.uid]);
+  const patients = useAsync(() => (supabaseUserId ? getPatients(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
+  const addresses = useAsync(() => (supabaseUserId ? getAddresses(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
 
   const nextSevenDays = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => {
@@ -214,16 +217,19 @@ export default function BookingFlowPage() {
   }
 
   async function handleConfirm() {
-    if (!user || !patientId || !slotId || !pincodeChecked?.available || !quote) return;
+    if (!user || !supabaseUserId || !patientId || !slotId || !pincodeChecked?.available || !quote) return;
     setCreatingBooking(true);
     setBookingError(null);
     try {
-      // Written straight to Firestore. firestore.rules verifies the
-      // price against `pricingRefId`, the fee against `serviceAreaId`,
-      // and pins the booking to start unpaid — so nothing here has to
-      // be trusted for the booking to be correct.
+      // create_website_booking is a SECURITY DEFINER Supabase RPC:
+      // it re-derives the price from pricingRefId, the fee from
+      // serviceAreaId, and pins the booking to start unpaid server-side
+      // — so nothing here has to be trusted for the booking to be
+      // correct. (userId below is accepted for shape/back-compat only;
+      // the RPC uses the live session's own auth.uid(), never this
+      // value.)
       const result = await createCashBooking({
-        userId: user.uid,
+        userId: supabaseUserId,
         patientId,
         item: { itemType: sel.itemType, refId: sel.refId, name: sel.name, labId: sel.labId, price: sel.price },
         pricingRefId: sel.pricingRefId ?? "",
@@ -304,9 +310,9 @@ export default function BookingFlowPage() {
                   + Add a family member
                 </button>
               )}
-              {showAddPatient && user && (
+              {showAddPatient && supabaseUserId && (
                 <QuickAddPatientForm
-                  userId={user.uid}
+                  userId={supabaseUserId}
                   onAdded={(id) => {
                     setPatientId(id);
                     setShowAddPatient(false);

@@ -8,8 +8,10 @@ import EmptyState from "@/components/common/EmptyState";
 import { toUserMessage } from "@/utils/errors";
 
 export default function ReportsPage() {
-  const { user } = useAuth();
-  const reports = useAsync(() => (user ? getUserReports(user.uid) : Promise.resolve([])), [user?.uid]);
+  // reports.user_id is a Supabase uuid FK to profiles.id — never the
+  // Firebase user.uid (see src/supabase/identity.ts).
+  const { supabaseUserId } = useAuth();
+  const reports = useAsync(() => (supabaseUserId ? getUserReports(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 

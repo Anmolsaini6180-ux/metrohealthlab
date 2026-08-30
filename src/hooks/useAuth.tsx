@@ -7,6 +7,7 @@ import {
   resolveStaffContextForFirebaseUser,
   subscribeToStaffRecordForFirebaseUser,
 } from "@/supabase/roleService";
+import { getSupabaseUserId } from "@/supabase/identity";
 import { buildStaffContext } from "@/utils/roleAccess";
 import type { StaffContext } from "@/types/team";
 import type { UserProfile } from "@/types/user";
@@ -33,6 +34,15 @@ interface AuthContextValue {
   staff: StaffContext | null;
   loading: boolean;
   firebaseConfigured: boolean;
+  // The Supabase profiles.id (a real UUID) linked to this Firebase
+  // account, or null. Every Supabase-backed customer-data call
+  // (patients, addresses, bookings, reports, notifications, support,
+  // profile) must use THIS — never user.uid — as the ownership id; see
+  // src/supabase/identity.ts's header comment for why. Null while a
+  // real user is signed in means either Supabase hasn't linked yet
+  // (transient) or this is a phone-authenticated account (no Supabase
+  // session is possible today — a genuine unsupported path, not a bug).
+  supabaseUserId: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -41,12 +51,14 @@ const AuthContext = createContext<AuthContextValue>({
   staff: null,
   loading: true,
   firebaseConfigured,
+  supabaseUserId: null,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [staff, setStaff] = useState<StaffContext | null>(null);
+  const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // The live users/{uid} listener for whoever is currently signed in.
   const staffUnsubscribe = useRef<(() => void) | null>(null);
@@ -70,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // authority from local state.
         setProfile(null);
         setStaff(null);
+        setSupabaseUserId(null);
         setUser(null);
         setLoading(false);
         return;
@@ -111,7 +124,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Could not resolve the staff role:", err);
       }
 
+      let linkedSupabaseId: string | null = null;
+      try {
+        linkedSupabaseId = await getSupabaseUserId(nextUser.uid);
+      } catch (err) {
+        console.error("Could not resolve the linked Supabase identity:", err);
+      }
+
       setStaff(context);
+      setSupabaseUserId(linkedSupabaseId);
       setUser(nextUser);
       setLoading(false);
 
@@ -133,8 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, profile, staff, loading, firebaseConfigured }),
-    [user, profile, staff, loading]
+    () => ({ user, profile, staff, loading, firebaseConfigured, supabaseUserId }),
+    [user, profile, staff, loading, supabaseUserId]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

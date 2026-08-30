@@ -8,8 +8,10 @@ import EmptyState from "@/components/common/EmptyState";
 import { toUserMessage } from "@/utils/errors";
 
 export default function SupportPage() {
-  const { user } = useAuth();
-  const tickets = useAsync(() => (user ? getUserTickets(user.uid) : Promise.resolve([])), [user?.uid]);
+  // support_tickets.user_id is a Supabase uuid FK to profiles.id —
+  // never the Firebase user.uid (see src/supabase/identity.ts).
+  const { supabaseUserId } = useAuth();
+  const tickets = useAsync(() => (supabaseUserId ? getUserTickets(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
 
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -18,11 +20,11 @@ export default function SupportPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) return;
+    if (!supabaseUserId) return;
     setBusy(true);
     setError(null);
     try {
-      await createSupportTicket(user.uid, { subject, message });
+      await createSupportTicket(supabaseUserId, { subject, message });
       setSubject("");
       setMessage("");
       tickets.retry();

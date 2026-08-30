@@ -8,8 +8,10 @@ import EmptyState from "@/components/common/EmptyState";
 import { toUserMessage } from "@/utils/errors";
 
 export default function AddressesPage() {
-  const { user } = useAuth();
-  const addresses = useAsync(() => (user ? getAddresses(user.uid) : Promise.resolve([])), [user?.uid]);
+  // addresses.user_id is a Supabase uuid FK to profiles.id — never
+  // the Firebase user.uid (see src/supabase/identity.ts).
+  const { supabaseUserId } = useAuth();
+  const addresses = useAsync(() => (supabaseUserId ? getAddresses(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
   const [showForm, setShowForm] = useState(false);
 
   async function handleDelete(id: string) {
@@ -18,8 +20,8 @@ export default function AddressesPage() {
   }
 
   async function handleSetDefault(id: string) {
-    if (!user) return;
-    await setDefaultAddress(user.uid, id);
+    if (!supabaseUserId) return;
+    await setDefaultAddress(supabaseUserId, id);
     addresses.retry();
   }
 
@@ -32,9 +34,9 @@ export default function AddressesPage() {
         </button>
       </div>
 
-      {showForm && user && (
+      {showForm && supabaseUserId && (
         <AddAddressForm
-          userId={user.uid}
+          userId={supabaseUserId}
           onAdded={() => {
             setShowForm(false);
             addresses.retry();

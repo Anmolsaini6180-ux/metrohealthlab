@@ -43,13 +43,16 @@ function matchesTab(b: Booking, tab: Tab): boolean {
 }
 
 export default function BookingsPage() {
-  const { user } = useAuth();
+  // bookings.user_id is a Supabase uuid FK to profiles.id — must use
+  // supabaseUserId here, never the Firebase user.uid (see
+  // src/supabase/identity.ts), or every query 22P02s.
+  const { supabaseUserId } = useAuth();
   // Live, so a status change or a cash collection made by staff shows
   // up on the customer's own list without a refresh.
   const bookings = useRealtimeQuery<Booking[]>(
     (onData, onError) =>
-      user ? subscribeToUserBookings(user.uid, onData, onError) : (onData([]), () => {}),
-    [user?.uid]
+      supabaseUserId ? subscribeToUserBookings(supabaseUserId, onData, onError) : (onData([]), () => {}),
+    [supabaseUserId]
   );
   const [tab, setTab] = useState<Tab>("Upcoming");
 

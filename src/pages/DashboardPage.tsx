@@ -39,10 +39,12 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth();
+  // bookings/reports are keyed by the Supabase uuid, not the Firebase
+  // user.uid — see src/supabase/identity.ts.
+  const { profile, supabaseUserId } = useAuth();
   const { role } = useAdminRole();
-  const bookings = useAsync(() => (user ? getUserBookings(user.uid) : Promise.resolve([])), [user?.uid]);
-  const reports = useAsync(() => (user ? getUserReports(user.uid) : Promise.resolve([])), [user?.uid]);
+  const bookings = useAsync(() => (supabaseUserId ? getUserBookings(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
+  const reports = useAsync(() => (supabaseUserId ? getUserReports(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
   const unreadCount = useUnreadNotificationsCount();
 
   const stats = useMemo(() => {
