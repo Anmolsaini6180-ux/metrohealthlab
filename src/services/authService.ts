@@ -28,6 +28,7 @@
 // AUTHORITATIVE mapping this app relies on is still profiles.firebase_uid,
 // checked explicitly in resolveStaffContextForFirebaseUser.
 import type { User } from "firebase/auth";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   confirmOtp,
   createRecaptchaVerifier,
@@ -47,24 +48,55 @@ import {
 } from "@/supabase/auth";
 import { getSupabaseClient } from "@/supabase/client";
 
+/**
+ * Upserts the caller's own `profiles` row after a Supabase session is
+ * established. Without this, a BRAND NEW Google sign-in (there is no
+ * `auth.users` trigger that creates one automatically — verified) gets
+ * a working Supabase session but no `profiles` row at all, and every
+ * customer-data table (patients/addresses/bookings/...) FKs to
+ * `profiles.id` — the very first booking attempt fails with a foreign
+ * key violation. registerAndLoginWithEmail already created this row
+ * explicitly for the email-signup path; this closes the same gap for
+ * Google, and cheaply re-confirms it for email sign-in too, in case an
+ * account's Supabase user predates this row ever being created.
+ *
+ * Only touches id/firebase_uid/email — an upsert only overwrites the
+ * columns actually passed, so name/phone/photo_url set elsewhere are
+ * never clobbered. RLS's profiles_insert_self (`id = auth.uid()`)
+ * covers exactly this: a freshly authenticated user writing their own
+ * row, no service-role key involved.
+ */
+async function ensureLinkedSupabaseProfile(supabaseUser: SupabaseUser, firebaseUid: string): Promise<void> {
+  try {
+    const { error } = await getSupabaseClient()
+      .from("profiles")
+      .upsert({ id: supabaseUser.id, firebase_uid: firebaseUid, email: supabaseUser.email ?? null }, { onConflict: "id" });
+    if (error) throw error;
+  } catch (err) {
+    console.error("[auth] Could not ensure a linked Supabase profile row:", err);
+  }
+}
+
 /** Never throws — logs and returns, so the caller's Firebase-based
  * sign-in (the one that actually matters for Firestore access) is
  * never blocked by a Supabase hiccup. */
-async function linkSupabaseSessionForGoogle(googleIdToken: string | null): Promise<void> {
+async function linkSupabaseSessionForGoogle(googleIdToken: string | null, firebaseUid: string): Promise<void> {
   if (!googleIdToken) {
     console.warn("[auth] No Google ID token available from this sign-in; Supabase authorization link skipped.");
     return;
   }
   try {
-    await signInWithGoogleIdToken(googleIdToken);
+    const supabaseUser = await signInWithGoogleIdToken(googleIdToken);
+    await ensureLinkedSupabaseProfile(supabaseUser, firebaseUid);
   } catch (err) {
     console.error("[auth] Could not establish a Supabase session for this Google sign-in:", err);
   }
 }
 
-async function linkSupabaseSessionForEmail(email: string, password: string): Promise<void> {
+async function linkSupabaseSessionForEmail(email: string, password: string, firebaseUid: string): Promise<void> {
   try {
-    await supabaseSignInWithEmail(email, password);
+    const supabaseUser = await supabaseSignInWithEmail(email, password);
+    await ensureLinkedSupabaseProfile(supabaseUser, firebaseUid);
   } catch (err) {
     console.error("[auth] Could not establish a Supabase session for this email sign-in:", err);
   }
@@ -72,13 +104,13 @@ async function linkSupabaseSessionForEmail(email: string, password: string): Pro
 
 export async function loginWithGoogle(): Promise<User> {
   const { user, googleIdToken } = await signInWithGoogle();
-  await linkSupabaseSessionForGoogle(googleIdToken);
+  await linkSupabaseSessionForGoogle(googleIdToken, user.uid);
   return user;
 }
 
 export async function loginWithEmail(email: string, password: string): Promise<User> {
   const user = await signInWithEmail(email, password);
-  await linkSupabaseSessionForEmail(email, password);
+  await linkSupabaseSessionForEmail(email, password, user.uid);
   return user;
 }
 

@@ -3,7 +3,21 @@ import { getSupabaseClient, safeSubscribe } from "./client";
 import { getCurrentSession } from "./auth";
 import { buildStaffContext } from "@/utils/roleAccess";
 import type { StaffContext } from "@/types/team";
-import type { StaffRecordData } from "@/services/roleService";
+
+// Was imported from the now-deleted Firestore services/roleService.ts
+// (that file's own runtime functions had zero live callers left — this
+// was its only surviving use, a compile-time-only type import).
+export interface StaffRecordData {
+  uid?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  role?: unknown;
+  status?: unknown;
+  superAdminId?: string;
+  adminId?: string;
+  subAdminId?: string;
+}
 
 // The Supabase-side equivalent of src/services/roleService.ts's
 // resolveStaffContext(). Deliberately reuses buildStaffContext() from

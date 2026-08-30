@@ -1,18 +1,22 @@
-import { collection, getDocs, query, where, limit } from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
+// Supabase-backed. Was reading Firestore's serviceAreas collection
+// while create_website_booking (the RPC that actually creates the
+// booking) already validates p_service_area_id against Supabase's
+// service_areas table — a customer could pass a pincode check here
+// that the real booking then rejected, or vice versa, if the two ever
+// drifted. service_areas_public_read (RLS: true) already makes this
+// table world-readable, same boundary Firestore's own rule gave it.
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToServiceArea } from "@/supabase/mappers";
 import type { ServiceArea } from "@/types/serviceArea";
 
-const SERVICE_AREAS = "serviceAreas";
-
 export async function checkServiceability(pincode: string): Promise<ServiceArea | null> {
-  const q = query(
-    collection(getDb(), SERVICE_AREAS),
-    where("pincode", "==", pincode.trim()),
-    where("active", "==", true),
-    limit(1)
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as ServiceArea;
+  const { data, error } = await getSupabaseClient()
+    .from("service_areas")
+    .select("*")
+    .eq("pincode", pincode.trim())
+    .eq("active", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToServiceArea(data) : null;
 }

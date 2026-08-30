@@ -6,18 +6,14 @@ import { getTeamMembers } from "@/services/adminTeamService";
 import { getAllLabs } from "@/services/adminCatalogService";
 import { getTests } from "@/services/testService";
 import { getPackages } from "@/services/packageService";
-import { getStarterCatalogState, seedStarterCatalog, type SeedProgress } from "@/services/adminSeedService";
 import { getAllTestCategories, getAllServiceAreas, getAllCoupons } from "@/services/adminCatalogService";
 import { getAllReports } from "@/services/adminOpsService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import BarList from "@/components/admin/BarList";
-import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
-import { logOperationError, toUserMessage } from "@/utils/errors";
-import { useToast } from "@/hooks/useToast";
 
 const COLLECTED_STATUSES = ["sample_collected", "received_at_lab", "testing", "report_ready", "completed"];
 const STATUS_LABELS: Record<string, string> = {
@@ -38,13 +34,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function AdminDashboardPage() {
   const staff = useAdminRole();
   const { role } = staff;
-  const { showToast } = useToast();
   const [range, setRange] = useState<DateRange>(() => resolveDateRange("today"));
-  const [showSeedConfirm, setShowSeedConfirm] = useState(false);
-  const [seeding, setSeeding] = useState(false);
-  const [seedError, setSeedError] = useState<string | null>(null);
-  const [seeded, setSeeded] = useState(false);
-  const [seedProgress, setSeedProgress] = useState<SeedProgress | null>(null);
   const [filterAdminId, setFilterAdminId] = useState("");
   const [filterSubAdminId, setFilterSubAdminId] = useState("");
   const [filterAgentId, setFilterAgentId] = useState("");
@@ -62,13 +52,6 @@ export default function AdminDashboardPage() {
   const serviceAreas = useAsync(getAllServiceAreas, []);
   const coupons = useAsync(getAllCoupons, []);
   const reports = useAsync(() => getAllReports(), []);
-
-  // Real database state, so the import offer is made against facts
-  // rather than a guess about whether anything is there already.
-  const catalogState = useAsync(
-    () => (role === "SUPER_ADMIN" ? getStarterCatalogState() : Promise.resolve(null)),
-    [role]
-  );
 
   const query: GetAdminBookingsRequest = {
     ...range,
@@ -132,37 +115,6 @@ export default function AdminDashboardPage() {
     return [...map.entries()].map(([label, value]) => ({ label, value }));
   }, [bookings.data]);
 
-  async function handleConfirmSeed() {
-    setSeeding(true);
-    setSeedError(null);
-    setSeedProgress(null);
-    try {
-      const result = await seedStarterCatalog(staff.uid, setSeedProgress);
-      const created =
-        result.categoriesCreated + result.labsCreated + result.testsCreated + result.packagesCreated +
-        result.labPricingCreated + result.bannersCreated + result.couponsCreated +
-        result.serviceAreasCreated + result.slotsCreated + result.articlesCreated + result.offersCreated;
-      showToast(
-        created === 0
-          ? `Everything was already imported — ${result.skippedExisting} existing documents left untouched.`
-          : `Imported ${created} documents (${result.testsCreated} tests, ${result.packagesCreated} packages, ${result.categoriesCreated} categories, ${result.labsCreated} labs, ${result.serviceAreasCreated} service areas, ${result.slotsCreated} slots)${result.skippedExisting > 0 ? `, and left ${result.skippedExisting} existing documents untouched` : ""}.`
-      );
-      setSeeded(true);
-      setShowSeedConfirm(false);
-      // The catalog counters on this page read from those collections.
-      catalogState.retry();
-      labs.retry();
-      activeTests.retry();
-      activePackages.retry();
-    } catch (err) {
-      logOperationError("starter catalog import", err, { actorUid: staff.uid });
-      setSeedError(toUserMessage(err));
-    } finally {
-      setSeeding(false);
-      setSeedProgress(null);
-    }
-  }
-
   return (
     <div style={{ display: "grid", gap: "var(--space-lg)" }}>
       <div>
@@ -171,44 +123,6 @@ export default function AdminDashboardPage() {
           Signed in as {role}. All figures below are scoped to your team and the selected filters.
         </p>
       </div>
-
-      {role === "SUPER_ADMIN" && !seeded && (
-        <div className="card" style={{ background: "var(--color-bg-tint)" }}>
-          <p style={{ fontWeight: 600 }}>Import your starter catalog</p>
-          <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginTop: 4 }}>
-            Imports your labs, tests, packages, categories, service areas, bookable slots, banners,
-            coupons, articles and offers. Safe to run more than once — every document has a fixed id,
-            so anything already present is skipped rather than duplicated or overwritten.
-          </p>
-
-          {catalogState.loading && (
-            <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginTop: 6 }}>Checking what is already in the database…</p>
-          )}
-          {catalogState.error && (
-            <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginTop: 6 }}>
-              Could not read current catalog state ({catalogState.error}). The import is still safe to run — it skips existing records.
-            </p>
-          )}
-          {catalogState.data && (
-            <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginTop: 6 }}>
-              {catalogState.data.hasExistingData
-                ? `Already in the database: ${Object.entries(catalogState.data.counts).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(", ")}. ${catalogState.data.completed ? "A previous import was marked complete." : "No completed import is recorded — running this will fill in whatever is missing."}`
-                : "No catalog data found yet — this will populate the whole site."}
-            </p>
-          )}
-
-          {seeding && seedProgress && (
-            <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginTop: 6 }}>
-              Importing {seedProgress.step}… (step {seedProgress.done} of {seedProgress.total})
-            </p>
-          )}
-          {seedError && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", marginTop: 6 }}>{seedError}</p>}
-
-          <button className="btn btn-primary" style={{ marginTop: 8 }} disabled={seeding} onClick={() => setShowSeedConfirm(true)}>
-            {seeding ? "Importing…" : catalogState.data?.hasExistingData ? "Import missing catalog data" : "Import starter catalog"}
-          </button>
-        </div>
-      )}
 
       <DateRangePicker onChange={(r) => setRange(r)} />
 
@@ -279,16 +193,6 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         </>
-      )}
-      {showSeedConfirm && (
-        <ConfirmDialog
-          title="Import starter catalog?"
-          message="This adds your real labs, tests, packages, categories, banners, and coupons to Firestore. It can only run once."
-          confirmLabel="Import"
-          busy={seeding}
-          onConfirm={handleConfirmSeed}
-          onCancel={() => setShowSeedConfirm(false)}
-        />
       )}
     </div>
   );

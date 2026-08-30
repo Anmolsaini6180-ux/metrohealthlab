@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { Unsubscribe } from "firebase/firestore";
 import { toUserMessage } from "@/utils/errors";
+
+type Unsubscribe = () => void;
 
 interface RealtimeState<T> {
   data: T | null;

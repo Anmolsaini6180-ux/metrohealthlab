@@ -1,12 +1,7 @@
-// Supabase-backed for everything actually used. getFaqs() is left on
-// Firestore deliberately — it has zero callers anywhere in the app
-// (confirmed by the Phase F audit), so it is not worth porting; a real
-// caller appearing later is the trigger to migrate it, not before.
-import { collection, getDocs, limit as fsLimit, orderBy, query, where } from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
+// Supabase-backed.
 import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
 import { rowToArticle, rowToBanner, rowToOffer } from "@/supabase/mappers";
-import type { Article, Banner, Faq, Offer } from "@/types/content";
+import type { Article, Banner, Offer } from "@/types/content";
 
 const DEFAULT_LIST_LIMIT = 200;
 type Unsubscribe = () => void;
@@ -87,12 +82,4 @@ export function subscribeToArticleBySlug(
       .subscribe();
     return () => getSupabaseClient().removeChannel(channel);
   }, onError);
-}
-
-// Unused — see header comment. Left on Firestore intentionally.
-export async function getFaqs(topic?: string): Promise<Faq[]> {
-  const constraints = topic ? [where("topic", "==", topic)] : [];
-  const q = query(collection(getDb(), "faqs"), ...constraints, orderBy("displayOrder", "asc"), fsLimit(DEFAULT_LIST_LIMIT));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Faq));
 }
