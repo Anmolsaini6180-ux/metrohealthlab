@@ -2,13 +2,14 @@
 
 // Every frontend env var this project reads. All are PUBLIC by
 // definition — anything listed here is compiled into the JS bundle and
-// visible to anyone who opens devtools. Server secrets (Razorpay key
-// secret, Razorpay webhook secret, Cloudinary API secret) never appear
-// here; they live only in Firebase Functions Secret Manager.
+// visible to anyone who opens devtools. Server secrets (Cloudinary API
+// secret, Supabase service-role key) never appear here.
+//
+// Cash on home is the only payment method — there is no online
+// payment gateway, so no Razorpay (or any other payment) variable is
+// declared here; paymentService.ts/usePaymentCheckout.ts, the only
+// code that ever read one, have been removed as dead code.
 interface ImportMetaEnv {
-  /** Razorpay PUBLISHABLE key. Never the key secret. */
-  readonly VITE_RAZORPAY_KEY_ID?: string;
-
   /** Optional overrides for the Firebase Web config — see src/firebase/config.ts. */
   readonly VITE_FIREBASE_API_KEY?: string;
   readonly VITE_FIREBASE_AUTH_DOMAIN?: string;

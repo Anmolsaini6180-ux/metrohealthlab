@@ -1,9 +1,10 @@
 export type CollectionType = "home" | "center";
 
-// "payment_pending" replaces the old generic "pending": every booking
-// starts here (even cash-on-collection, for the instant between
-// createBooking and createPaymentOrder) and only createPaymentOrder /
-// the Razorpay webhook are allowed to move it to "confirmed".
+// Cash on home only — there is no online payment gateway. A booking
+// created through create_website_booking/create_staff_booking starts
+// "confirmed" directly; "payment_pending" is kept in the enum for any
+// pre-migration historical row that used it, not written by anything
+// live today.
 export type BookingStatus =
   | "payment_pending"
   | "confirmed"
