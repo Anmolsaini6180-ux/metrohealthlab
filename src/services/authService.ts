@@ -39,7 +39,7 @@ import {
   signInWithGoogle,
   signOutUser,
 } from "@/firebase/auth";
-import { ensureUserProfile, updateUserProfile } from "./userService";
+import { ensureUserProfile } from "./userService";
 import {
   signInWithEmail as supabaseSignInWithEmail,
   signInWithGoogleIdToken,
@@ -116,22 +116,20 @@ export async function loginWithEmail(email: string, password: string): Promise<U
 
 // Signup is the one exception that still needs its own ensureUserProfile
 // call: it has extra fields (name/phone from the signup form) to write
-// immediately, before anything else reads the profile back. AuthProvider's
-// own call moments later is harmless — ensureUserProfile is idempotent,
-// returning the already-created profile as-is rather than re-creating it.
+// immediately, before anything else reads the profile back. Passed
+// directly into THIS SAME creating write (not a separate updateDoc
+// afterward — see ensureUserProfile's own header comment for the race
+// that used to cause) so there is no window where the document exists
+// without them. AuthProvider's own concurrent call moments later is
+// harmless — ensureUserProfile's setDoc uses merge:true, so whichever
+// of the two calls lands second cannot erase what the first wrote.
 export async function registerAndLoginWithEmail(
   email: string,
   password: string,
   profileFields?: { name?: string; phone?: string }
 ): Promise<User> {
   const user = await registerWithEmail(email, password);
-  await ensureUserProfile(user);
-  if (profileFields?.name || profileFields?.phone) {
-    await updateUserProfile(user.uid, {
-      ...(profileFields.name ? { name: profileFields.name } : {}),
-      ...(profileFields.phone ? { phone: profileFields.phone } : {}),
-    });
-  }
+  await ensureUserProfile(user, profileFields);
 
   // Best effort, same non-blocking contract as sign-in: a brand new
   // account with no live Supabase counterpart yet is still a fully
