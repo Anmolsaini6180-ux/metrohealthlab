@@ -13,6 +13,22 @@ import {
   type User,
   type ConfirmationResult,
 } from "firebase/auth";
+
+export interface GoogleSignInResult {
+  user: User;
+  /**
+   * The Google-issued OIDC ID token from this same popup, when Firebase
+   * exposes one. Firestore's rules only ever trust a Firebase ID token
+   * (this sign-in provides that, unchanged), but this raw Google token
+   * is ALSO usable to establish a Supabase session for the same
+   * Google identity via supabase.auth.signInWithIdToken — one consent
+   * screen, two sessions, no second popup/redirect. null when Firebase
+   * did not return one (older/less common credential shapes); callers
+   * must treat that as "Supabase linking unavailable this sign-in",
+   * never as a sign-in failure.
+   */
+  googleIdToken: string | null;
+}
 import { getFirebaseApp } from "./config";
 
 let auth: Auth | null = null;
@@ -28,10 +44,11 @@ export function subscribeToAuthChanges(callback: (user: User | null) => void) {
   return onAuthStateChanged(getFirebaseAuth(), callback);
 }
 
-export async function signInWithGoogle(): Promise<User> {
+export async function signInWithGoogle(): Promise<GoogleSignInResult> {
   const provider = new GoogleAuthProvider();
   const result = await signInWithPopup(getFirebaseAuth(), provider);
-  return result.user;
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  return { user: result.user, googleIdToken: credential?.idToken ?? null };
 }
 
 export async function signInWithEmail(email: string, password: string): Promise<User> {

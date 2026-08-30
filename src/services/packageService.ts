@@ -1,32 +1,40 @@
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit as fsLimit, type Unsubscribe } from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
+// Supabase-backed. Same exported shapes as the Firestore version — see
+// testService.ts's header comment for the pattern this follows.
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToPackage } from "@/supabase/mappers";
 import type { HealthPackage } from "@/types/package";
 
-const PACKAGES = "packages";
 const DEFAULT_LIST_LIMIT = 200;
+type Unsubscribe = () => void;
 
 export async function getPackages(options?: { category?: string }): Promise<HealthPackage[]> {
-  const constraints = [where("active", "==", true), orderBy("displayOrder", "asc")];
-  if (options?.category) {
-    constraints.unshift(where("category", "==", options.category));
-  }
-  const q = query(collection(getDb(), PACKAGES), ...constraints, fsLimit(DEFAULT_LIST_LIMIT));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as HealthPackage));
+  let q = getSupabaseClient()
+    .from("packages")
+    .select("*")
+    .eq("active", true)
+    .order("display_order", { ascending: true })
+    .limit(DEFAULT_LIST_LIMIT);
+  if (options?.category) q = q.eq("category", options.category);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(rowToPackage);
 }
 
 export async function getPackageBySlug(slug: string): Promise<HealthPackage | null> {
-  const q = query(collection(getDb(), PACKAGES), where("slug", "==", slug), where("active", "==", true));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as HealthPackage;
+  const { data, error } = await getSupabaseClient()
+    .from("packages")
+    .select("*")
+    .eq("slug", slug)
+    .eq("active", true)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToPackage(data) : null;
 }
 
 export async function getPackageById(id: string): Promise<HealthPackage | null> {
-  const snap = await getDoc(doc(getDb(), PACKAGES, id));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as HealthPackage;
+  const { data, error } = await getSupabaseClient().from("packages").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? rowToPackage(data) : null;
 }
 
 export async function searchPackages(queryText: string): Promise<HealthPackage[]> {
@@ -41,14 +49,13 @@ export function subscribeToPackages(
   callback: (packages: HealthPackage[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const constraints = [where("active", "==", true), orderBy("displayOrder", "asc")];
-  if (options?.category) {
-    constraints.unshift(where("category", "==", options.category));
-  }
-  const q = query(collection(getDb(), PACKAGES), ...constraints, fsLimit(DEFAULT_LIST_LIMIT));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as HealthPackage))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getPackages(options).then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel(`packages-${options?.category ?? "all"}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "packages" }, refetch)
+    .subscribe();
+  return () => {
+    getSupabaseClient().removeChannel(channel);
+  };
 }

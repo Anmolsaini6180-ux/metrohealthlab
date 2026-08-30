@@ -3,7 +3,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/brand/Logo";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { loginWithEmail, loginWithGoogle, logout } from "@/services/authService";
-import { resolveStaffContext } from "@/services/roleService";
+import { resolveStaffContextForFirebaseUser } from "@/supabase/roleService";
 import { adminAccessDenialReason, adminHomePathForRole } from "@/utils/roleAccess";
 import { describeSignInError } from "@/utils/authErrors";
 import type { StaffContext } from "@/types/team";
@@ -26,16 +26,19 @@ export default function AdminLoginPage() {
     return <Navigate to={from === "/admin" ? home : from} replace />;
   }
 
-  // Shared tail for both sign-in methods. The role comes from
-  // Firestore — system/config for the master account, users/{uid} for
-  // everybody else — read here so the redirect target is right on the
-  // first attempt. It is read again by AuthProvider, and enforced
-  // independently by firestore.rules on every request the admin
-  // screens then make; landing on /admin proves nothing by itself.
+  // Shared tail for both sign-in methods. The role comes from Supabase
+  // (app_config for the master account, staff_roles for everybody
+  // else) via the linked Supabase session — read here so the redirect
+  // target is right on the first attempt. It is read again by
+  // AuthProvider, and enforced independently by RLS on every request
+  // the admin screens then make; landing on /admin proves nothing by
+  // itself. (Everything the admin screens themselves read/write today
+  // is still Firestore, unmigrated — this only changed WHO decides
+  // whether this account is staff at all.)
   async function completeSignIn(user: User) {
     let staff: StaffContext;
     try {
-      staff = await resolveStaffContext(user);
+      staff = await resolveStaffContextForFirebaseUser(user.uid);
     } catch (err) {
       // The authorization record could not be READ — rules denied it,
       // the network dropped, the transport was blocked. That is a

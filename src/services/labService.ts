@@ -1,66 +1,59 @@
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where, limit as fsLimit, type Unsubscribe } from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
+// Supabase-backed. Same exported shapes as the Firestore version.
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToLab, rowToLabPricing } from "@/supabase/mappers";
 import type { Lab, LabPricing } from "@/types/lab";
 
-const LABS = "labs";
-const LAB_PRICING = "labPricing";
 const DEFAULT_LIST_LIMIT = 200;
+type Unsubscribe = () => void;
 
 export async function getActiveLabs(): Promise<Lab[]> {
-  const q = query(collection(getDb(), LABS), where("active", "==", true), fsLimit(DEFAULT_LIST_LIMIT));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lab));
+  const { data, error } = await getSupabaseClient().from("labs").select("*").eq("active", true).limit(DEFAULT_LIST_LIMIT);
+  if (error) throw error;
+  return (data ?? []).map(rowToLab);
 }
 
 export async function getLabById(id: string): Promise<Lab | null> {
-  const snap = await getDoc(doc(getDb(), LABS, id));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Lab;
+  const { data, error } = await getSupabaseClient().from("labs").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? rowToLab(data) : null;
 }
 
-export function subscribeToActiveLabs(
-  callback: (labs: Lab[]) => void,
-  onError?: (error: Error) => void
-): Unsubscribe {
-  const q = query(collection(getDb(), LABS), where("active", "==", true), fsLimit(DEFAULT_LIST_LIMIT));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lab))),
-    (err) => onError?.(err)
-  );
+export function subscribeToActiveLabs(callback: (labs: Lab[]) => void, onError?: (error: Error) => void): Unsubscribe {
+  const refetch = () => getActiveLabs().then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel("labs-active")
+    .on("postgres_changes", { event: "*", schema: "public", table: "labs" }, refetch)
+    .subscribe();
+  return () => getSupabaseClient().removeChannel(channel);
 }
 
 export async function getLabPricingForTest(testId: string): Promise<LabPricing[]> {
-  const q = query(collection(getDb(), LAB_PRICING), where("testId", "==", testId), where("active", "==", true));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as LabPricing));
+  const { data, error } = await getSupabaseClient().from("lab_pricing").select("*").eq("test_id", testId).eq("active", true);
+  if (error) throw error;
+  return (data ?? []).map(rowToLabPricing);
 }
 
 export async function getLabPricingForPackage(packageId: string): Promise<LabPricing[]> {
-  const q = query(collection(getDb(), LAB_PRICING), where("packageId", "==", packageId), where("active", "==", true));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as LabPricing));
+  const { data, error } = await getSupabaseClient().from("lab_pricing").select("*").eq("package_id", packageId).eq("active", true);
+  if (error) throw error;
+  return (data ?? []).map(rowToLabPricing);
 }
 
-// Realtime variants — used specifically on the test/package DETAIL
-// pages, where a customer is actively deciding whether to book and an
-// admin price change is genuinely useful to see live. Deliberately not
-// used on list/browse pages (Home, Tests, Packages, Labs): per "avoid
-// excessive listener usage," a customer scrolling a catalog list isn't
-// mid-decision the way someone on a single item's detail page is, and
-// those list pages already refetch on every navigation, so a price
-// change is visible within one interaction regardless.
+// Realtime variants — same scoping rationale as the Firestore version's
+// own comment: detail pages only, not list/browse pages.
 export function subscribeToLabPricingForTest(
   testId: string,
   callback: (pricing: LabPricing[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(collection(getDb(), LAB_PRICING), where("testId", "==", testId), where("active", "==", true));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as LabPricing))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getLabPricingForTest(testId).then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel(`lab-pricing-test-${testId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "lab_pricing", filter: `test_id=eq.${testId}` }, refetch)
+    .subscribe();
+  return () => getSupabaseClient().removeChannel(channel);
 }
 
 export function subscribeToLabPricingForPackage(
@@ -68,10 +61,11 @@ export function subscribeToLabPricingForPackage(
   callback: (pricing: LabPricing[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(collection(getDb(), LAB_PRICING), where("packageId", "==", packageId), where("active", "==", true));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as LabPricing))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getLabPricingForPackage(packageId).then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel(`lab-pricing-package-${packageId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "lab_pricing", filter: `package_id=eq.${packageId}` }, refetch)
+    .subscribe();
+  return () => getSupabaseClient().removeChannel(channel);
 }

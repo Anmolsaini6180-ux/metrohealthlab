@@ -1,45 +1,48 @@
-import { collection, getDocs, limit as fsLimit, onSnapshot, orderBy, query, where, type Unsubscribe } from "firebase/firestore";
+// Supabase-backed for everything actually used. getFaqs() is left on
+// Firestore deliberately — it has zero callers anywhere in the app
+// (confirmed by the Phase F audit), so it is not worth porting; a real
+// caller appearing later is the trigger to migrate it, not before.
+import { collection, getDocs, limit as fsLimit, orderBy, query, where } from "firebase/firestore";
 import { getDb } from "@/firebase/firestore";
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToArticle, rowToBanner, rowToOffer } from "@/supabase/mappers";
 import type { Article, Banner, Faq, Offer } from "@/types/content";
 
 const DEFAULT_LIST_LIMIT = 200;
+type Unsubscribe = () => void;
 
 export async function getBanners(): Promise<Banner[]> {
-  const q = query(collection(getDb(), "banners"), where("active", "==", true), orderBy("displayOrder", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Banner));
+  const { data, error } = await getSupabaseClient().from("banners").select("*").eq("active", true).order("display_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(rowToBanner);
 }
 
 export function subscribeToBanners(callback: (banners: Banner[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  const q = query(collection(getDb(), "banners"), where("active", "==", true), orderBy("displayOrder", "asc"));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Banner))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getBanners().then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient().channel("banners-active").on("postgres_changes", { event: "*", schema: "public", table: "banners" }, refetch).subscribe();
+  return () => getSupabaseClient().removeChannel(channel);
 }
 
 export async function getOffers(): Promise<Offer[]> {
-  const q = query(collection(getDb(), "offers"), where("active", "==", true), fsLimit(DEFAULT_LIST_LIMIT));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Offer));
+  const { data, error } = await getSupabaseClient().from("offers").select("*").eq("active", true).limit(DEFAULT_LIST_LIMIT);
+  if (error) throw error;
+  return (data ?? []).map(rowToOffer);
 }
 
 export function subscribeToOffers(callback: (offers: Offer[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  const q = query(collection(getDb(), "offers"), where("active", "==", true), fsLimit(DEFAULT_LIST_LIMIT));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Offer))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getOffers().then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient().channel("offers-active").on("postgres_changes", { event: "*", schema: "public", table: "offers" }, refetch).subscribe();
+  return () => getSupabaseClient().removeChannel(channel);
 }
 
 export async function getArticles(options?: { categoryId?: string }): Promise<Article[]> {
-  const constraints = [where("active", "==", true), orderBy("publishedAt", "desc")];
-  if (options?.categoryId) constraints.unshift(where("categoryId", "==", options.categoryId));
-  const q = query(collection(getDb(), "articles"), ...constraints, fsLimit(DEFAULT_LIST_LIMIT));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Article));
+  let q = getSupabaseClient().from("articles").select("*").eq("active", true).order("published_at", { ascending: false }).limit(DEFAULT_LIST_LIMIT);
+  if (options?.categoryId) q = q.eq("category", options.categoryId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(rowToArticle);
 }
 
 export function subscribeToArticles(
@@ -47,22 +50,19 @@ export function subscribeToArticles(
   callback: (articles: Article[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const constraints = [where("active", "==", true), orderBy("publishedAt", "desc")];
-  if (options?.categoryId) constraints.unshift(where("categoryId", "==", options.categoryId));
-  const q = query(collection(getDb(), "articles"), ...constraints, fsLimit(DEFAULT_LIST_LIMIT));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Article))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getArticles(options).then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel(`articles-${options?.categoryId ?? "all"}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "articles" }, refetch)
+    .subscribe();
+  return () => getSupabaseClient().removeChannel(channel);
 }
 
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
-  const q = query(collection(getDb(), "articles"), where("slug", "==", slug), where("active", "==", true));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as Article;
+  const { data, error } = await getSupabaseClient().from("articles").select("*").eq("slug", slug).eq("active", true).maybeSingle();
+  if (error) throw error;
+  return data ? rowToArticle(data) : null;
 }
 
 // Realtime — a customer sitting on an article's own page benefits from
@@ -72,14 +72,16 @@ export function subscribeToArticleBySlug(
   callback: (article: Article | null) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(collection(getDb(), "articles"), where("slug", "==", slug), where("active", "==", true));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as Article)),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getArticleBySlug(slug).then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel(`article-${slug}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "articles", filter: `slug=eq.${slug}` }, refetch)
+    .subscribe();
+  return () => getSupabaseClient().removeChannel(channel);
 }
 
+// Unused — see header comment. Left on Firestore intentionally.
 export async function getFaqs(topic?: string): Promise<Faq[]> {
   const constraints = topic ? [where("topic", "==", topic)] : [];
   const q = query(collection(getDb(), "faqs"), ...constraints, orderBy("displayOrder", "asc"), fsLimit(DEFAULT_LIST_LIMIT));

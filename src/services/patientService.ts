@@ -1,48 +1,51 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
+// Supabase-backed. RLS enforces user_id = auth.uid() on every
+// operation, exactly like Firestore's isOwner(userId) rule did — this
+// service passes userId explicitly (same call signature as before) but
+// the real boundary is the database policy, not this file.
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToPatient } from "@/supabase/mappers";
 import type { Patient } from "@/types/patient";
 
-const PATIENTS = "patients";
-
 export async function getPatients(userId: string): Promise<Patient[]> {
-  const q = query(collection(getDb(), PATIENTS), where("userId", "==", userId));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Patient));
+  const { data, error } = await getSupabaseClient().from("patients").select("*").eq("user_id", userId);
+  if (error) throw error;
+  return (data ?? []).map(rowToPatient);
 }
 
 export async function addPatient(
   userId: string,
   data: Omit<Patient, "id" | "userId" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(getDb(), PATIENTS), {
-    ...data,
-    userId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+  const { data: row, error } = await getSupabaseClient()
+    .from("patients")
+    .insert({
+      id: crypto.randomUUID(),
+      user_id: userId,
+      name: data.name,
+      relationship: data.relationship,
+      dob: data.dob,
+      gender: data.gender,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return row.id;
 }
 
 export async function updatePatient(
   patientId: string,
   data: Partial<Omit<Patient, "id" | "userId" | "createdAt">>
 ): Promise<void> {
-  await updateDoc(doc(getDb(), PATIENTS, patientId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (data.name !== undefined) patch.name = data.name;
+  if (data.relationship !== undefined) patch.relationship = data.relationship;
+  if (data.dob !== undefined) patch.dob = data.dob;
+  if (data.gender !== undefined) patch.gender = data.gender;
+  const { error } = await getSupabaseClient().from("patients").update(patch).eq("id", patientId);
+  if (error) throw error;
 }
 
 export async function deletePatient(patientId: string): Promise<void> {
-  await deleteDoc(doc(getDb(), PATIENTS, patientId));
+  const { error } = await getSupabaseClient().from("patients").delete().eq("id", patientId);
+  if (error) throw error;
 }

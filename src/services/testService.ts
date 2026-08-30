@@ -1,102 +1,111 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit as fsLimit,
-  type Unsubscribe,
-} from "firebase/firestore";
-import { getDb } from "@/firebase/firestore";
+// Supabase-backed. Every exported function keeps its exact old
+// signature and return shape (DiagnosticTest/TestCategory, camelCase)
+// so no page or component needed to change — only where the data comes
+// from changed. See src/supabase/mappers.ts for the snake_case ->
+// camelCase translation shared by every catalogue service.
+import { getSupabaseClient } from "@/supabase/client";
+import { rowToTest, rowToTestCategory } from "@/supabase/mappers";
 import type { DiagnosticTest, TestCategory } from "@/types/test";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
-const TESTS = "tests";
-const TEST_CATEGORIES = "testCategories";
-const DEFAULT_LIST_LIMIT = 200; // defensive cap — see searchTests for why this also bounds catalog-wide search
+const DEFAULT_LIST_LIMIT = 200;
 
 export async function getTests(options?: { categoryId?: string; max?: number }): Promise<DiagnosticTest[]> {
-  const constraints = [where("active", "==", true), orderBy("displayOrder", "asc")];
-  if (options?.categoryId) {
-    constraints.unshift(where("categoryId", "==", options.categoryId));
-  }
-  const q = query(collection(getDb(), TESTS), ...constraints, fsLimit(options?.max ?? DEFAULT_LIST_LIMIT));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as DiagnosticTest));
+  let q = getSupabaseClient()
+    .from("tests")
+    .select("*")
+    .eq("active", true)
+    .order("display_order", { ascending: true })
+    .limit(options?.max ?? DEFAULT_LIST_LIMIT);
+  if (options?.categoryId) q = q.eq("category_id", options.categoryId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(rowToTest);
 }
 
 export async function getTestBySlug(slug: string): Promise<DiagnosticTest | null> {
-  const q = query(collection(getDb(), TESTS), where("slug", "==", slug), where("active", "==", true));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as DiagnosticTest;
+  const { data, error } = await getSupabaseClient()
+    .from("tests")
+    .select("*")
+    .eq("slug", slug)
+    .eq("active", true)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToTest(data) : null;
 }
 
 export async function getTestById(id: string): Promise<DiagnosticTest | null> {
-  const snap = await getDoc(doc(getDb(), TESTS, id));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as DiagnosticTest;
+  const { data, error } = await getSupabaseClient().from("tests").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? rowToTest(data) : null;
 }
 
 export async function getTestCategories(): Promise<TestCategory[]> {
-  const q = query(collection(getDb(), TEST_CATEGORIES), where("active", "==", true), orderBy("displayOrder", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TestCategory));
+  const { data, error } = await getSupabaseClient()
+    .from("test_categories")
+    .select("*")
+    .eq("active", true)
+    .order("display_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(rowToTestCategory);
 }
 
-// Client-side substring search over the active test set. This is fine for
-// a catalog of a few hundred tests; if the catalog grows, replace the
-// body of this function with a call to a hosted search service (e.g.
-// Algolia/Typesense) — keep the function signature the same so callers
-// don't need to change.
+// Client-side substring search over the active test set — unchanged
+// behaviour and unchanged comment from the Firestore version: fine for
+// a catalog this size; swap for a hosted search service if it grows.
 export async function searchTests(queryText: string): Promise<DiagnosticTest[]> {
   const all = await getTests();
   const q = queryText.trim().toLowerCase();
   if (!q) return [];
-  return all.filter(
-    (t) => t.name.toLowerCase().includes(q) || t.shortName?.toLowerCase().includes(q)
-  );
+  return all.filter((t) => t.name.toLowerCase().includes(q) || t.shortName?.toLowerCase().includes(q));
 }
 
-// Realtime variants — used on the customer-facing browse pages (Home,
-// Tests, Health Concerns) so an admin's catalog change (price, active
-// status, a new test, a new category) appears live, with no refresh.
+/** Common cleanup shape returned by every subscribe* below. */
+type Unsubscribe = () => void;
+
+function channelUnsubscribe(channel: RealtimeChannel): Unsubscribe {
+  return () => {
+    getSupabaseClient().removeChannel(channel);
+  };
+}
+
+// Realtime variants — used on the customer-facing browse pages so an
+// admin's catalog change appears live, no refresh. Supabase Realtime
+// only pushes row-level CHANGE events, not query results, so each
+// subscription re-runs the equivalent SELECT on every change rather
+// than patching a single row in place — simplest correct behaviour,
+// and these lists are small (a few hundred rows at most).
 export function subscribeToTests(
   options: { categoryId?: string; max?: number } | undefined,
   callback: (tests: DiagnosticTest[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const constraints = [where("active", "==", true), orderBy("displayOrder", "asc")];
-  if (options?.categoryId) {
-    constraints.unshift(where("categoryId", "==", options.categoryId));
-  }
-  const q = query(collection(getDb(), TESTS), ...constraints, fsLimit(options?.max ?? DEFAULT_LIST_LIMIT));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as DiagnosticTest))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getTests(options).then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel(`tests-${options?.categoryId ?? "all"}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "tests" }, refetch)
+    .subscribe();
+  return channelUnsubscribe(channel);
 }
 
 export function subscribeToTestCategories(
   callback: (categories: TestCategory[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(collection(getDb(), TEST_CATEGORIES), where("active", "==", true), orderBy("displayOrder", "asc"));
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TestCategory))),
-    (err) => onError?.(err)
-  );
+  const refetch = () => getTestCategories().then(callback).catch((err) => onError?.(err));
+  refetch();
+  const channel = getSupabaseClient()
+    .channel("test-categories-all")
+    .on("postgres_changes", { event: "*", schema: "public", table: "test_categories" }, refetch)
+    .subscribe();
+  return channelUnsubscribe(channel);
 }
 
-// Single query across up to 30 category IDs at once (Firestore's `in`
-// operator limit) instead of one query per category — used by
-// RadiologyPage, which previously ran N parallel one-time fetches (one
-// per matched category) and combined them client-side.
+// Single query across up to 30 category IDs at once — same limit and
+// same reasoning as the Firestore version's own comment (Firestore's
+// `in` cap; kept for parity even though Postgres' `in` has no such
+// limit, so RadiologyPage's calling convention never needs to change).
 export function subscribeToTestsByCategoryIds(
   categoryIds: string[],
   callback: (tests: DiagnosticTest[]) => void,
@@ -106,15 +115,25 @@ export function subscribeToTestsByCategoryIds(
     callback([]);
     return () => {};
   }
-  const q = query(
-    collection(getDb(), TESTS),
-    where("categoryId", "in", categoryIds.slice(0, 30)),
-    where("active", "==", true),
-    fsLimit(DEFAULT_LIST_LIMIT)
-  );
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as DiagnosticTest))),
-    (err) => onError?.(err)
-  );
+  const ids = categoryIds.slice(0, 30);
+  const refetch = async () => {
+    try {
+      const { data, error } = await getSupabaseClient()
+        .from("tests")
+        .select("*")
+        .in("category_id", ids)
+        .eq("active", true)
+        .limit(DEFAULT_LIST_LIMIT);
+      if (error) throw error;
+      callback((data ?? []).map(rowToTest));
+    } catch (err) {
+      onError?.(err as Error);
+    }
+  };
+  refetch();
+  const channel = getSupabaseClient()
+    .channel(`tests-by-categories-${ids.join(",")}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "tests" }, refetch)
+    .subscribe();
+  return channelUnsubscribe(channel);
 }

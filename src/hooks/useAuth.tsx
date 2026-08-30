@@ -3,19 +3,33 @@ import type { User } from "firebase/auth";
 import { subscribeToAuthChanges } from "@/firebase/auth";
 import { firebaseConfigured } from "@/firebase/config";
 import { ensureUserProfile } from "@/services/userService";
-import { resolveStaffContext, subscribeToStaffRecord } from "@/services/roleService";
+import {
+  resolveStaffContextForFirebaseUser,
+  subscribeToStaffRecordForFirebaseUser,
+} from "@/supabase/roleService";
 import { buildStaffContext } from "@/utils/roleAccess";
 import type { StaffContext } from "@/types/team";
 import type { UserProfile } from "@/types/user";
+
+// AUTHORIZATION now resolves from Supabase (app_config/staff_roles),
+// not Firestore — the Phase E cutover. IDENTITY stays Firebase: every
+// Firestore-backed feature (bookings, patients, addresses, reports,
+// notifications, this very profile) still reads/writes keyed by the
+// Firebase uid, and Firestore's rules only ever trust a genuine
+// Firebase ID token, so `user` below is unchanged in shape and origin.
+// See src/supabase/roleService.ts's resolveStaffContextForFirebaseUser
+// for exactly how the two are bridged, and its own comments for the
+// fail-closed behaviour when no linked Supabase session exists (e.g.
+// a phone sign-in, which never has one).
 
 interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   // Authorization context for the signed-in account, resolved from
-  // Firestore (system/config + users/{uid}) — never from anything the
-  // browser holds. Null while signed out. Presentation only: every
-  // request is re-checked by firestore.rules against the same two
-  // documents.
+  // Supabase (app_config + staff_roles) via the linked Supabase
+  // session — never from anything the browser holds. Null while signed
+  // out. Presentation only: RLS re-derives the same two inputs on
+  // every request regardless of what this holds.
   staff: StaffContext | null;
   loading: boolean;
   firebaseConfigured: boolean;
@@ -90,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // the app, so nothing ever renders against an unknown or stale
         // role. Loading stays true until this settles, which is what
         // removes the race the old token-refresh flow had.
-        context = await resolveStaffContext(nextUser);
+        context = await resolveStaffContextForFirebaseUser(nextUser.uid);
       } catch (err) {
         // Failing closed: an account whose role could not be read is
         // treated as having no role at all.
@@ -101,10 +115,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(nextUser);
       setLoading(false);
 
-      // Keep watching the record: a revocation or a role change now
-      // takes effect within seconds, instead of waiting out a cached
-      // ID token the way custom claims did.
-      staffUnsubscribe.current = subscribeToStaffRecord(nextUser.uid, context.masterUid, setStaff);
+      // Keep watching the record: a revocation or a role change is
+      // meant to take effect within seconds rather than waiting out a
+      // cached token. NOTE: staff_roles is not yet in the
+      // supabase_realtime publication (out of scope for this cutover —
+      // see subscribeToStaffRecordForFirebaseUser's own comment), so
+      // this subscription is registered but inert until that is
+      // enabled; the initial resolve above still runs on every sign-in
+      // and full page load either way.
+      staffUnsubscribe.current = subscribeToStaffRecordForFirebaseUser(nextUser.uid, setStaff);
     });
 
     return () => {
