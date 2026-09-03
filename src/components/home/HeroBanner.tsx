@@ -8,16 +8,27 @@ interface Props {
   labCount: number;
 }
 
+// A specific, real, freely-licensed (Unsplash License — free for
+// commercial use, no attribution required) photo, not a random/
+// rotating stock feed: a gloved hand holding a blood-collection tube.
+// Verified on unsplash.com/photos/fKC9eWRnlGY before use. This is
+// generic healthcare stock photography used as page furniture — same
+// as virtually every diagnostics site uses before commissioning its
+// own photography — not a claim that this is Metro Health Lab's own
+// staff or facility.
+const FALLBACK_HERO_IMAGE =
+  "https://images.unsplash.com/photo-1639772823849-6efbd173043c?auto=format&fit=crop&w=1200&q=75";
+
 // The landing hero. Each slide is an admin-authored `banners` row, so
 // copy and links stay editable from Admin -> Banners exactly as before.
 //
 // IMAGERY: a banner renders its own `imageUrl` when the admin has
 // uploaded one (Admin -> Banners -> image, via the existing Cloudinary
-// uploader). No banner currently has one, so the fallback is a
-// brand-built visual panel rather than stock photography — inventing a
-// clinic photo and presenting it as this business's own would be a lie
-// about a real healthcare provider. The moment a real image is
-// uploaded it takes the panel's place with no code change.
+// uploader) — that always wins, and the moment a real image is
+// uploaded it takes the fallback's place with no code change. Until
+// then this shows real (licensed) healthcare photography rather than a
+// gradient/icon panel, matching the reference design's use of
+// photography in this exact spot.
 //
 // The three feature chips are value props this product genuinely
 // delivers, and the lab count is the real number of active labs rather
@@ -74,13 +85,7 @@ export default function HeroBanner({ banners, labCount }: Props) {
             </div>
 
             <div className="mh-hero__aside">
-              {b.imageUrl ? (
-                <img className="mh-hero__image" src={b.imageUrl} alt="" loading="lazy" />
-              ) : (
-                <div className="mh-hero__art" aria-hidden="true">
-                  <span className="mi">health_and_safety</span>
-                </div>
-              )}
+              <img className="mh-hero__image" src={b.imageUrl || FALLBACK_HERO_IMAGE} alt="" loading="lazy" />
 
               <ul className="mh-hero__features">
                 <li>
