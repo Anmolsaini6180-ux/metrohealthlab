@@ -1,6 +1,7 @@
 @import "./tokens.css";
 @import "./home.css";
 @import "./package-detail.css";
+@import "./booking-flow.css";
 
 *,
 *::before,
