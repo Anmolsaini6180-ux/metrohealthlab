@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
+import { adminHomePathForRole, adminMenuLabelForRole } from "@/utils/roleAccess";
 import Logo from "@/components/brand/Logo";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
@@ -10,6 +12,8 @@ import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 export default function Header() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { role } = useAdminRole();
+  const adminPath = adminHomePathForRole(role);
   const { settings } = useBrandingSettings();
   const [q, setQ] = useState("");
 
@@ -45,6 +49,19 @@ export default function Header() {
           <Link to="/health-concerns">Health Concerns</Link>
           <Link to="/radiology">Radiology</Link>
           <Link to="/articles">Articles</Link>
+          {/* Desktop only, deliberately: the mobile icon row is already
+              at capacity (a 4th icon there once pushed the wordmark to
+              two lines at 375px, see HeaderCallButton's own history) —
+              staff on mobile still reach it via the profile menu /
+              Profile page, both already role-gated the same way this
+              is. Desktop has room for it to be genuinely visible
+              rather than tucked in a dropdown. */}
+          {adminPath && (
+            <Link to={adminPath} className="mh-header__admin-link">
+              <span className="mi" aria-hidden="true">admin_panel_settings</span>
+              {adminMenuLabelForRole(role)}
+            </Link>
+          )}
         </nav>
 
         <form className="mh-header__search" onSubmit={handleSearchSubmit} role="search">

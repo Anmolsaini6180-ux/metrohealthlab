@@ -80,23 +80,27 @@ export function adminAccessDenialReason(context: StaffContext): string {
   if (context.role) return "";
   if (!context.masterUid) {
     return (
-      "system/config.masterAdminUid is missing or empty, so this project has no super admin at all yet. " +
-      "Create the Firestore document system/config with a string field masterAdminUid holding this uid."
+      "app_config.master_admin_uid is missing or empty in Supabase, so this project has no super admin " +
+      "at all yet. Set it to the Supabase profiles.id (NOT the Firebase uid) of the account that should " +
+      "be SUPER_ADMIN — e.g. update app_config set value = to_jsonb('<supabase-profiles-uuid>'::text) " +
+      "where key = 'master_admin_uid';"
     );
   }
   if (context.status === null) {
     return (
-      `users/${context.uid} carries no staff status, and this uid is not the bootstrapped master admin ` +
-      "(system/config.masterAdminUid holds a different uid)."
+      `Firebase uid ${context.uid} has no staff_roles row, and this account is not the bootstrapped ` +
+      "master admin (app_config.master_admin_uid holds a different Supabase uuid — or this browser has " +
+      "no live Supabase session linked to this Firebase account yet: check the console for " +
+      '"[auth] Could not establish a Supabase session" around sign-in).'
     );
   }
   if (context.status !== "active") {
-    return `users/${context.uid} exists but its status is "${context.status}" rather than "active".`;
+    return `This account's staff_roles row exists but its status is "${context.status}" rather than "active".`;
   }
   return (
-    `users/${context.uid} is active but its role is not one of ADMIN, SUB_ADMIN or COLLECTION_AGENT. ` +
-    'Note that a stored role of "SUPER_ADMIN" is deliberately never honoured — the super admin is ' +
-    "exclusively the uid in system/config."
+    `This account is active in staff_roles but its role is not one of ADMIN, SUB_ADMIN or ` +
+    'COLLECTION_AGENT. Note that a stored role of "SUPER_ADMIN" is deliberately never honoured — the ' +
+    "super admin is exclusively the Supabase profiles.id in app_config.master_admin_uid."
   );
 }
 

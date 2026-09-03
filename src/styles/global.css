@@ -870,6 +870,29 @@ h1, h2, h3 {
   white-space: nowrap;
 }
 
+/* Deliberately distinct from the plain nav links either side of it —
+   this is the "obvious" staff-only entry point into /admin, not just
+   another catalogue page. */
+.mh-header__admin-link {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-bg-tint);
+  color: var(--color-primary) !important;
+  font-weight: 700;
+}
+
+.mh-header__admin-link .mi {
+  font-size: 18px;
+}
+
+.mh-header__admin-link:hover {
+  background: var(--color-primary);
+  color: #fff !important;
+}
+
 @media (min-width: 1024px) and (max-width: 1279px) {
   .mh-header__nav {
     gap: var(--space-sm);

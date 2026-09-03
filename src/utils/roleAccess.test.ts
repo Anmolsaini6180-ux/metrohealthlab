@@ -298,15 +298,15 @@ describe("explaining why an account resolved to no admin role", () => {
     expect(adminAccessDenialReason(ctx({ uid: MASTER, role: "SUPER_ADMIN" }))).toBe("");
   });
 
-  it("points at the bootstrap document when the project has no super admin yet", () => {
+  it("points at the Supabase bootstrap config when the project has no super admin yet", () => {
     const notBootstrapped = { uid: "u1", role: null, status: null, isMaster: false, masterUid: "" };
-    expect(adminAccessDenialReason(notBootstrapped)).toContain("system/config.masterAdminUid");
+    expect(adminAccessDenialReason(notBootstrapped)).toContain("app_config.master_admin_uid");
   });
 
   it("distinguishes 'no staff record' from 'record is not active'", () => {
     const noRecord = adminAccessDenialReason(ctx({ uid: "u1", role: null, status: null }));
     const revoked = adminAccessDenialReason(ctx({ uid: "u1", role: null, status: "revoked" }));
-    expect(noRecord).toContain("no staff status");
+    expect(noRecord).toContain("no staff_roles row");
     expect(revoked).toContain('"revoked"');
     expect(noRecord).not.toBe(revoked);
   });
@@ -316,7 +316,7 @@ describe("explaining why an account resolved to no admin role", () => {
     // document — the single most confusing way to end up locked out.
     const storedSuper = ctx({ uid: "u1", role: null, status: "active" });
     expect(adminAccessDenialReason(storedSuper)).toContain("SUPER_ADMIN");
-    expect(adminAccessDenialReason(storedSuper)).toContain("system/config");
+    expect(adminAccessDenialReason(storedSuper)).toContain("app_config.master_admin_uid");
   });
 });
 
