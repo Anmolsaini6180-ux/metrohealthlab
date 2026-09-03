@@ -1,80 +1,150 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Regression coverage for the signup race: registerAndLoginWithEmail
-// used to write name/phone via a SEPARATE updateDoc() call after
-// ensureUserProfile() had already run — racing against AuthProvider's
-// own concurrent ensureUserProfile() call for the very same sign-in.
-// If AuthProvider's setDoc landed second (or first, before the
-// updateDoc), the update could fail entirely (updateDoc requires the
-// document to already exist) or be clobbered. The fix: extraFields are
-// written in the SAME creating call, and every write uses merge:true
-// so ordering between the two concurrent callers can never lose data.
+// used to write name/phone via a SEPARATE call after ensureUserProfile()
+// had already run — racing against AuthProvider's own concurrent
+// ensureUserProfile() call for the very same sign-in. The fix: extra
+// fields are written in the SAME upserting call, and the upsert never
+// clears a column it doesn't mention, so ordering between the two
+// concurrent callers can never lose data. Preserved here even though
+// the storage moved from Firestore to Supabase profiles, since the
+// race itself is about call ordering, not which database is behind it.
 const state = vi.hoisted(() => ({
-  docs: new Map<string, Record<string, unknown>>(),
+  rows: new Map<string, Record<string, unknown>>(),
 }));
 
-vi.mock("firebase/firestore", () => ({
-  doc: (_db: unknown, _collection: string, id: string) => ({ id }),
-  getDoc: async (ref: { id: string }) => ({
-    exists: () => state.docs.has(ref.id),
-    id: ref.id,
-    data: () => state.docs.get(ref.id),
+vi.mock("@/supabase/client", () => ({
+  getSupabaseClient: () => ({
+    from: (table: string) => {
+      if (table !== "profiles") throw new Error(`unexpected table: ${table}`);
+      return {
+        select: () => ({
+          eq: (_col: string, id: string) => ({
+            maybeSingle: async () => ({ data: state.rows.get(id) ?? null, error: null }),
+          }),
+        }),
+        upsert: (patch: Record<string, unknown>) => {
+          const id = patch.id as string;
+          const merged = { ...(state.rows.get(id) ?? {}), ...patch };
+          state.rows.set(id, merged);
+          return {
+            select: () => ({
+              single: async () => ({ data: merged, error: null }),
+            }),
+          };
+        },
+        update: (patch: Record<string, unknown>) => ({
+          eq: async (_col: string, id: string) => {
+            state.rows.set(id, { ...(state.rows.get(id) ?? {}), ...patch });
+            return { error: null };
+          },
+        }),
+      };
+    },
   }),
-  setDoc: async (ref: { id: string }, data: Record<string, unknown>, options?: { merge?: boolean }) => {
-    if (options?.merge && state.docs.has(ref.id)) {
-      state.docs.set(ref.id, { ...state.docs.get(ref.id), ...data });
-    } else {
-      state.docs.set(ref.id, data);
-    }
-  },
-  updateDoc: async (ref: { id: string }, data: Record<string, unknown>) => {
-    if (!state.docs.has(ref.id)) throw new Error("not-found: document does not exist");
-    state.docs.set(ref.id, { ...state.docs.get(ref.id), ...data });
-  },
-  serverTimestamp: () => ({ kind: "serverTimestamp" }),
 }));
 
-vi.mock("@/firebase/firestore", () => ({ getDb: () => ({}) }));
-
-const { ensureUserProfile } = await import("@/services/userService");
+const { ensureUserProfile, getUserProfile, updateUserProfile } = await import("@/services/userService");
 
 const FIREBASE_USER = { uid: "fb-uid-1", email: "customer@example.invalid", displayName: null, phoneNumber: null, photoURL: null };
+const SUPABASE_ID = "11111111-1111-1111-1111-111111111111";
 
 beforeEach(() => {
-  state.docs.clear();
+  state.rows.clear();
 });
 
 describe("ensureUserProfile", () => {
   it("creates a fresh profile with the extra signup fields in the SAME write, not a follow-up update", async () => {
-    const profile = await ensureUserProfile(FIREBASE_USER as never, { name: "Asha Verma", phone: "+919990001111" });
+    const profile = await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never, { name: "Asha Verma", phone: "+919990001111" });
     expect(profile.name).toBe("Asha Verma");
     expect(profile.phone).toBe("+919990001111");
-    expect(state.docs.get("fb-uid-1")).toMatchObject({ name: "Asha Verma", phone: "+919990001111" });
+    expect(state.rows.get(SUPABASE_ID)).toMatchObject({ name: "Asha Verma", phone: "+919990001111" });
   });
 
   it("regression: AuthProvider's own concurrent call (no extra fields) landing AFTER signup's call does not erase name/phone", async () => {
     // Signup's call lands first, with the form fields.
-    await ensureUserProfile(FIREBASE_USER as never, { name: "Asha Verma", phone: "+919990001111" });
+    await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never, { name: "Asha Verma", phone: "+919990001111" });
     // AuthProvider's own onAuthStateChanged handler fires moments later
     // for the same sign-in, with no extra fields at all.
-    const second = await ensureUserProfile(FIREBASE_USER as never);
+    const second = await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never);
     expect(second.name).toBe("Asha Verma");
     expect(second.phone).toBe("+919990001111");
   });
 
   it("regression: the reverse order — AuthProvider's plain call landing FIRST — still lets signup's fields land safely", async () => {
-    // AuthProvider's call creates the bare document first (this is the
-    // ordering that used to throw "not-found" from updateDoc in the
-    // old two-call design).
-    await ensureUserProfile(FIREBASE_USER as never);
-    const second = await ensureUserProfile(FIREBASE_USER as never, { name: "Asha Verma", phone: "+919990001111" });
+    // AuthProvider's call creates the bare row first (this is the
+    // ordering that used to throw "not-found" from the old Firestore
+    // updateDoc-based design).
+    await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never);
+    const second = await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never, { name: "Asha Verma", phone: "+919990001111" });
     expect(second.name).toBe("Asha Verma");
     expect(second.phone).toBe("+919990001111");
   });
 
   it("returns the existing profile without a write when called again with no extra fields", async () => {
-    await ensureUserProfile(FIREBASE_USER as never, { name: "Asha Verma" });
-    const again = await ensureUserProfile(FIREBASE_USER as never);
+    await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never, { name: "Asha Verma" });
+    const again = await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never);
     expect(again.name).toBe("Asha Verma");
+  });
+
+  // The actual bug this whole file exists to prevent: a Firebase uid
+  // must never end up as the id of a Supabase profiles row.
+  it("uses the Supabase uuid as the row id, never the Firebase uid", async () => {
+    await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never);
+    expect(state.rows.has(SUPABASE_ID)).toBe(true);
+    expect(state.rows.has(FIREBASE_USER.uid)).toBe(false);
+  });
+
+  // Regression: firebase_uid is the ONE column getSupabaseUserId()
+  // checks to bridge identity for every later booking/patient/address/
+  // report query. An early version of this upsert omitted it entirely,
+  // which would have silently broken every one of those lookups for a
+  // brand new signup — caught here, not in production.
+  it("always stamps firebase_uid on the row, on both create and every later call", async () => {
+    const first = await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never, { name: "Asha Verma" });
+    expect(state.rows.get(SUPABASE_ID)).toMatchObject({ firebase_uid: FIREBASE_USER.uid });
+    expect(first.id).toBe(SUPABASE_ID);
+
+    // A later call for the same account (e.g. AuthProvider's own
+    // concurrent resolve) must not lose it either.
+    await ensureUserProfile(SUPABASE_ID, FIREBASE_USER as never, { phone: "+919990001111" });
+    expect(state.rows.get(SUPABASE_ID)).toMatchObject({ firebase_uid: FIREBASE_USER.uid });
+  });
+
+  // Phone-only sign-in: no Supabase session exists, so there is no
+  // profiles row this account could own. Must still return a usable
+  // view built from the live Firebase user, not null or a throw.
+  it("falls back to a live, unpersisted profile when there is no linked Supabase session", async () => {
+    const phoneUser = { uid: "fb-phone-1", email: null, displayName: "Rahul", phoneNumber: "+919990002222", photoURL: null };
+    const profile = await ensureUserProfile(null, phoneUser as never);
+    expect(profile.name).toBe("Rahul");
+    expect(profile.phone).toBe("+919990002222");
+    expect(profile.id).toBe("fb-phone-1");
+    // Nothing was written anywhere — there is no row to check for.
+    expect(state.rows.size).toBe(0);
+  });
+
+  it("still honours extra signup fields for a phone-only fallback profile", async () => {
+    const phoneUser = { uid: "fb-phone-2", email: null, displayName: null, phoneNumber: "+919990003333", photoURL: null };
+    const profile = await ensureUserProfile(null, phoneUser as never, { name: "Walk-in Customer" });
+    expect(profile.name).toBe("Walk-in Customer");
+  });
+});
+
+describe("getUserProfile / updateUserProfile", () => {
+  it("reads back a profile by its Supabase id", async () => {
+    state.rows.set(SUPABASE_ID, { id: SUPABASE_ID, name: "Asha Verma", email: "asha@example.invalid" });
+    const profile = await getUserProfile(SUPABASE_ID);
+    expect(profile?.name).toBe("Asha Verma");
+  });
+
+  it("returns null for a profile that does not exist", async () => {
+    expect(await getUserProfile(SUPABASE_ID)).toBeNull();
+  });
+
+  it("updates only the fields provided, leaving the rest of the row alone", async () => {
+    state.rows.set(SUPABASE_ID, { id: SUPABASE_ID, name: "Old Name", phone: "+919990001111" });
+    await updateUserProfile(SUPABASE_ID, { name: "New Name" });
+    expect(state.rows.get(SUPABASE_ID)).toMatchObject({ name: "New Name", phone: "+919990001111" });
   });
 });

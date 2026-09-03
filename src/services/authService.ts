@@ -1,25 +1,26 @@
 // Thin convenience layer over firebase/auth.ts, now ALSO establishing
-// a Supabase session alongside every Google/email sign-in — the Phase
-// E auth cutover. Post-sign-in Firestore setup (profile creation,
-// resolving the staff role) is centralized in AuthProvider's
-// onAuthStateChanged subscription — see useAuth.tsx — NOT duplicated
-// here.
+// a Supabase session alongside every Google/email sign-in. Post-sign-in
+// setup (profile upsert, resolving the staff role) is centralized in
+// AuthProvider's onAuthStateChanged subscription — see useAuth.tsx —
+// NOT duplicated here.
 //
-// WHY BOTH PROVIDERS, STILL: Firestore's security rules only ever
-// trust a genuine Firebase ID token, and Firestore data (bookings,
-// patients, addresses, reports, notifications, the customer profile
-// itself) is NOT migrated yet. So Firebase remains the session that
-// actually unlocks the app's real data; Supabase supplies the SECOND
-// session used only for authorization (SUPER_ADMIN/staff, via
-// app_config/staff_roles — see src/supabase/roleService.ts).
+// WHY BOTH PROVIDERS, STILL: Firebase Phone OTP has no Supabase
+// equivalent (no free SMS provider), so Firebase stays the one session
+// every account has, and identity (`user.uid`) stays Firebase-shaped.
+// But every piece of real data — bookings, patients, addresses,
+// reports, notifications, the customer profile itself — lives in
+// Supabase now, keyed by the linked Supabase session's uuid
+// (supabaseUserId), never user.uid. Supabase also supplies
+// authorization (SUPER_ADMIN/staff, via app_config/staff_roles — see
+// src/supabase/roleService.ts).
 //
 // Every Supabase-linking step below is BEST EFFORT and never blocks or
 // fails a sign-in that Firebase itself accepted: if Supabase is briefly
-// unreachable, or a pre-cutover account has no Supabase password yet,
-// the customer still gets a fully working session (Firestore access
-// unaffected) — they simply resolve to "no staff role" until the
-// Supabase side reconciles, which is the correct fail-closed behaviour
-// for anyone who was not already an authorized admin.
+// unreachable, the customer still gets a fully working Firebase
+// session — they simply resolve to "no staff role" and a phone-only-
+// style profile view until the Supabase side reconciles, which is the
+// correct fail-closed behaviour for anyone who was not already an
+// authorized admin.
 //
 // Google never links by email in OUR code — the email-based matching
 // happens entirely inside Supabase's own signInWithIdToken (its
@@ -117,45 +118,35 @@ export async function loginWithEmail(email: string, password: string): Promise<U
 // Signup is the one exception that still needs its own ensureUserProfile
 // call: it has extra fields (name/phone from the signup form) to write
 // immediately, before anything else reads the profile back. Passed
-// directly into THIS SAME creating write (not a separate updateDoc
+// directly into THIS SAME creating write (not a separate update
 // afterward — see ensureUserProfile's own header comment for the race
-// that used to cause) so there is no window where the document exists
+// that used to cause) so there is no window where the row exists
 // without them. AuthProvider's own concurrent call moments later is
-// harmless — ensureUserProfile's setDoc uses merge:true, so whichever
-// of the two calls lands second cannot erase what the first wrote.
+// harmless — ensureUserProfile's upsert never clears a column it
+// doesn't mention, so whichever of the two calls lands second cannot
+// erase what the first wrote.
 export async function registerAndLoginWithEmail(
   email: string,
   password: string,
   profileFields?: { name?: string; phone?: string }
 ): Promise<User> {
   const user = await registerWithEmail(email, password);
-  await ensureUserProfile(user, profileFields);
 
   // Best effort, same non-blocking contract as sign-in: a brand new
   // account with no live Supabase counterpart yet is still a fully
-  // working customer account (Firestore-backed), just with no staff
-  // authority — correct, since a new signup is never staff.
+  // working customer account (Firebase Auth session unaffected), just
+  // with no staff authority and a profile view that isn't persisted
+  // anywhere — correct, since a new signup is never staff, and
+  // ensureUserProfile below already handles a null supabaseUserId.
+  let supabaseUserId: string | null = null;
   try {
     const supabaseUser = await supabaseRegisterWithEmail(email, password);
-    // profiles_insert_self RLS allows exactly this: a freshly
-    // authenticated Supabase user inserting their OWN row. No
-    // service-role key involved anywhere in this path.
-    const { error } = await getSupabaseClient()
-      .from("profiles")
-      .insert([
-        {
-          id: supabaseUser.id,
-          firebase_uid: user.uid,
-          ...(profileFields?.name ? { name: profileFields.name } : {}),
-          ...(profileFields?.phone ? { phone: profileFields.phone } : {}),
-          email,
-        },
-      ]);
-    if (error) throw error;
+    supabaseUserId = supabaseUser.id;
   } catch (err) {
     console.error("[auth] Could not create a linked Supabase identity for this new account:", err);
   }
 
+  await ensureUserProfile(supabaseUserId, user, profileFields);
   return user;
 }
 

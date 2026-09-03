@@ -12,16 +12,17 @@ import { buildStaffContext } from "@/utils/roleAccess";
 import type { StaffContext } from "@/types/team";
 import type { UserProfile } from "@/types/user";
 
-// AUTHORIZATION now resolves from Supabase (app_config/staff_roles),
-// not Firestore — the Phase E cutover. IDENTITY stays Firebase: every
-// Firestore-backed feature (bookings, patients, addresses, reports,
-// notifications, this very profile) still reads/writes keyed by the
-// Firebase uid, and Firestore's rules only ever trust a genuine
-// Firebase ID token, so `user` below is unchanged in shape and origin.
+// IDENTITY (the overall session) stays Firebase-shaped: `user` below is
+// a genuine Firebase Auth User, and Phone OTP only ever exists on the
+// Firebase side. AUTHORIZATION (staff/role) and every piece of DATA
+// (bookings, patients, addresses, reports, notifications, profile)
+// resolve from Supabase, keyed by supabaseUserId — never user.uid — for
+// whichever accounts have a linked Supabase session (Google/email).
 // See src/supabase/roleService.ts's resolveStaffContextForFirebaseUser
-// for exactly how the two are bridged, and its own comments for the
-// fail-closed behaviour when no linked Supabase session exists (e.g.
-// a phone sign-in, which never has one).
+// and src/supabase/identity.ts for exactly how the two are bridged, and
+// their own comments for the fail-closed behaviour when no linked
+// Supabase session exists (a phone-only sign-in never has one, since
+// Supabase has no free SMS provider).
 
 interface AuthContextValue {
   user: User | null;
@@ -103,16 +104,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let context: StaffContext = buildStaffContext(nextUser.uid, "", null);
       try {
-        const nextProfile = await ensureUserProfile(nextUser);
-        setProfile(nextProfile);
-      } catch (err) {
-        // The user is still validly signed in with Firebase Auth —
-        // never leave them stuck on a loading screen because their
-        // profile document could not be written.
-        console.error("Could not load the user profile:", err);
-      }
-
-      try {
         // Resolve the role BEFORE this user is published to the rest of
         // the app, so nothing ever renders against an unknown or stale
         // role. Loading stays true until this settles, which is what
@@ -129,6 +120,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         linkedSupabaseId = await getSupabaseUserId(nextUser.uid);
       } catch (err) {
         console.error("Could not resolve the linked Supabase identity:", err);
+      }
+
+      // Resolved after linkedSupabaseId so a Google/email account's
+      // profile writes to its real Supabase profiles row rather than a
+      // Firestore document nothing else reads; null here just means a
+      // phone-only account, which ensureUserProfile already handles.
+      try {
+        const nextProfile = await ensureUserProfile(linkedSupabaseId, nextUser);
+        setProfile(nextProfile);
+      } catch (err) {
+        // The user is still validly signed in with Firebase Auth —
+        // never leave them stuck on a loading screen because their
+        // profile could not be loaded/written.
+        console.error("Could not load the user profile:", err);
       }
 
       setStaff(context);
