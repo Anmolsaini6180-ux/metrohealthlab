@@ -178,6 +178,39 @@
   flex-shrink: 0;
 }
 
+/* Wraps a select-card together with its sibling edit button — the edit
+   control can't nest inside the select-card <button> itself (invalid
+   HTML: button-in-button), so this lays the two out side by side
+   instead. */
+.mh-select-card-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mh-select-card-row .mh-select-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.mh-edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+}
+
+.mh-edit-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-bg-tint);
+}
+
 .mh-add-row {
   display: flex;
   align-items: center;

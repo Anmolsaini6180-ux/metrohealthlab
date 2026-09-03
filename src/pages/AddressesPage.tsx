@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
-import { addAddress, deleteAddress, getAddresses, setDefaultAddress } from "@/services/addressService";
+import { addAddress, deleteAddress, getAddresses, setDefaultAddress, updateAddress } from "@/services/addressService";
+import type { Address } from "@/types/address";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
@@ -13,6 +14,7 @@ export default function AddressesPage() {
   const { supabaseUserId } = useAuth();
   const addresses = useAsync(() => (supabaseUserId ? getAddresses(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
   const [showForm, setShowForm] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
 
   async function handleDelete(id: string) {
     await deleteAddress(id);
@@ -29,22 +31,35 @@ export default function AddressesPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
         <h1 style={{ fontSize: "var(--text-2xl)" }}>Addresses</h1>
-        <button className="btn btn-primary" onClick={() => setShowForm((s) => !s)}>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            setEditingAddress(null);
+            setShowForm((s) => !s);
+          }}
+        >
           {showForm ? "Cancel" : "+ Add"}
         </button>
       </div>
 
-      {showForm && supabaseUserId && (
+      {(showForm || editingAddress) && supabaseUserId && (
         <AddAddressForm
+          key={editingAddress?.id ?? "new"}
           userId={supabaseUserId}
+          editAddress={editingAddress ?? undefined}
           onAdded={() => {
             setShowForm(false);
+            setEditingAddress(null);
             addresses.retry();
+          }}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingAddress(null);
           }}
         />
       )}
 
-      {addresses.loading && <LoadingState rows={2} />}
+      {addresses.loading && !addresses.data && <LoadingState rows={2} />}
       {addresses.error && <ErrorState message={addresses.error} onRetry={addresses.retry} />}
       {addresses.data && addresses.data.length === 0 && !showForm && (
         <EmptyState icon="location_on" title="No saved addresses yet" />
@@ -65,6 +80,15 @@ export default function AddressesPage() {
                     Set default
                   </button>
                 )}
+                <button
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditingAddress(a);
+                  }}
+                >
+                  Edit
+                </button>
                 <button className="btn btn-outline" onClick={() => handleDelete(a.id)}>
                   Remove
                 </button>
@@ -77,8 +101,31 @@ export default function AddressesPage() {
   );
 }
 
-function AddAddressForm({ userId, onAdded }: { userId: string; onAdded: () => void }) {
-  const [form, setForm] = useState({ label: "Home", house: "", street: "", area: "", city: "", state: "", pincode: "", landmark: "" });
+function AddAddressForm({
+  userId,
+  editAddress,
+  onAdded,
+  onCancel,
+}: {
+  userId: string;
+  editAddress?: Address;
+  onAdded: () => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState(() =>
+    editAddress
+      ? {
+          label: editAddress.label,
+          house: editAddress.house,
+          street: editAddress.street,
+          area: editAddress.area,
+          city: editAddress.city,
+          state: editAddress.state,
+          pincode: editAddress.pincode,
+          landmark: editAddress.landmark ?? "",
+        }
+      : { label: "Home", house: "", street: "", area: "", city: "", state: "", pincode: "", landmark: "" }
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -91,7 +138,11 @@ function AddAddressForm({ userId, onAdded }: { userId: string; onAdded: () => vo
     setBusy(true);
     setError(null);
     try {
-      await addAddress(userId, form);
+      if (editAddress) {
+        await updateAddress(editAddress.id, form);
+      } else {
+        await addAddress(userId, form);
+      }
       onAdded();
     } catch (err) {
       setError(toUserMessage(err));
@@ -111,9 +162,14 @@ function AddAddressForm({ userId, onAdded }: { userId: string; onAdded: () => vo
       <input placeholder="Pincode" required value={form.pincode} onChange={(e) => update("pincode", e.target.value)} />
       <input placeholder="Landmark (optional)" value={form.landmark} onChange={(e) => update("landmark", e.target.value)} />
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy}>
-        Save address
-      </button>
+      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+        <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+          {busy ? "Saving..." : editAddress ? "Save changes" : "Save address"}
+        </button>
+        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

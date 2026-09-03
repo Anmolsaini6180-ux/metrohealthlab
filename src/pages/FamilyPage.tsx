@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
-import { addPatient, deletePatient, getPatients } from "@/services/patientService";
-import type { PatientRelationship } from "@/types/patient";
+import { addPatient, deletePatient, getPatients, updatePatient } from "@/services/patientService";
+import type { Patient, PatientRelationship } from "@/types/patient";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
@@ -16,6 +16,7 @@ export default function FamilyPage() {
   const { supabaseUserId } = useAuth();
   const patients = useAsync(() => (supabaseUserId ? getPatients(supabaseUserId) : Promise.resolve([])), [supabaseUserId]);
   const [showForm, setShowForm] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
 
   async function handleDelete(id: string) {
     await deletePatient(id);
@@ -26,22 +27,35 @@ export default function FamilyPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
         <h1 style={{ fontSize: "var(--text-2xl)" }}>Family members</h1>
-        <button className="btn btn-primary" onClick={() => setShowForm((s) => !s)}>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            setEditingPatient(null);
+            setShowForm((s) => !s);
+          }}
+        >
           {showForm ? "Cancel" : "+ Add"}
         </button>
       </div>
 
-      {showForm && supabaseUserId && (
+      {(showForm || editingPatient) && supabaseUserId && (
         <AddPatientForm
+          key={editingPatient?.id ?? "new"}
           userId={supabaseUserId}
+          editPatient={editingPatient ?? undefined}
           onAdded={() => {
             setShowForm(false);
+            setEditingPatient(null);
             patients.retry();
+          }}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingPatient(null);
           }}
         />
       )}
 
-      {patients.loading && <LoadingState rows={2} />}
+      {patients.loading && !patients.data && <LoadingState rows={2} />}
       {patients.error && <ErrorState message={patients.error} onRetry={patients.retry} />}
       {patients.data && patients.data.length === 0 && !showForm && (
         <EmptyState icon="group" title="No family members added yet" />
@@ -54,9 +68,20 @@ export default function FamilyPage() {
                 <p style={{ fontWeight: 600 }}>{p.name}</p>
                 <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{p.relationship} • {p.gender}</p>
               </div>
-              <button className="btn btn-outline" onClick={() => handleDelete(p.id)}>
-                Remove
-              </button>
+              <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                <button
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditingPatient(p);
+                  }}
+                >
+                  Edit
+                </button>
+                <button className="btn btn-outline" onClick={() => handleDelete(p.id)}>
+                  Remove
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -65,11 +90,21 @@ export default function FamilyPage() {
   );
 }
 
-function AddPatientForm({ userId, onAdded }: { userId: string; onAdded: () => void }) {
-  const [name, setName] = useState("");
-  const [relationship, setRelationship] = useState<PatientRelationship>("self");
-  const [dob, setDob] = useState("");
-  const [gender, setGender] = useState<"male" | "female" | "other">("male");
+function AddPatientForm({
+  userId,
+  editPatient,
+  onAdded,
+  onCancel,
+}: {
+  userId: string;
+  editPatient?: Patient;
+  onAdded: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(editPatient?.name ?? "");
+  const [relationship, setRelationship] = useState<PatientRelationship>(editPatient?.relationship ?? "self");
+  const [dob, setDob] = useState(editPatient?.dob ?? "");
+  const [gender, setGender] = useState<"male" | "female" | "other">(editPatient?.gender ?? "male");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -78,7 +113,11 @@ function AddPatientForm({ userId, onAdded }: { userId: string; onAdded: () => vo
     setBusy(true);
     setError(null);
     try {
-      await addPatient(userId, { name, relationship, dob, gender });
+      if (editPatient) {
+        await updatePatient(editPatient.id, { name, relationship, dob, gender });
+      } else {
+        await addPatient(userId, { name, relationship, dob, gender });
+      }
       onAdded();
     } catch (err) {
       setError(toUserMessage(err));
@@ -104,9 +143,14 @@ function AddPatientForm({ userId, onAdded }: { userId: string; onAdded: () => vo
         <option value="other">Other</option>
       </select>
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy}>
-        Save
-      </button>
+      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+        <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+          {busy ? "Saving..." : editPatient ? "Save changes" : "Save"}
+        </button>
+        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

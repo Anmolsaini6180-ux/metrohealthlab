@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
 import { getPatients, addPatient } from "@/services/patientService";
-import { getAddresses, addAddress } from "@/services/addressService";
+import { getAddresses, addAddress, updateAddress } from "@/services/addressService";
+import type { Address } from "@/types/address";
 import { checkServiceability } from "@/services/serviceabilityService";
 import { subscribeToSlots } from "@/services/slotService";
 import { formatCurrencyInr } from "@/services/pricingService";
@@ -61,6 +62,7 @@ export default function BookingFlowPage() {
   const [collectionType, setCollectionType] = useState<CollectionType>("home");
   const [addressId, setAddressId] = useState<string | null>(null);
   const [showAddAddress, setShowAddAddress] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [pincode, setPincode] = useState("");
   const [pincodeChecked, setPincodeChecked] = useState<
     { areaId: string; collectionFee: number; available: boolean } | null
@@ -113,7 +115,11 @@ export default function BookingFlowPage() {
       setSlotsState({ data: [], loading: false, error: null });
       return;
     }
-    setSlotsState((s) => ({ ...s, loading: true, error: null }));
+    // Unlike patients/addresses' own retry, this effect re-runs because
+    // the DATE (or collection type) actually changed — the previous
+    // slots belong to a different day and must not stay on screen
+    // looking selectable while the new day's list loads underneath.
+    setSlotsState({ data: null, loading: true, error: null });
     const unsubscribe = subscribeToSlots(
       pincodeChecked.areaId,
       date,
@@ -200,13 +206,21 @@ export default function BookingFlowPage() {
     });
   }
 
-  async function handleCheckPincode() {
-    const area = await checkServiceability(pincode);
+  // Takes the pincode as an argument rather than always reading state —
+  // callers that just changed `pincode` in the same tick (picking a
+  // different saved address) would otherwise close over the value from
+  // BEFORE that update lands, and re-check the address they left.
+  async function runServiceabilityCheck(pin: string) {
+    const area = await checkServiceability(pin);
     if (!area) {
       setPincodeChecked({ areaId: "", collectionFee: 0, available: false });
       return;
     }
     setPincodeChecked({ areaId: area.id, collectionFee: area.collectionFee, available: area.homeCollectionAvailable || collectionType === "center" });
+  }
+
+  async function handleCheckPincode() {
+    await runServiceabilityCheck(pincode);
   }
 
   function handleNext() {
@@ -303,7 +317,13 @@ export default function BookingFlowPage() {
       {step === "patient" && (
         <section className="mh-booking__section">
           <h2 className="mh-booking__section-title">Who is this test for?</h2>
-          {patients.loading && <LoadingState rows={2} />}
+          {/* Only the FIRST load shows a skeleton — a retry after adding a
+              member keeps the previous list visible (useAsync's own
+              contract: `data` isn't cleared while `loading` is true), so
+              gating this on `!patients.data` too stops a loading
+              skeleton from flashing in above the still-valid list on
+              every refetch. */}
+          {patients.loading && !patients.data && <LoadingState rows={2} />}
           {patients.error && <ErrorState message={patients.error} onRetry={patients.retry} />}
           {patients.data && (
             <div className="mh-select-list">
@@ -341,6 +361,7 @@ export default function BookingFlowPage() {
                     setShowAddPatient(false);
                     patients.retry();
                   }}
+                  onCancel={() => setShowAddPatient(false)}
                 />
               )}
             </div>
@@ -375,7 +396,16 @@ export default function BookingFlowPage() {
             <div className="mh-pincode-row">
               <input
                 value={pincode}
-                onChange={(e) => setPincode(e.target.value)}
+                onChange={(e) => {
+                  setPincode(e.target.value);
+                  // The last Check result belonged to whatever pincode
+                  // was in the box before this edit — once the digits
+                  // change it's unverified again, so the stale
+                  // available/unavailable message (and any slots for
+                  // the old area) must not keep showing as if it still
+                  // applied.
+                  setPincodeChecked(null);
+                }}
                 placeholder="Enter pincode"
                 className="mh-pincode-row__input"
               />
@@ -400,7 +430,7 @@ export default function BookingFlowPage() {
           {collectionType === "home" && (
             <div>
               <h2 className="mh-booking__section-title">Delivery / Collection Address</h2>
-              {addresses.loading && <LoadingState rows={2} />}
+              {addresses.loading && !addresses.data && <LoadingState rows={2} />}
               {addresses.error && <ErrorState message={addresses.error} onRetry={addresses.retry} />}
               {addresses.data && (
                 <div className="mh-select-list">
@@ -408,53 +438,91 @@ export default function BookingFlowPage() {
                     <EmptyState icon="location_on" title="No saved addresses yet" description="Add one below to continue." />
                   )}
                   {addresses.data.map((a) => (
-                    <button
-                      key={a.id}
-                      className={`mh-select-card${addressId === a.id ? " is-selected" : ""}`}
-                      onClick={() => {
-                        setAddressId(a.id);
-                        setPincode(a.pincode);
-                      }}
-                    >
-                      <span className="mh-select-card__icon" aria-hidden="true">
-                        <span className="mi">location_on</span>
-                      </span>
-                      <span className="mh-select-card__body">
-                        <span className="mh-select-card__title">
-                          {a.label} {a.isDefault && <em>(Default)</em>}
+                    <div key={a.id} className="mh-select-card-row">
+                      <button
+                        className={`mh-select-card${addressId === a.id ? " is-selected" : ""}`}
+                        onClick={() => {
+                          setAddressId(a.id);
+                          setPincode(a.pincode);
+                          // A previous address's serviceability result
+                          // must not keep showing "available" (and its
+                          // area's slots must not keep loading) once a
+                          // DIFFERENT address is selected.
+                          setPincodeChecked(null);
+                          void runServiceabilityCheck(a.pincode);
+                        }}
+                      >
+                        <span className="mh-select-card__icon" aria-hidden="true">
+                          <span className="mi">location_on</span>
                         </span>
-                        <span className="mh-select-card__meta">
-                          {a.house}, {a.street}, {a.city} {a.pincode}
+                        <span className="mh-select-card__body">
+                          <span className="mh-select-card__title">
+                            {a.label} {a.isDefault && <em>(Default)</em>}
+                          </span>
+                          <span className="mh-select-card__meta">
+                            {a.house}, {a.street}, {a.city} {a.pincode}
+                          </span>
                         </span>
-                      </span>
-                      {addressId === a.id && (
-                        <span className="mh-select-card__check" aria-hidden="true">
-                          <span className="mi">check_circle</span>
-                        </span>
-                      )}
-                    </button>
+                        {addressId === a.id && (
+                          <span className="mh-select-card__check" aria-hidden="true">
+                            <span className="mi">check_circle</span>
+                          </span>
+                        )}
+                      </button>
+                      {/* Sibling, not nested — a <button> inside the
+                          select-card <button> would be invalid HTML.
+                          Editing an address here (instead of only from
+                          /profile/addresses) means a typo spotted mid-
+                          booking (wrong pincode, wrong floor) doesn't
+                          force abandoning the flow to go fix it. */}
+                      <button
+                        type="button"
+                        className="mh-edit-btn"
+                        aria-label={`Edit ${a.label} address`}
+                        onClick={() => {
+                          setShowAddAddress(false);
+                          setEditingAddress(a);
+                        }}
+                      >
+                        <span className="mi" aria-hidden="true">edit</span>
+                      </button>
+                    </div>
                   ))}
                   {/* Always available, list empty or not — this used to
                       only exist inside the empty-list EmptyState (and
                       navigated away to /addresses), so once a customer
                       had one saved address there was no way left to add
                       a second without leaving the booking flow. */}
-                  {!showAddAddress && (
+                  {!showAddAddress && !editingAddress && (
                     <button className="mh-add-row" onClick={() => setShowAddAddress(true)}>
                       <span className="mi" aria-hidden="true">add_circle</span>
                       Add a new address
                     </button>
                   )}
-                  {showAddAddress && supabaseUserId && (
+                  {(showAddAddress || editingAddress) && supabaseUserId && (
                     <QuickAddAddressForm
+                      key={editingAddress?.id ?? "new"}
                       userId={supabaseUserId}
+                      editAddress={editingAddress ?? undefined}
                       onAdded={(id, savedPincode) => {
                         setAddressId(id);
                         setPincode(savedPincode);
+                        // Without this, a customer who adds/edits an
+                        // address and never separately presses "Check"
+                        // above ends up with pincodeChecked staying
+                        // null forever — which (see the slots effect)
+                        // means the Schedule step shows zero slots and
+                        // the booking can never continue.
+                        setPincodeChecked(null);
+                        void runServiceabilityCheck(savedPincode);
                         setShowAddAddress(false);
+                        setEditingAddress(null);
                         addresses.retry();
                       }}
-                      onCancel={() => setShowAddAddress(false)}
+                      onCancel={() => {
+                        setShowAddAddress(false);
+                        setEditingAddress(null);
+                      }}
                     />
                   )}
                 </div>
@@ -632,7 +700,15 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   );
 }
 
-function QuickAddPatientForm({ userId, onAdded }: { userId: string; onAdded: (id: string) => void }) {
+function QuickAddPatientForm({
+  userId,
+  onAdded,
+  onCancel,
+}: {
+  userId: string;
+  onAdded: (id: string) => void;
+  onCancel: () => void;
+}) {
   const [name, setName] = useState("");
   const [relationship, setRelationship] = useState<"self" | "father" | "mother" | "spouse" | "son" | "daughter" | "other">("self");
   const [dob, setDob] = useState("");
@@ -671,9 +747,14 @@ function QuickAddPatientForm({ userId, onAdded }: { userId: string; onAdded: (id
         <option value="other">Other</option>
       </select>
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy}>
-        Save
-      </button>
+      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+        <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+          {busy ? "Saving..." : "Save"}
+        </button>
+        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }
@@ -684,14 +765,29 @@ function QuickAddPatientForm({ userId, onAdded }: { userId: string; onAdded: (id
 // (or first) address never requires leaving mid-booking.
 function QuickAddAddressForm({
   userId,
+  editAddress,
   onAdded,
   onCancel,
 }: {
   userId: string;
+  editAddress?: Address;
   onAdded: (id: string, pincode: string) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState({ label: "Home", house: "", street: "", area: "", city: "", state: "", pincode: "", landmark: "" });
+  const [form, setForm] = useState(() =>
+    editAddress
+      ? {
+          label: editAddress.label,
+          house: editAddress.house,
+          street: editAddress.street,
+          area: editAddress.area,
+          city: editAddress.city,
+          state: editAddress.state,
+          pincode: editAddress.pincode,
+          landmark: editAddress.landmark ?? "",
+        }
+      : { label: "Home", house: "", street: "", area: "", city: "", state: "", pincode: "", landmark: "" }
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -704,8 +800,13 @@ function QuickAddAddressForm({
     setBusy(true);
     setError(null);
     try {
-      const id = await addAddress(userId, form);
-      onAdded(id, form.pincode);
+      if (editAddress) {
+        await updateAddress(editAddress.id, form);
+        onAdded(editAddress.id, form.pincode);
+      } else {
+        const id = await addAddress(userId, form);
+        onAdded(id, form.pincode);
+      }
     } catch (err) {
       setError(toUserMessage(err));
     } finally {
@@ -726,7 +827,7 @@ function QuickAddAddressForm({
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
         <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-          {busy ? "Saving..." : "Save address"}
+          {busy ? "Saving..." : editAddress ? "Save changes" : "Save address"}
         </button>
         <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
           Cancel
