@@ -2,6 +2,7 @@
 @import "./home.css";
 @import "./package-detail.css";
 @import "./booking-flow.css";
+@import "./track-booking.css";
 
 *,
 *::before,

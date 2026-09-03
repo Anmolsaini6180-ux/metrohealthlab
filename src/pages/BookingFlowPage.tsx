@@ -249,7 +249,11 @@ export default function BookingFlowPage() {
         },
       });
       setCreatedBooking(result);
-      navigate(`/track/${result.bookingId}`, { replace: true });
+      // justBooked only lives in router state for this one navigation,
+      // so TrackBookingPage can show a one-time success banner right
+      // after a fresh booking without showing it again on every later
+      // visit to the same tracking link.
+      navigate(`/track/${result.bookingId}`, { replace: true, state: { justBooked: true } });
     } catch (err) {
       // Two very different things land here and the customer deserves
       // to be told which. A server-side validation failure (price, slot

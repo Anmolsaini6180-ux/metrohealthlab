@@ -1,0 +1,146 @@
+/* ============================================================
+   TRACK BOOKING / CONFIRMATION
+   ============================================================ */
+.mh-track {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.mh-track__success {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: var(--space-lg) var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-tint);
+  border: 1px solid var(--color-line);
+}
+
+.mh-track__success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.mh-track__success-icon .mi {
+  font-size: 32px;
+}
+
+.mh-track__success-title {
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.mh-track__success-id {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  margin-bottom: 8px;
+}
+
+.mh-track__summary {
+  width: 100%;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  padding: var(--space-md);
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.mh-track__whatsnext {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  text-align: left;
+  margin-top: 6px;
+}
+
+.mh-track__whatsnext .mi {
+  font-size: 18px;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.mh-track__actions {
+  display: flex;
+  gap: var(--space-sm);
+  width: 100%;
+  margin-top: 8px;
+}
+
+.mh-track__actions .btn {
+  flex: 1;
+}
+
+/* ---- Vertical status timeline ---- */
+.mh-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.mh-timeline__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 40px;
+  opacity: 0.45;
+}
+
+.mh-timeline__item.is-done {
+  opacity: 1;
+}
+
+.mh-timeline__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--color-line);
+  color: #fff;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.mh-timeline__dot .mi {
+  font-size: 15px;
+}
+
+.mh-timeline__item.is-done .mh-timeline__dot {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.mh-timeline__line {
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: -16px;
+  width: 2px;
+  background: var(--color-line);
+}
+
+.mh-timeline__item.is-done .mh-timeline__line {
+  background: var(--color-primary);
+}
+
+.mh-timeline__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink);
+}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { subscribeToBooking, subscribeToBookingStatusHistory } from "@/services/bookingService";
 import type { Booking, BookingStatus, BookingStatusHistoryEntry } from "@/types/booking";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import { formatCurrencyInr } from "@/services/pricingService";
 
 const TIMELINE: BookingStatus[] = [
   "confirmed",
@@ -33,11 +34,17 @@ const STEP_LABELS: Record<BookingStatus, string> = {
   refunded: "Refunded",
 };
 
-// Realtime: no manual refresh needed. When the (future) admin panel
-// updates bookingStatus in Firestore, this listener pushes the change
-// here immediately via onSnapshot.
+// Realtime: no manual refresh needed. When the admin panel updates
+// bookingStatus, this listener pushes the change here immediately.
 export default function TrackBookingPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
+  const location = useLocation();
+  // Only true for the one navigation BookingFlowPage makes right after
+  // creating this booking - set via router state, not derived from
+  // status, so revisiting a saved tracking link later never re-shows
+  // the "just booked" fanfare for an old booking that happens to still
+  // be sitting at "confirmed".
+  const justBooked = Boolean((location.state as { justBooked?: boolean } | null)?.justBooked);
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [history, setHistory] = useState<BookingStatusHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -59,9 +66,60 @@ export default function TrackBookingPage() {
   const currentIndex = TIMELINE.indexOf(booking.bookingStatus);
 
   return (
-    <div style={{ display: "grid", gap: "var(--space-lg)" }}>
+    <div className="mh-track">
+      {justBooked && booking.bookingStatus !== "cancelled" && booking.bookingStatus !== "refunded" && (
+        <div className="mh-track__success">
+          <span className="mh-track__success-icon" aria-hidden="true">
+            <span className="mi">check_circle</span>
+          </span>
+          <h1 className="mh-track__success-title">Booking Confirmed!</h1>
+          <p className="mh-track__success-id">Booking ID: {booking.id}</p>
+
+          <div className="mh-track__summary">
+            {booking.items.map((it, i) => (
+              <div className="mh-order-summary__row" key={i}>
+                <span>{it.name}</span>
+                <span>{formatCurrencyInr(it.price)}</span>
+              </div>
+            ))}
+            <hr className="mh-order-summary__rule" />
+            <div className="mh-order-summary__row">
+              <span>Date</span>
+              <span>{new Date(booking.date).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</span>
+            </div>
+            <div className="mh-order-summary__row">
+              <span>{booking.collectionType === "home" ? "Address" : "Collection"}</span>
+              <span>{booking.collectionType === "home" ? booking.contact?.address ?? "Home collection" : "Center visit"}</span>
+            </div>
+            <div className="mh-order-summary__row is-total">
+              <span>Total Amount</span>
+              <span>{formatCurrencyInr(booking.finalAmount)}</span>
+            </div>
+            <div className="mh-order-summary__row">
+              <span>Payment</span>
+              <span>Cash on Home</span>
+            </div>
+          </div>
+
+          <p className="mh-track__whatsnext">
+            <span className="mi" aria-hidden="true">info</span>
+            What's next: our team will assign a collector and reach out before arrival. Track every
+            step live on this page.
+          </p>
+
+          <div className="mh-track__actions">
+            <Link className="btn btn-outline" to="/bookings">
+              View My Bookings
+            </Link>
+            <Link className="btn btn-primary" to="/">
+              Back to Home
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div>
-        <h1 style={{ fontSize: "var(--text-2xl)" }}>Tracking {booking.id}</h1>
+        <h1 style={{ fontSize: "var(--text-xl)" }}>{justBooked ? "Live Status" : `Tracking ${booking.id}`}</h1>
         <p className="text-soft">{STEP_LABELS[booking.bookingStatus]}</p>
       </div>
 
@@ -82,26 +140,14 @@ export default function TrackBookingPage() {
       ) : booking.bookingStatus === "cancelled" || booking.bookingStatus === "refunded" ? (
         <div className="card">{STEP_LABELS[booking.bookingStatus]}</div>
       ) : (
-        <ol style={{ listStyle: "none", padding: 0, display: "grid", gap: "var(--space-sm)" }}>
+        <ol className="mh-timeline">
           {TIMELINE.map((status, i) => (
-            <li
-              key={status}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-sm)",
-                opacity: i <= currentIndex ? 1 : 0.4,
-              }}
-            >
-              <span
-                className="mi"
-                style={{
-                  color: i <= currentIndex ? "var(--color-primary)" : "var(--color-ink-soft)",
-                }}
-              >
-                {i <= currentIndex ? "check_circle" : "radio_button_unchecked"}
+            <li key={status} className={`mh-timeline__item${i <= currentIndex ? " is-done" : ""}`}>
+              <span className="mh-timeline__dot" aria-hidden="true">
+                <span className="mi">{i <= currentIndex ? "check" : ""}</span>
               </span>
-              {STEP_LABELS[status]}
+              {i < TIMELINE.length - 1 && <span className="mh-timeline__line" aria-hidden="true" />}
+              <span className="mh-timeline__label">{STEP_LABELS[status]}</span>
             </li>
           ))}
         </ol>
