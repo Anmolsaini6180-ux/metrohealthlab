@@ -48,18 +48,25 @@ export default function TrackBookingPage() {
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [history, setHistory] = useState<BookingStatusHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Bumping this re-runs the effect below, tearing down and
+  // re-establishing both subscriptions from scratch — the actual
+  // "safe re-fetch" a transient Realtime disconnect needs, since these
+  // are live subscriptions (no promise to just retry) rather than a
+  // one-shot fetch.
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!bookingId) return;
+    setError(null);
     const unsubBooking = subscribeToBooking(bookingId, setBooking, (e) => setError(e.message));
     const unsubHistory = subscribeToBookingStatusHistory(bookingId, setHistory, (e) => setError(e.message));
     return () => {
       unsubBooking();
       unsubHistory();
     };
-  }, [bookingId]);
+  }, [bookingId, retryKey]);
 
-  if (error) return <ErrorState message={error} />;
+  if (error) return <ErrorState message={error} onRetry={() => setRetryKey((k) => k + 1)} />;
   if (booking === undefined) return <LoadingState label="Loading tracking..." />;
   if (booking === null) return <EmptyState icon="search_off" title="Booking not found" />;
 

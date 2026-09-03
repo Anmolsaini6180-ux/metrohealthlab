@@ -268,8 +268,23 @@ function BookingDetail({
   businessName: string;
   onClose: () => void;
 }) {
-  const message = buildWhatsAppBookingMessage(booking, businessName);
+  const { showToast } = useToast();
+  // Seeded from the real booking, then editable — a staff member
+  // proofreading before it goes out (fixing a typo'd address, adding a
+  // line) shouldn't have to leave this dialog to do it. The WhatsApp
+  // link and Copy button below always use the CURRENT text in this
+  // box, not the original generated one.
+  const [message, setMessage] = useState(() => buildWhatsAppBookingMessage(booking, businessName));
   const waLink = booking.contact?.phone ? buildWhatsAppLink(booking.contact.phone, message) : null;
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(message);
+      showToast("Message copied.");
+    } catch {
+      showToast("Couldn't copy — select and copy the text manually.", "error");
+    }
+  }
 
   return (
     <div className="mh-icon-picker" role="dialog" aria-modal="true" aria-label={`Booking ${booking.id}`} onClick={onClose}>
@@ -307,27 +322,29 @@ function BookingDetail({
 
           <BookingActions booking={booking} actorUid={actorUid} />
 
-          {waLink && (
-            <a className="btn btn-outline" href={waLink} target="_blank" rel="noreferrer">
-              Share booking on WhatsApp
-            </a>
-          )}
-
-          <details>
-            <summary style={{ cursor: "pointer", fontSize: "var(--text-sm)" }}>Booking summary text</summary>
-            <pre
-              style={{
-                whiteSpace: "pre-wrap",
-                fontSize: "var(--text-xs)",
-                background: "var(--color-bg-tint)",
-                padding: "var(--space-sm)",
-                borderRadius: "var(--radius-sm)",
-                marginTop: 6,
-              }}
-            >
-              {message}
-            </pre>
-          </details>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: "var(--text-sm)", marginBottom: 4 }}>WhatsApp message</p>
+            <textarea
+              rows={8}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              style={{ width: "100%", fontSize: "var(--text-xs)", fontFamily: "monospace" }}
+            />
+            <div style={{ display: "flex", gap: "var(--space-sm)", marginTop: 6, flexWrap: "wrap" }}>
+              <button type="button" className="btn btn-outline" onClick={handleCopy}>
+                Copy
+              </button>
+              {waLink ? (
+                <a className="btn btn-outline" href={waLink} target="_blank" rel="noreferrer">
+                  Open in WhatsApp
+                </a>
+              ) : (
+                <span className="text-soft" style={{ fontSize: "var(--text-xs)", alignSelf: "center" }}>
+                  No phone number on file — add one to enable the WhatsApp link.
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

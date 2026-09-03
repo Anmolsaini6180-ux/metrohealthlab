@@ -627,6 +627,23 @@ button.card:hover {
   color: var(--color-primary);
 }
 
+/* A clickable stat card (AdminDashboardPage's booking-status counts,
+   linking through to the same real data pre-filtered) — same look as
+   a plain .mh-stat-card, since it's an <a>, plus a hover/focus cue so
+   it doesn't read as just another number. */
+.mh-stat-card--link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.mh-stat-card--link:hover,
+.mh-stat-card--link:focus-visible {
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
 .mh-quick-action {
   display: flex;
   flex-direction: column;

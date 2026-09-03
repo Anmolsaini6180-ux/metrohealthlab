@@ -10,6 +10,15 @@ export async function getAddresses(userId: string): Promise<Address[]> {
   return (data ?? []).map(rowToAddress);
 }
 
+/** For rendering a booking's collection address from its stored
+ * addressId — RLS (own address, or staff) scopes this the same as
+ * getAddresses. */
+export async function getAddressById(addressId: string): Promise<Address | null> {
+  const { data, error } = await getSupabaseClient().from("addresses").select("*").eq("id", addressId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToAddress(data) : null;
+}
+
 export async function addAddress(
   userId: string,
   data: Omit<Address, "id" | "userId" | "createdAt" | "updatedAt">

@@ -172,6 +172,20 @@ describe("buildWhatsAppBookingMessage", () => {
     expect(fields.customerName).toBe("Asha Verma");
     expect(fields.customerPhone).toBe("9876543210");
   });
+
+  // This is the customer-facing message text (shared over WhatsApp,
+  // outside the app entirely) — tp must never reach it even though the
+  // function is handed the full booking object, tp included.
+  it("never includes tp, even when the booking's items carry it", () => {
+    const withTp = {
+      ...booking,
+      items: [{ ...booking.items[0], tp: 700 }],
+    } as unknown as Booking;
+    const msg = buildWhatsAppBookingMessage(withTp, "Metro Health Lab");
+    expect(msg).not.toContain("700");
+    expect(msg.toLowerCase()).not.toContain("tp");
+    expect(msg.toLowerCase()).not.toContain("margin");
+  });
 });
 
 describe("buildWhatsAppLink", () => {

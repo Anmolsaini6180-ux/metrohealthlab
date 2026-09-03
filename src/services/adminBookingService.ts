@@ -19,7 +19,13 @@ export interface GetAdminBookingsRequest {
   filterSubAdminId?: string;
   filterAgentId?: string;
   filterLabId?: string;
-  filterBookingStatus?: string;
+  /**
+   * A single real booking_status, or several — e.g. the dashboard's
+   * "Pending" card covers both payment_pending and confirmed, and
+   * "Cancelled" covers both cancelled and refunded. Never a status
+   * this app doesn't actually have; see BookingStatus.
+   */
+  filterBookingStatus?: string | string[];
   filterPaymentStatus?: string;
 }
 
@@ -39,7 +45,11 @@ export async function getAdminBookings(payload: GetAdminBookingsRequest): Promis
   if (payload.filterSubAdminId) query = query.eq("assigned_sub_admin_id", payload.filterSubAdminId);
   if (payload.filterAgentId) query = query.eq("assigned_agent_id", payload.filterAgentId);
   if (payload.filterLabId) query = query.eq("lab_id", payload.filterLabId);
-  if (payload.filterBookingStatus) query = query.eq("booking_status", payload.filterBookingStatus);
+  if (payload.filterBookingStatus) {
+    query = Array.isArray(payload.filterBookingStatus)
+      ? query.in("booking_status", payload.filterBookingStatus)
+      : query.eq("booking_status", payload.filterBookingStatus);
+  }
   if (payload.filterPaymentStatus) query = query.eq("payment_status", payload.filterPaymentStatus);
 
   const { data, error } = await query;

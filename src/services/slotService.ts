@@ -25,6 +25,15 @@ export async function getAvailableSlots(areaId: string, date: string, collection
   return withAvailability(await fetchSlots(areaId, date, collectionType));
 }
 
+/** For rendering a booking's collection time window from its stored
+ * slotId. Slots are public-read (see slots_public_read) — no
+ * customer-specific data lives on this table. */
+export async function getSlotById(slotId: string): Promise<Slot | null> {
+  const { data, error } = await getSupabaseClient().from("slots").select("*").eq("id", slotId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToSlot(data) : null;
+}
+
 // Realtime slot availability so two customers booking the last slot at
 // once see capacity update live. Actual overbooking prevention happens
 // server-side in the create_website_booking RPC's atomic UPDATE ...

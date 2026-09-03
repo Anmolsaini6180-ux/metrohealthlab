@@ -1,6 +1,8 @@
 import { Link, useParams } from "react-router-dom";
 import { useAsync } from "@/hooks/useAsync";
 import { getBookingById } from "@/services/bookingService";
+import { getAddressById } from "@/services/addressService";
+import { getSlotById } from "@/services/slotService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { pendingFor } from "@/utils/bookingMetrics";
 import LoadingState from "@/components/common/LoadingState";
@@ -10,12 +12,22 @@ import EmptyState from "@/components/common/EmptyState";
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const booking = useAsync(() => getBookingById(id!), [id]);
+  const b = booking.data;
+  // Both are id-only lookups off the loaded booking — deliberately
+  // separate requests rather than a join, since bookingService.ts's
+  // own read stays a single BOOKING_SELECT the customer read path
+  // already relies on elsewhere (see the tp migration's comment there
+  // on why that select is explicit rather than a wildcard).
+  const address = useAsync(
+    () => (b?.collectionType === "home" && b.addressId ? getAddressById(b.addressId) : Promise.resolve(null)),
+    [b?.addressId, b?.collectionType]
+  );
+  const slot = useAsync(() => (b?.slotId ? getSlotById(b.slotId) : Promise.resolve(null)), [b?.slotId]);
 
   if (booking.loading) return <LoadingState label="Loading booking..." />;
   if (booking.error) return <ErrorState message={booking.error} onRetry={booking.retry} />;
-  if (!booking.data) return <EmptyState icon="search_off" title="Booking not found" />;
+  if (!b) return <EmptyState icon="search_off" title="Booking not found" />;
 
-  const b = booking.data;
   const pendingAmount = pendingFor(b);
 
   return (
@@ -32,6 +44,23 @@ export default function BookingDetailPage() {
       </div>
 
       <div className="card" style={{ display: "grid", gap: 4 }}>
+        <Row label="Slot" value={slot.data ? `${slot.data.startTime} – ${slot.data.endTime}` : slot.loading ? "Loading…" : "—"} />
+        {b.collectionType === "home" && (
+          <Row
+            label="Address"
+            value={
+              address.data
+                ? `${address.data.house}, ${address.data.street}, ${address.data.area}, ${address.data.city} ${address.data.pincode}`
+                : address.loading
+                  ? "Loading…"
+                  : "—"
+            }
+          />
+        )}
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 4 }}>
+        <Row label="Status" value={b.bookingStatus.replace(/_/g, " ")} />
         <Row label="Subtotal" value={formatCurrencyInr(b.subtotal)} />
         <Row label="Collection fee" value={formatCurrencyInr(b.collectionFee)} />
         <Row label="Discount" value={`- ${formatCurrencyInr(b.discount)}`} />

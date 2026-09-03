@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
@@ -121,6 +122,18 @@ export default function AdminDashboardPage() {
     return [...map.entries()].map(([label, value]) => ({ label, value }));
   }, [bookings.data]);
 
+  // Carries this dashboard's own selected date range along so "Pending"
+  // means the same set of bookings on both screens — AdminBookingsPage
+  // seeds its query from these params, though its DateRangePicker
+  // widget itself still shows its own default preset highlighted
+  // (a cosmetic gap: the picker has no prop for an initial value; the
+  // underlying filtered data is correct regardless).
+  function bookingsLink(status?: string): string {
+    const params = new URLSearchParams({ start: range.startDate, end: range.endDate });
+    if (status) params.set("status", status);
+    return `/admin/bookings?${params.toString()}`;
+  }
+
   return (
     <div style={{ display: "grid", gap: "var(--space-lg)" }}>
       <div className="mh-page-head">
@@ -171,15 +184,15 @@ export default function AdminDashboardPage() {
       {bookings.data && (
         <>
           <div className="mh-stat-grid">
-            <Stat label="Total bookings" value={stats.total} />
-            <Stat label="Completed" value={stats.completed} />
-            <Stat label="Pending" value={stats.pending} />
-            <Stat label="Cancelled" value={stats.cancelled} />
+            <Stat label="Total bookings" value={stats.total} to={bookingsLink()} />
+            <Stat label="Completed" value={stats.completed} to={bookingsLink("completed")} />
+            <Stat label="Pending" value={stats.pending} to={bookingsLink("payment_pending,confirmed")} />
+            <Stat label="Cancelled" value={stats.cancelled} to={bookingsLink("cancelled,refunded")} />
             <Stat label="Customers" value={stats.customers} />
             <Stat label="Collections done" value={stats.collections} />
-            <Stat label="Reports ready" value={stats.reportsReady} />
-            <Stat label="Active tests" value={activeTests.data?.length ?? (activeTests.loading ? "…" : 0)} />
-            <Stat label="Active packages" value={activePackages.data?.length ?? (activePackages.loading ? "…" : 0)} />
+            <Stat label="Reports ready" value={stats.reportsReady} to={bookingsLink("report_ready")} />
+            <Stat label="Active tests" value={activeTests.data?.length ?? (activeTests.loading ? "…" : 0)} to="/admin/tests" />
+            <Stat label="Active packages" value={activePackages.data?.length ?? (activePackages.loading ? "…" : 0)} to="/admin/packages" />
           </div>
 
           <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
@@ -215,11 +228,22 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="mh-stat-card">
+function Stat({ label, value, to }: { label: string; value: string | number; to?: string }) {
+  const content = (
+    <>
       <div className="mh-stat-card__value" style={{ fontSize: "var(--text-xl)" }}>{value}</div>
       <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{label}</p>
-    </div>
+    </>
+  );
+  // Real data only: every `to` link points at Booking Management
+  // filtered to the SAME real booking_status value(s) this number was
+  // just counted from (see bookingsLink above) — never a local label
+  // swap that could drift from what's actually in Supabase.
+  return to ? (
+    <Link to={to} className="mh-stat-card mh-stat-card--link">
+      {content}
+    </Link>
+  ) : (
+    <div className="mh-stat-card">{content}</div>
   );
 }

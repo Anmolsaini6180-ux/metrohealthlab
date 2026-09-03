@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
 import { assignBooking, getAdminBookings, getBookingStatusHistory, updateBookingStatus } from "@/services/adminBookingService";
@@ -31,6 +32,15 @@ const STATUS_LABELS: Record<string, string> = {
   refunded: "Refunded",
 };
 
+// Matches the buckets AdminDashboardPage's own "Pending"/"Cancelled"
+// stat cards compute (neither is a single real booking_status) — one
+// dropdown entry and one shareable ?status= value per bucket, rather
+// than inventing a status the database doesn't have.
+const STATUS_GROUPS: { value: string; label: string }[] = [
+  { value: "payment_pending,confirmed", label: "Pending (awaiting payment + confirmed)" },
+  { value: "cancelled,refunded", label: "Cancelled + refunded" },
+];
+
 const FORWARD_SEQUENCE: BookingStatus[] = [
   "assigned", "on_the_way", "arrived", "sample_collected", "received_at_lab", "testing", "report_ready", "completed",
 ];
@@ -47,15 +57,47 @@ export default function AdminBookingsPage() {
   const staff = useAdminRole();
   const { role } = staff;
   const { showToast } = useToast();
-  const [range, setRange] = useState<DateRange>(() => resolveDateRange("today"));
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  // Seeded from ?status=/?start=/?end= so a link like
+  // /admin/bookings?status=pending (or a comma-joined group, e.g.
+  // payment_pending,confirmed) lands pre-filtered — the click-through
+  // target for AdminDashboardPage's stat cards. statusFilter is kept
+  // in sync with the URL both ways: changing the dropdown updates the
+  // querystring too, so the filtered view stays shareable/bookmarkable
+  // and survives a page reload. The date range is read once on
+  // mount only — DateRangePicker owns its own preset state after
+  // that and has no prop to keep re-syncing it from outside.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [range, setRange] = useState<DateRange>(() => {
+    const start = searchParams.get("start");
+    const end = searchParams.get("end");
+    return start && end ? { startDate: start, endDate: end } : resolveDateRange("today");
+  });
+  const [statusFilter, setStatusFilterState] = useState<string>(searchParams.get("status") ?? "");
+
+  function setStatusFilter(value: string) {
+    setStatusFilterState(value);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set("status", value);
+        else next.delete("status");
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const bookings = useAsync(
-    () => getAdminBookings({ ...range, filterBookingStatus: statusFilter || undefined }),
+    () =>
+      getAdminBookings({
+        ...range,
+        filterBookingStatus: statusFilter ? (statusFilter.includes(",") ? statusFilter.split(",") : statusFilter) : undefined,
+      }),
     [range.startDate, range.endDate, statusFilter]
   );
   const agents = useAsync(
@@ -120,14 +162,22 @@ export default function AdminBookingsPage() {
     <div>
       <h1 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-md)" }}>Bookings</h1>
 
-      <div style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+      <div style={{ display: "flex", gap: "var(--space-sm)", marginBottom: "var(--space-md)", flexWrap: "wrap", alignItems: "center" }}>
         <DateRangePicker onChange={(r) => setRange(r)} />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 220, padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 260, padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>
           <option value="">All statuses</option>
+          {STATUS_GROUPS.map((g) => (
+            <option key={g.value} value={g.value}>{g.label}</option>
+          ))}
           {Object.entries(STATUS_LABELS).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
+        {statusFilter && (
+          <button className="btn btn-outline" onClick={() => setStatusFilter("")}>
+            Clear status filter
+          </button>
+        )}
       </div>
 
       {actionError && <ErrorState message={actionError} />}
