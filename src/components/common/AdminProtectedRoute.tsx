@@ -5,10 +5,12 @@ import LoadingState from "./LoadingState";
 
 // Even a user who manually types /admin into the URL bar is rejected
 // here unless AuthProvider resolved a staff role for them out of
-// Firestore (system/config + users/{uid}) — the same two documents
-// firestore.rules re-reads on every request. There are no custom
-// claims in this project: it runs on the Spark plan, so there is no
-// Cloud Function to mint them.
+// Supabase (app_config + staff_roles, via the linked Supabase session)
+// — the same tables RLS re-reads on every request. There are no custom
+// Firebase Auth claims in this project: authorization lives entirely
+// in Supabase, checked by RLS and by can_manage_catalog()/similar
+// SECURITY DEFINER functions server-side, not by a Firebase ID token
+// claim.
 //
 // This is UX-level convenience only; the real enforcement is
 // server-side regardless of whether this component exists. It relies

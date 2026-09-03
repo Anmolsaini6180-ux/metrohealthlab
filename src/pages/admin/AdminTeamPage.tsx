@@ -293,12 +293,12 @@ export default function AdminTeamPage() {
   );
 }
 
-// Granting a role needs an account that already exists: on the Spark
-// plan there is no trusted server code that could safely hold a
-// pending, email-keyed role for somebody who has never signed in, so
-// the flow is "they sign in first, you grant second". The lookup goes
-// through the userEmails directory, which each person publishes for
-// their own verified address only.
+// Granting a role needs an account that already exists: profiles.email
+// is only populated once someone has actually signed in once (Google
+// or email/password), so the flow is "they sign in first, you grant
+// second". The lookup goes through the grant_staff_role_by_email RPC,
+// which reads profiles.email server-side and raises a clear error if
+// no matching account has ever signed in yet.
 function AddStaffForm({
   caller,
   creatableRoles,
