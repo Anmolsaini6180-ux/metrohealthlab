@@ -9,14 +9,12 @@ interface Props {
   tests: DiagnosticTest[];
 }
 
-// Horizontally scrolling shortcut row at the top of the home page.
-//
-// The price line under each name is real data, never invented: it uses
-// the category's own `subtitle` when an admin has written one (that is
-// what the field is for — "Up to 70% OFF"), and otherwise derives
-// "From ₹x" from the cheapest active test actually in that category.
-// A category with neither simply shows no second line.
-function priceLineFor(category: TestCategory, tests: DiagnosticTest[]): string | null {
+// The support line under each category name is real data, never
+// invented: the admin's own `subtitle` when one is written (that is
+// what the field is for — "Up to 70% OFF"), otherwise "From ₹x"
+// derived from the cheapest active test actually in that category. A
+// category with neither simply shows no second line.
+function supportLineFor(category: TestCategory, tests: DiagnosticTest[]): string | null {
   if (category.subtitle?.trim()) return category.subtitle.trim();
 
   const prices = tests.filter((t) => t.categoryId === category.id).map((t) => t.sellingPrice);
@@ -24,22 +22,41 @@ function priceLineFor(category: TestCategory, tests: DiagnosticTest[]): string |
   return `From ${formatCurrencyInr(Math.min(...prices))}`;
 }
 
+// Rotating tints so consecutive cards read as distinct panels rather
+// than one long stripe. Admins control copy and icon, never colour —
+// that is what keeps the rail on-brand as the catalogue grows.
+const TINTS = ["is-blue", "is-peach", "is-mint"] as const;
+
 export default function QuickCategories({ categories, tests }: Props) {
   if (categories.length === 0) return null;
 
   return (
-    <section>
-      <h2 className="mh-section-title">Quick Categories</h2>
-      <div className="mh-hscroll" role="list">
-        {categories.map((c) => {
-          const price = priceLineFor(c, tests);
+    <section className="mh-cats">
+      <div className="mh-section-head">
+        <h2 className="mh-section-title">Explore Top Categories</h2>
+        <Link to="/tests" className="mh-section-link">
+          View all
+        </Link>
+      </div>
+
+      <div className="mh-cats__rail" role="list">
+        {categories.map((c, i) => {
+          const support = supportLineFor(c, tests);
           return (
-            <Link key={c.id} role="listitem" to={`/tests?category=${c.id}`} className="mh-quickcat">
-              <span className="mh-quickcat__icon">
-                <CategoryIcon iconName={c.icon} size={26} color="var(--color-primary)" fallback="science" />
+            <Link
+              key={c.id}
+              role="listitem"
+              to={`/tests?category=${c.id}`}
+              className={`mh-cat-card ${TINTS[i % TINTS.length]}`}
+            >
+              <span className="mh-cat-card__icon">
+                <CategoryIcon iconName={c.icon} size={28} color="currentColor" fallback="science" />
               </span>
-              <span className="mh-quickcat__title">{c.name}</span>
-              {price && <span className="mh-quickcat__price">{price}</span>}
+              <span className="mh-cat-card__title">{c.name}</span>
+              {support && <span className="mh-cat-card__support">{support}</span>}
+              <span className="mh-cat-card__go" aria-hidden="true">
+                <span className="mi">arrow_forward</span>
+              </span>
             </Link>
           );
         })}

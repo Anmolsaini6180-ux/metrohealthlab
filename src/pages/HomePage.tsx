@@ -9,7 +9,8 @@ import CardGridSkeleton from "@/components/common/CardGridSkeleton";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import QuickCategories from "@/components/home/QuickCategories";
-import BannerCarousel from "@/components/home/BannerCarousel";
+import HeroBanner from "@/components/home/HeroBanner";
+import DoorstepPromo from "@/components/home/DoorstepPromo";
 import PackageShowcase from "@/components/home/PackageShowcase";
 import {
   CompareLabsPromo,
@@ -52,15 +53,18 @@ export default function HomePage() {
 
   return (
     <div className="mh-home">
-      {/* ---- Quick categories ---- */}
+      {/* ---- Hero ---- */}
+      {banners.loading && <LoadingState rows={1} label="Loading offers..." />}
+      {banners.error && <ErrorState message={banners.error} onRetry={banners.retry} />}
+      {banners.data && <HeroBanner banners={banners.data} labCount={labs.data?.length ?? 0} />}
+
+      {/* ---- Categories ---- */}
       {categories.loading && <LoadingState rows={1} label="Loading categories..." />}
       {categories.error && <ErrorState message={categories.error} onRetry={categories.retry} />}
       {categories.data && <QuickCategories categories={quickCategories} tests={testList} />}
 
-      {/* ---- Offer carousel ---- */}
-      {banners.loading && <LoadingState rows={1} label="Loading offers..." />}
-      {banners.error && <ErrorState message={banners.error} onRetry={banners.retry} />}
-      {banners.data && <BannerCarousel banners={banners.data} />}
+      {/* ---- Doorstep reassurance ---- */}
+      <DoorstepPromo />
 
       {/* ---- Packages ---- */}
       {packages.loading && <CardGridSkeleton count={3} variant="package" />}
