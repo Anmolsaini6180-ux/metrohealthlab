@@ -1,35 +1,18 @@
 import {
   getAuth,
-  GoogleAuthProvider,
   RecaptchaVerifier,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signInWithPhoneNumber,
-  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
   type Auth,
   type User,
   type ConfirmationResult,
 } from "firebase/auth";
-
-export interface GoogleSignInResult {
-  user: User;
-  /**
-   * The Google-issued OIDC ID token from this same popup, when Firebase
-   * exposes one. Firestore's rules only ever trust a Firebase ID token
-   * (this sign-in provides that, unchanged), but this raw Google token
-   * is ALSO usable to establish a Supabase session for the same
-   * Google identity via supabase.auth.signInWithIdToken — one consent
-   * screen, two sessions, no second popup/redirect. null when Firebase
-   * did not return one (older/less common credential shapes); callers
-   * must treat that as "Supabase linking unavailable this sign-in",
-   * never as a sign-in failure.
-   */
-  googleIdToken: string | null;
-}
 import { getFirebaseApp } from "./config";
+
+// Phone OTP only — Google and email/password moved to Supabase Auth
+// entirely (see src/supabase/auth.ts and authService.ts). This is the
+// one thing kept here because Supabase has no free SMS provider.
 
 let auth: Auth | null = null;
 
@@ -42,27 +25,6 @@ export function getFirebaseAuth(): Auth {
 
 export function subscribeToAuthChanges(callback: (user: User | null) => void) {
   return onAuthStateChanged(getFirebaseAuth(), callback);
-}
-
-export async function signInWithGoogle(): Promise<GoogleSignInResult> {
-  const provider = new GoogleAuthProvider();
-  const result = await signInWithPopup(getFirebaseAuth(), provider);
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  return { user: result.user, googleIdToken: credential?.idToken ?? null };
-}
-
-export async function signInWithEmail(email: string, password: string): Promise<User> {
-  const result = await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
-  return result.user;
-}
-
-export async function registerWithEmail(email: string, password: string): Promise<User> {
-  const result = await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
-  return result.user;
-}
-
-export async function resetPassword(email: string): Promise<void> {
-  await sendPasswordResetEmail(getFirebaseAuth(), email);
 }
 
 // Phone/OTP auth needs an invisible reCAPTCHA bound to a DOM node that

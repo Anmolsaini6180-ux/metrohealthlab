@@ -1,22 +1,20 @@
-// Supabase-backed. profiles.id is the Supabase auth uuid — never the
-// Firebase uid — same bridge every other customer-data table uses
-// (see src/supabase/identity.ts's header comment for why a Firebase
-// uid must never be written into a uuid column).
+// Supabase-backed. profiles.id is the Supabase auth uuid. For an
+// email/Google account that IS the account's one real identity now —
+// no Firebase bridge involved at all, since Supabase Auth is the only
+// system that ever authenticated it.
 //
-// A Firebase account with no linked Supabase session yet has no
-// profiles row it could own. That is only ever true for a phone-only
-// sign-in (Supabase has no free SMS provider, so no Supabase session
-// is ever established for one) or the brief instant before Google/
-// email linking settles. For that case this falls back to a live,
-// unpersisted view built directly from the Firebase user record —
-// exactly the fields Firestore ever held for that account, and
-// harmless not to persist since this app has no profile-editing
-// screen a phone-only user could reach anyway.
+// A phone-only account (Supabase has no free SMS provider, so no
+// Supabase session is ever established for one) has no profiles row it
+// could own — there is nothing to bridge to. For that case this falls
+// back to a live, unpersisted view built directly from the Firebase
+// user record, exactly the fields this app has ever shown for that
+// account, and harmless not to persist since there is no profile-
+// editing screen a phone-only user could reach anyway.
 import { getSupabaseClient } from "@/supabase/client";
 import type { UserProfile } from "@/types/user";
-import type { User } from "firebase/auth";
+import type { AppUser } from "@/types/authUser";
 
-function fromFirebaseUser(user: User, extraFields?: Partial<Pick<UserProfile, "name" | "phone">>): UserProfile {
+function fromAppUser(user: AppUser, extraFields?: Partial<Pick<UserProfile, "name" | "phone">>): UserProfile {
   return {
     id: user.uid,
     ...(user.displayName ? { name: user.displayName } : {}),
@@ -53,20 +51,21 @@ export async function getUserProfile(supabaseUserId: string): Promise<UserProfil
 }
 
 /**
- * Called right after sign-in so every authenticated account with a
- * linked Supabase session has a profiles row to hang patients/
- * addresses/bookings off of (profiles_insert_self RLS allows exactly
- * this: a freshly authenticated user writing their own row, no
- * service-role key involved).
+ * Called right after sign-in so every Supabase-authenticated account
+ * has a profiles row to hang patients/addresses/bookings off of
+ * (profiles_insert_self RLS allows exactly this: a freshly
+ * authenticated user writing their own row, no service-role key
+ * involved). `supabaseUserId` is null only for a phone-only account,
+ * which has no row to write.
  *
- * KNOWN RACE, FIXED (kept from the Firestore version of this file):
- * AuthProvider's onAuthStateChanged handler calls this on every
- * sign-in, including the very same sign-in registerAndLoginWithEmail
- * just performed — the two calls can run concurrently. extraFields
- * lets a caller that already knows name/phone (i.e.
- * registerAndLoginWithEmail) include them in this same write; the
- * upsert is safe regardless of which of the two concurrent calls lands
- * second, since neither ever clears a column it doesn't mention.
+ * KNOWN RACE, FIXED: AuthProvider's onAuthStateChanged handler calls
+ * this on every sign-in, including the very same sign-in
+ * registerAndLoginWithEmail just performed — the two calls can run
+ * concurrently. extraFields lets a caller that already knows name/
+ * phone (i.e. registerAndLoginWithEmail) include them in this same
+ * write; the upsert is safe regardless of which of the two concurrent
+ * calls lands second, since neither ever clears a column it doesn't
+ * mention.
  *
  * If nothing has changed since the last call (no extraFields, and a
  * row already exists), this returns the existing row without writing
@@ -75,29 +74,21 @@ export async function getUserProfile(supabaseUserId: string): Promise<UserProfil
  */
 export async function ensureUserProfile(
   supabaseUserId: string | null,
-  user: User,
+  user: AppUser,
   extraFields?: Partial<Pick<UserProfile, "name" | "phone">>
 ): Promise<UserProfile> {
-  if (!supabaseUserId) return fromFirebaseUser(user, extraFields);
+  if (!supabaseUserId) return fromAppUser(user, extraFields);
 
   const existing = await getUserProfile(supabaseUserId);
   if (existing && !extraFields) return existing;
 
   const patch: Record<string, unknown> = {
     id: supabaseUserId,
-    // Always kept in sync with the live Firebase session, same as
-    // ensureLinkedSupabaseProfile in authService.ts — this is the one
-    // column getSupabaseUserId() checks to bridge Firebase -> Supabase
-    // identity for every customer-data query. Never omit it: a row
-    // that exists but has the wrong (or no) firebase_uid makes every
-    // subsequent booking/patient/address/report lookup for this
-    // account silently resolve to nothing.
-    firebase_uid: user.uid,
     ...(user.email ? { email: user.email } : {}),
     ...(!existing && user.displayName ? { name: user.displayName } : {}),
     ...(!existing && user.phoneNumber ? { phone: user.phoneNumber } : {}),
     ...(!existing && user.photoURL ? { photo_url: user.photoURL } : {}),
-    // Explicit signup-form values win over whatever Firebase itself
+    // Explicit signup-form values win over whatever the provider itself
     // carried (a Google account's displayName, for instance).
     ...(extraFields?.name ? { name: extraFields.name } : {}),
     ...(extraFields?.phone ? { phone: extraFields.phone } : {}),

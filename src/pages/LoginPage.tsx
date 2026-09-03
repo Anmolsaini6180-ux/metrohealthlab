@@ -46,11 +46,13 @@ export default function LoginPage() {
     setGoogleBusy(true);
     setGoogleError(null);
     try {
-      await loginWithGoogle();
-      navigate(from, { replace: true });
+      // Redirects the whole browser to Google and back to `from`
+      // directly — there is no signed-in user to navigate with here
+      // the way email/password has; a successful call never reaches
+      // the line after it because the page has already navigated away.
+      await loginWithGoogle(`${window.location.origin}${from}`);
     } catch (err) {
       setGoogleError(toUserMessage(err));
-    } finally {
       setGoogleBusy(false);
     }
   }

@@ -1,175 +1,98 @@
-// Thin convenience layer over firebase/auth.ts, now ALSO establishing
-// a Supabase session alongside every Google/email sign-in. Post-sign-in
-// setup (profile upsert, resolving the staff role) is centralized in
-// AuthProvider's onAuthStateChanged subscription — see useAuth.tsx —
-// NOT duplicated here.
+// Supabase Auth is now the canonical, only runtime session for
+// email/password and Google — the identity that unlocks every piece of
+// real data (bookings, patients, addresses, reports, notifications,
+// profile) IS the session itself now, with no Firebase-uid bridge
+// required for either of those two methods.
 //
-// WHY BOTH PROVIDERS, STILL: Firebase Phone OTP has no Supabase
-// equivalent (no free SMS provider), so Firebase stays the one session
-// every account has, and identity (`user.uid`) stays Firebase-shaped.
-// But every piece of real data — bookings, patients, addresses,
-// reports, notifications, the customer profile itself — lives in
-// Supabase now, keyed by the linked Supabase session's uuid
-// (supabaseUserId), never user.uid. Supabase also supplies
-// authorization (SUPER_ADMIN/staff, via app_config/staff_roles — see
-// src/supabase/roleService.ts).
+// WHY FIREBASE STILL EXISTS AT ALL: Phone OTP has no Supabase
+// equivalent (no free SMS provider configured, and none will be
+// fabricated) — Firebase Phone Auth is the one thing genuinely kept.
+// A phone-only account normalizes to the same AppUser shape (see
+// src/types/authUser.ts) so every consumer of useAuth().user reads the
+// same five fields regardless of which provider actually authenticated
+// the session; only `provider` tells them apart.
 //
-// Every Supabase-linking step below is BEST EFFORT and never blocks or
-// fails a sign-in that Firebase itself accepted: if Supabase is briefly
-// unreachable, the customer still gets a fully working Firebase
-// session — they simply resolve to "no staff role" and a phone-only-
-// style profile view until the Supabase side reconciles, which is the
-// correct fail-closed behaviour for anyone who was not already an
-// authorized admin.
-//
-// Google never links by email in OUR code — the email-based matching
-// happens entirely inside Supabase's own signInWithIdToken (its
-// documented identity-linking behaviour), which is what correctly
-// reattaches to the account Phase D's migration pre-created. The
-// AUTHORITATIVE mapping this app relies on is still profiles.firebase_uid,
-// checked explicitly in resolveStaffContextForFirebaseUser.
-import type { User } from "firebase/auth";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+// Google's redirect (supabase.auth.signInWithOAuth) navigates the
+// browser away immediately — there is no user to return from
+// loginWithGoogle() the way a popup had one. useAuth.tsx's
+// onAuthStateChange subscription is what actually observes the session
+// once the browser comes back; callers must not expect a synchronous
+// result from Google sign-in the way email/password still has.
 import {
-  confirmOtp,
   createRecaptchaVerifier,
-  registerWithEmail,
-  resetPassword,
   sendOtp,
-  signInWithEmail,
-  signInWithGoogle,
-  signOutUser,
+  confirmOtp,
+  signOutUser as firebaseSignOutUser,
 } from "@/firebase/auth";
-import { ensureUserProfile } from "./userService";
 import {
+  signInWithGoogle as supabaseSignInWithGoogle,
   signInWithEmail as supabaseSignInWithEmail,
-  signInWithGoogleIdToken,
   registerWithEmail as supabaseRegisterWithEmail,
+  resetPassword as supabaseResetPassword,
   signOutUser as supabaseSignOutUser,
 } from "@/supabase/auth";
-import { getSupabaseClient } from "@/supabase/client";
+import { ensureUserProfile } from "./userService";
+import { fromFirebasePhoneUser, fromSupabaseUser, type AppUser } from "@/types/authUser";
+
+export { createRecaptchaVerifier, sendOtp };
+export { updateUserPassword } from "@/supabase/auth";
+
+/** Kicks off the redirect to Google. Resolves once the browser has
+ * started navigating away (or throws immediately on a real
+ * configuration/network failure) — it does NOT resolve with a signed-in
+ * user. useAuth.tsx observes the actual sign-in after Google redirects
+ * back. `redirectTo` should be the full destination URL (origin + the
+ * path the caller wants to land on) so the user comes back exactly
+ * where they meant to go, not always the homepage. */
+export async function loginWithGoogle(redirectTo?: string): Promise<void> {
+  await supabaseSignInWithGoogle(redirectTo);
+}
+
+export async function loginWithEmail(email: string, password: string): Promise<AppUser> {
+  const user = await supabaseSignInWithEmail(email, password);
+  return fromSupabaseUser(user);
+}
 
 /**
- * Upserts the caller's own `profiles` row after a Supabase session is
- * established. Without this, a BRAND NEW Google sign-in (there is no
- * `auth.users` trigger that creates one automatically — verified) gets
- * a working Supabase session but no `profiles` row at all, and every
- * customer-data table (patients/addresses/bookings/...) FKs to
- * `profiles.id` — the very first booking attempt fails with a foreign
- * key violation. registerAndLoginWithEmail already created this row
- * explicitly for the email-signup path; this closes the same gap for
- * Google, and cheaply re-confirms it for email sign-in too, in case an
- * account's Supabase user predates this row ever being created.
- *
- * Only touches id/firebase_uid/email — an upsert only overwrites the
- * columns actually passed, so name/phone/photo_url set elsewhere are
- * never clobbered. RLS's profiles_insert_self (`id = auth.uid()`)
- * covers exactly this: a freshly authenticated user writing their own
- * row, no service-role key involved.
+ * Signup has extra fields (name/phone from the form) to write
+ * immediately. Returns null — instead of throwing — when Supabase
+ * requires email confirmation before a session exists: the account was
+ * genuinely created, there is just no one to log in as yet. Callers
+ * must check for null and show a "check your email" state rather than
+ * assuming a signup always ends signed in.
  */
-async function ensureLinkedSupabaseProfile(supabaseUser: SupabaseUser, firebaseUid: string): Promise<void> {
-  try {
-    const { error } = await getSupabaseClient()
-      .from("profiles")
-      .upsert({ id: supabaseUser.id, firebase_uid: firebaseUid, email: supabaseUser.email ?? null }, { onConflict: "id" });
-    if (error) throw error;
-  } catch (err) {
-    console.error("[auth] Could not ensure a linked Supabase profile row:", err);
-  }
-}
-
-/** Never throws — logs and returns, so the caller's Firebase-based
- * sign-in (the one that actually matters for Firestore access) is
- * never blocked by a Supabase hiccup. */
-async function linkSupabaseSessionForGoogle(googleIdToken: string | null, firebaseUid: string): Promise<void> {
-  if (!googleIdToken) {
-    console.warn("[auth] No Google ID token available from this sign-in; Supabase authorization link skipped.");
-    return;
-  }
-  try {
-    const supabaseUser = await signInWithGoogleIdToken(googleIdToken);
-    await ensureLinkedSupabaseProfile(supabaseUser, firebaseUid);
-  } catch (err) {
-    console.error("[auth] Could not establish a Supabase session for this Google sign-in:", err);
-  }
-}
-
-async function linkSupabaseSessionForEmail(email: string, password: string, firebaseUid: string): Promise<void> {
-  try {
-    const supabaseUser = await supabaseSignInWithEmail(email, password);
-    await ensureLinkedSupabaseProfile(supabaseUser, firebaseUid);
-  } catch (err) {
-    console.error("[auth] Could not establish a Supabase session for this email sign-in:", err);
-  }
-}
-
-export async function loginWithGoogle(): Promise<User> {
-  const { user, googleIdToken } = await signInWithGoogle();
-  await linkSupabaseSessionForGoogle(googleIdToken, user.uid);
-  return user;
-}
-
-export async function loginWithEmail(email: string, password: string): Promise<User> {
-  const user = await signInWithEmail(email, password);
-  await linkSupabaseSessionForEmail(email, password, user.uid);
-  return user;
-}
-
-// Signup is the one exception that still needs its own ensureUserProfile
-// call: it has extra fields (name/phone from the signup form) to write
-// immediately, before anything else reads the profile back. Passed
-// directly into THIS SAME creating write (not a separate update
-// afterward — see ensureUserProfile's own header comment for the race
-// that used to cause) so there is no window where the row exists
-// without them. AuthProvider's own concurrent call moments later is
-// harmless — ensureUserProfile's upsert never clears a column it
-// doesn't mention, so whichever of the two calls lands second cannot
-// erase what the first wrote.
 export async function registerAndLoginWithEmail(
   email: string,
   password: string,
   profileFields?: { name?: string; phone?: string }
-): Promise<User> {
-  const user = await registerWithEmail(email, password);
+): Promise<AppUser | null> {
+  const { user, session } = await supabaseRegisterWithEmail(email, password);
+  if (!session) return null; // confirmation email sent; no session to act on yet
 
-  // Best effort, same non-blocking contract as sign-in: a brand new
-  // account with no live Supabase counterpart yet is still a fully
-  // working customer account (Firebase Auth session unaffected), just
-  // with no staff authority and a profile view that isn't persisted
-  // anywhere — correct, since a new signup is never staff, and
-  // ensureUserProfile below already handles a null supabaseUserId.
-  let supabaseUserId: string | null = null;
-  try {
-    const supabaseUser = await supabaseRegisterWithEmail(email, password);
-    supabaseUserId = supabaseUser.id;
-  } catch (err) {
-    console.error("[auth] Could not create a linked Supabase identity for this new account:", err);
-  }
-
-  await ensureUserProfile(supabaseUserId, user, profileFields);
-  return user;
+  const appUser = fromSupabaseUser(user);
+  await ensureUserProfile(user.id, appUser, profileFields);
+  return appUser;
 }
 
-export { resetPassword };
+export { supabaseResetPassword as resetPassword };
 
-export { createRecaptchaVerifier, sendOtp };
-
+/** Phone sign-in stays Firebase-only, unchanged — this is the one path
+ * that still produces a Firebase user, normalized to the same AppUser
+ * shape every other sign-in method returns. */
 export async function loginWithOtpConfirmation(
   confirmation: Parameters<typeof confirmOtp>[0],
   code: string
-): Promise<User> {
-  // Phone sign-in stays Firebase-only, unchanged. Supabase has no free
-  // SMS provider (see src/supabase/phoneBridge.ts), so there is no
-  // Supabase session to establish here — resolveStaffContextForFirebaseUser
-  // correctly treats "no Supabase session" as "customer, no staff role",
-  // which is the right answer: no phone-authenticated account is staff
-  // today.
-  return confirmOtp(confirmation, code);
+): Promise<AppUser> {
+  const user = await confirmOtp(confirmation, code);
+  return fromFirebasePhoneUser(user);
 }
 
+/** Signs out of both providers — harmless (a no-op, not an error) for
+ * whichever one was never signed in, since exactly one is ever active
+ * for a given session (Supabase for email/Google, Firebase for phone). */
 export async function logout(): Promise<void> {
   await Promise.all([
-    signOutUser(),
     supabaseSignOutUser().catch((err) => console.error("[auth] Could not clear the Supabase session on logout:", err)),
+    firebaseSignOutUser().catch((err) => console.error("[auth] Could not clear the Firebase session on logout:", err)),
   ]);
 }

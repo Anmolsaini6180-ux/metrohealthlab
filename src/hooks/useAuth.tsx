@@ -1,48 +1,49 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { User } from "firebase/auth";
-import { subscribeToAuthChanges } from "@/firebase/auth";
+import type { Session } from "@supabase/supabase-js";
+import type { User as FirebaseUser } from "firebase/auth";
+import { subscribeToAuthChanges as subscribeToFirebaseAuthChanges } from "@/firebase/auth";
 import { firebaseConfigured } from "@/firebase/config";
+import { subscribeToAuthChanges as subscribeToSupabaseAuthChanges } from "@/supabase/auth";
 import { ensureUserProfile } from "@/services/userService";
-import {
-  resolveStaffContextForFirebaseUser,
-  subscribeToStaffRecordForFirebaseUser,
-} from "@/supabase/roleService";
-import { getSupabaseUserId } from "@/supabase/identity";
+import { getMasterAdminUid, resolveStaffContext, subscribeToStaffRecord } from "@/supabase/roleService";
 import { buildStaffContext } from "@/utils/roleAccess";
+import { fromFirebasePhoneUser, fromSupabaseUser, type AppUser } from "@/types/authUser";
 import type { StaffContext } from "@/types/team";
 import type { UserProfile } from "@/types/user";
 
-// IDENTITY (the overall session) stays Firebase-shaped: `user` below is
-// a genuine Firebase Auth User, and Phone OTP only ever exists on the
-// Firebase side. AUTHORIZATION (staff/role) and every piece of DATA
-// (bookings, patients, addresses, reports, notifications, profile)
-// resolve from Supabase, keyed by supabaseUserId — never user.uid — for
-// whichever accounts have a linked Supabase session (Google/email).
-// See src/supabase/roleService.ts's resolveStaffContextForFirebaseUser
-// and src/supabase/identity.ts for exactly how the two are bridged, and
-// their own comments for the fail-closed behaviour when no linked
-// Supabase session exists (a phone-only sign-in never has one, since
-// Supabase has no free SMS provider).
+// Supabase Auth is the canonical session for email/Google — identity
+// and data ownership are the same id now (`user.uid` === the Supabase
+// profiles.id), no Firebase-uid bridge involved. Firebase Phone OTP is
+// the one thing genuinely kept (no free Supabase SMS provider exists);
+// a phone-only session normalizes to the exact same AppUser shape (see
+// src/types/authUser.ts) so every consumer below (bookings, patients,
+// addresses, reports, admin pages, ...) reads the same five fields
+// regardless of which provider actually authenticated the session.
+//
+// Two independent SDKs means two independent listeners below, merged
+// into one derived state: a live Supabase session always wins (it is
+// the one that carries authorization and real data) and Firebase is
+// only consulted when no Supabase session exists.
 
 interface AuthContextValue {
-  user: User | null;
+  user: AppUser | null;
   profile: UserProfile | null;
   // Authorization context for the signed-in account, resolved from
-  // Supabase (app_config + staff_roles) via the linked Supabase
-  // session — never from anything the browser holds. Null while signed
-  // out. Presentation only: RLS re-derives the same two inputs on
-  // every request regardless of what this holds.
+  // Supabase (app_config + staff_roles) directly against the Supabase
+  // session — never from anything the browser holds. Null while
+  // signed out, or while signed in over phone-only (no staff account
+  // has ever been phone-authenticated, since staff_roles is keyed by a
+  // Supabase uuid a phone session never has). Presentation only: RLS
+  // re-derives the same two inputs on every request regardless of
+  // what this holds.
   staff: StaffContext | null;
   loading: boolean;
   firebaseConfigured: boolean;
-  // The Supabase profiles.id (a real UUID) linked to this Firebase
-  // account, or null. Every Supabase-backed customer-data call
-  // (patients, addresses, bookings, reports, notifications, support,
-  // profile) must use THIS — never user.uid — as the ownership id; see
-  // src/supabase/identity.ts's header comment for why. Null while a
-  // real user is signed in means either Supabase hasn't linked yet
-  // (transient) or this is a phone-authenticated account (no Supabase
-  // session is possible today — a genuine unsupported path, not a bug).
+  // Same as user.uid for a Supabase-authenticated account (email/
+  // Google) — kept as its own field only so every existing customer-
+  // data call site (bookings/patients/addresses/reports/notifications/
+  // support/profile) keeps working completely unchanged. Null for a
+  // phone-only session, which owns no Supabase row.
   supabaseUserId: string | null;
 }
 
@@ -56,107 +57,149 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  // Raw provider state, plus whether each provider has reported its
+  // very first snapshot yet — both must have reported before the
+  // derivation below can trust "no session" as a real answer rather
+  // than "hasn't checked yet".
+  const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
+  const [supabaseResolved, setSupabaseResolved] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [firebaseResolved, setFirebaseResolved] = useState(!firebaseConfigured);
+
+  const [user, setUser] = useState<AppUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [staff, setStaff] = useState<StaffContext | null>(null);
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  // The live users/{uid} listener for whoever is currently signed in.
+
   const staffUnsubscribe = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!firebaseConfigured) {
-      setLoading(false);
-      return;
-    }
+    const unsubscribe = subscribeToSupabaseAuthChanges((_authUser, session) => {
+      setSupabaseSession(session);
+      setSupabaseResolved(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseConfigured) return;
+    const unsubscribe = subscribeToFirebaseAuthChanges((nextUser) => {
+      setFirebaseUser(nextUser);
+      setFirebaseResolved(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Recomputes user/profile/staff whenever either provider's session
+  // actually changes, once both have reported at least once.
+  useEffect(() => {
+    if (!supabaseResolved || !firebaseResolved) return;
+
+    let cancelled = false;
+    // See useAuth.tsx's own prior-version comment for why this is set
+    // synchronously, before the first await: a sign-in that happens
+    // while the app is already running otherwise briefly renders as
+    // "finished loading, signed in, no role", which bounces a
+    // legitimate admin straight back to /admin/login the instant the
+    // OAuth redirect lands.
+    setLoading(true);
 
     function stopStaffListener() {
       staffUnsubscribe.current?.();
       staffUnsubscribe.current = null;
     }
 
-    const unsubscribe = subscribeToAuthChanges(async (nextUser) => {
+    async function derive() {
       stopStaffListener();
 
-      if (!nextUser) {
-        // Signing out clears every trace of the previous session's
-        // authority from local state.
-        setProfile(null);
-        setStaff(null);
+      // A live Supabase session always wins — it is the session that
+      // carries authorization and every piece of real data. This also
+      // covers the rare case of switching sign-in methods without
+      // logging out first (a stale Firebase phone session sitting
+      // alongside a fresh Supabase one).
+      if (supabaseSession) {
+        const appUser = fromSupabaseUser(supabaseSession.user);
+
+        let nextStaff: StaffContext = buildStaffContext(appUser.uid, "", null);
+        try {
+          nextStaff = await resolveStaffContext(supabaseSession.user);
+        } catch (err) {
+          // Failing closed: an account whose role could not be read is
+          // treated as having no role at all.
+          console.error("Could not resolve the staff role:", err);
+        }
+
+        let nextProfile: UserProfile | null = null;
+        try {
+          nextProfile = await ensureUserProfile(appUser.uid, appUser);
+        } catch (err) {
+          // Still validly signed in — never leave them on a loading
+          // screen because their profile could not be loaded/written.
+          console.error("Could not load the user profile:", err);
+        }
+
+        if (cancelled) return;
+        setUser(appUser);
+        setSupabaseUserId(appUser.uid);
+        setStaff(nextStaff);
+        setProfile(nextProfile);
+        setLoading(false);
+
+        // Live: a revocation or role change takes effect within
+        // seconds. NOTE: staff_roles is not yet in the
+        // supabase_realtime publication, so this subscription is
+        // registered but inert until that is enabled — the initial
+        // resolve above still runs on every sign-in and full page
+        // load either way.
+        try {
+          const masterUid = await getMasterAdminUid();
+          if (cancelled) return;
+          staffUnsubscribe.current = subscribeToStaffRecord(appUser.uid, masterUid, setStaff);
+        } catch (err) {
+          console.error("Could not start the staff-role subscription:", err);
+        }
+        return;
+      }
+
+      if (firebaseUser) {
+        // Phone-only: no Supabase session exists, so no staff
+        // authority (staff_roles has never had a phone-authenticated
+        // row) and no persisted profile — both handled by the null-
+        // supabaseUserId path ensureUserProfile already has.
+        const appUser = fromFirebasePhoneUser(firebaseUser);
+        let nextProfile: UserProfile | null = null;
+        try {
+          nextProfile = await ensureUserProfile(null, appUser);
+        } catch (err) {
+          console.error("Could not load the user profile:", err);
+        }
+        if (cancelled) return;
+        setUser(appUser);
         setSupabaseUserId(null);
-        setUser(null);
+        setStaff(null);
+        setProfile(nextProfile);
         setLoading(false);
         return;
       }
 
-      // A sign-in that happens WHILE the app is running arrives with
-      // `loading` already false — the app settled as signed-out while
-      // the login page was on screen — and the role below is resolved
-      // asynchronously. Without flipping this back first, every
-      // consumer briefly observes the impossible state "finished
-      // loading, signed in, no role". AdminProtectedRoute reads that
-      // as "not an admin" and bounces a legitimate admin straight back
-      // to /admin/login the moment the Google popup closes. Set
-      // synchronously, before the first await, so no render can land
-      // inside that gap. (On a cold load it is already true, so this
-      // is a no-op there.)
-      setLoading(true);
-
-      let context: StaffContext = buildStaffContext(nextUser.uid, "", null);
-      try {
-        // Resolve the role BEFORE this user is published to the rest of
-        // the app, so nothing ever renders against an unknown or stale
-        // role. Loading stays true until this settles, which is what
-        // removes the race the old token-refresh flow had.
-        context = await resolveStaffContextForFirebaseUser(nextUser.uid);
-      } catch (err) {
-        // Failing closed: an account whose role could not be read is
-        // treated as having no role at all.
-        console.error("Could not resolve the staff role:", err);
-      }
-
-      let linkedSupabaseId: string | null = null;
-      try {
-        linkedSupabaseId = await getSupabaseUserId(nextUser.uid);
-      } catch (err) {
-        console.error("Could not resolve the linked Supabase identity:", err);
-      }
-
-      // Resolved after linkedSupabaseId so a Google/email account's
-      // profile writes to its real Supabase profiles row rather than a
-      // Firestore document nothing else reads; null here just means a
-      // phone-only account, which ensureUserProfile already handles.
-      try {
-        const nextProfile = await ensureUserProfile(linkedSupabaseId, nextUser);
-        setProfile(nextProfile);
-      } catch (err) {
-        // The user is still validly signed in with Firebase Auth —
-        // never leave them stuck on a loading screen because their
-        // profile could not be loaded/written.
-        console.error("Could not load the user profile:", err);
-      }
-
-      setStaff(context);
-      setSupabaseUserId(linkedSupabaseId);
-      setUser(nextUser);
+      // Signed out of both — clears every trace of the previous
+      // session's authority from local state.
+      if (cancelled) return;
+      setUser(null);
+      setSupabaseUserId(null);
+      setStaff(null);
+      setProfile(null);
       setLoading(false);
+    }
 
-      // Keep watching the record: a revocation or a role change is
-      // meant to take effect within seconds rather than waiting out a
-      // cached token. NOTE: staff_roles is not yet in the
-      // supabase_realtime publication (out of scope for this cutover —
-      // see subscribeToStaffRecordForFirebaseUser's own comment), so
-      // this subscription is registered but inert until that is
-      // enabled; the initial resolve above still runs on every sign-in
-      // and full page load either way.
-      staffUnsubscribe.current = subscribeToStaffRecordForFirebaseUser(nextUser.uid, setStaff);
-    });
-
+    derive();
     return () => {
+      cancelled = true;
       stopStaffListener();
-      unsubscribe();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabaseResolved, firebaseResolved, supabaseSession, firebaseUser]);
 
   const value = useMemo(
     () => ({ user, profile, staff, loading, firebaseConfigured, supabaseUserId }),

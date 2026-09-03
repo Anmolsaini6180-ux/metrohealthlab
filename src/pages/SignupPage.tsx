@@ -16,6 +16,10 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // True only when Supabase required email confirmation before a
+  // session exists — the account was genuinely created, there just
+  // isn't anyone to sign in as yet.
+  const [confirmSent, setConfirmSent] = useState(false);
 
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
@@ -24,11 +28,12 @@ export default function SignupPage() {
     setGoogleBusy(true);
     setGoogleError(null);
     try {
-      await loginWithGoogle();
-      navigate("/dashboard", { replace: true });
+      // Redirects the whole browser to Google and back to /dashboard
+      // directly — see LoginPage.tsx's own handleGoogle for why there
+      // is no navigate() call after a successful one.
+      await loginWithGoogle(`${window.location.origin}/dashboard`);
     } catch (err) {
       setGoogleError(toUserMessage(err));
-    } finally {
       setGoogleBusy(false);
     }
   }
@@ -48,7 +53,13 @@ export default function SignupPage() {
 
     setBusy(true);
     try {
-      await registerAndLoginWithEmail(email, password, { name, phone: phone || undefined });
+      const user = await registerAndLoginWithEmail(email, password, { name, phone: phone || undefined });
+      if (!user) {
+        // Account created, but Supabase requires confirming the email
+        // address first — there is no session to enter the app with.
+        setConfirmSent(true);
+        return;
+      }
       navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(toUserMessage(err));
@@ -78,18 +89,29 @@ export default function SignupPage() {
           Book tests, track results, manage your family's health.
         </p>
 
-        <button className="btn btn-outline" style={{ width: "100%" }} onClick={handleGoogle} disabled={googleBusy}>
-          <span className="mi">account_circle</span> Continue with Google
-        </button>
-        {googleError && (
-          <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", marginTop: 6 }}>{googleError}</p>
-        )}
+        {confirmSent ? (
+          <div className="card" style={{ textAlign: "center", display: "grid", gap: "var(--space-sm)" }}>
+            <span className="mi" style={{ fontSize: 32, color: "var(--color-success)" }}>mark_email_read</span>
+            <p style={{ fontWeight: 600 }}>Check your email</p>
+            <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+              We sent a confirmation link to {email}. Open it to activate your account, then log in.
+            </p>
+            <Link className="btn btn-primary" to="/login">Go to login</Link>
+          </div>
+        ) : (
+          <>
+            <button className="btn btn-outline" style={{ width: "100%" }} onClick={handleGoogle} disabled={googleBusy}>
+              <span className="mi">account_circle</span> Continue with Google
+            </button>
+            {googleError && (
+              <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", marginTop: 6 }}>{googleError}</p>
+            )}
 
-        <div className="text-soft" style={{ textAlign: "center", margin: "var(--space-md) 0" }}>
-          or
-        </div>
+            <div className="text-soft" style={{ textAlign: "center", margin: "var(--space-md) 0" }}>
+              or
+            </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)" }}>
+            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)" }}>
           <label>
             Full name
             <input
@@ -168,7 +190,9 @@ export default function SignupPage() {
           <button className="btn btn-primary" type="submit" disabled={busy}>
             {busy ? "Creating account..." : "Create account"}
           </button>
-        </form>
+            </form>
+          </>
+        )}
 
         <p className="text-soft" style={{ textAlign: "center", marginTop: "var(--space-md)", fontSize: "var(--text-sm)" }}>
           Already have an account? <Link to="/login" style={{ color: "var(--color-primary)", fontWeight: 600 }}>Log in</Link>

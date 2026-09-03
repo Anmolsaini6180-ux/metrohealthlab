@@ -1,20 +1,12 @@
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./client";
 
-// Deliberately mirrors src/firebase/auth.ts's function names and
-// shapes wherever the two SDKs genuinely correspond, so a future
-// adapter/swap does not force every caller to be rewritten. Where the
-// two libraries fundamentally differ (Supabase has no popup sign-in —
-// only a hosted redirect, which is why Google goes through
-// signInWithGoogleIdToken instead), that difference is real and is not
-// papered over.
-//
-// Wired in from src/services/authService.ts as of the Phase E auth
-// cutover. Firestore's rules only ever trust a genuine Firebase ID
-// token, and Firestore data is not migrated yet, so Firebase remains
-// the session that actually unlocks Firestore reads/writes; this
-// module supplies the SECOND, Supabase-side session used for
-// authorization (app_config/staff_roles), established alongside it.
+// The canonical auth implementation for email/password and Google —
+// authService.ts calls straight into this module for both now, with no
+// Firebase involved in either path. Phone OTP is the one thing that
+// still goes through firebase/auth.ts instead (no Supabase SMS
+// provider exists); everything below this comment is real, live
+// runtime code, not a parallel implementation waiting to be wired in.
 
 export async function signInWithGoogle(redirectTo?: string): Promise<void> {
   const { error } = await getSupabaseClient().auth.signInWithOAuth({
@@ -28,39 +20,34 @@ export async function signInWithGoogle(redirectTo?: string): Promise<void> {
   if (error) throw error;
 }
 
-/**
- * Exchanges a Google ID token (obtained from Firebase's own Google
- * popup — see firebase/auth.ts's signInWithGoogle) for a Supabase
- * session, WITHOUT a second consent screen or redirect. Supabase links
- * this to any existing auth.users row with the same verified email
- * (this is Supabase's own documented default identity-linking
- * behaviour) — which is exactly the account Phase D's migration
- * pre-created for each real Google user, so this resolves to the SAME
- * Supabase identity that already has the correct profiles.firebase_uid.
- */
-export async function signInWithGoogleIdToken(idToken: string): Promise<User> {
-  const { data, error } = await getSupabaseClient().auth.signInWithIdToken({ provider: "google", token: idToken });
-  if (error) throw error;
-  return data.user;
-}
-
 export async function signInWithEmail(email: string, password: string): Promise<User> {
   const { data, error } = await getSupabaseClient().auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data.user;
 }
 
-export async function registerWithEmail(email: string, password: string): Promise<User> {
+/** `session` is null exactly when Supabase requires email confirmation
+ * before the account can sign in — the account is genuinely created
+ * either way, there is just no one to act as yet. Never throws for
+ * this case: it is an expected outcome, not a failure, and the caller
+ * (authService.ts) is the one that decides what to show for it. */
+export async function registerWithEmail(email: string, password: string): Promise<{ user: User; session: Session | null }> {
   const { data, error } = await getSupabaseClient().auth.signUp({ email, password });
   if (error) throw error;
   if (!data.user) {
-    // Only happens if email confirmation is required and Supabase
-    // withholds the session/user until it is verified. Not an error —
-    // the account was created — but callers must not assume a usable
-    // session exists yet.
-    throw new Error("Account created. Check your email to confirm before signing in.");
+    // Not documented to happen alongside a null error, but fail loudly
+    // rather than silently return a user that doesn't exist.
+    throw new Error("Signup did not return an account. Please try again.");
   }
-  return data.user;
+  return { user: data.user, session: data.session };
+}
+
+/** Completes a password reset: called from ResetPasswordPage once the
+ * recovery link has landed the browser back here with a live recovery
+ * session (Supabase's client detects the token in the URL on load). */
+export async function updateUserPassword(newPassword: string): Promise<void> {
+  const { error } = await getSupabaseClient().auth.updateUser({ password: newPassword });
+  if (error) throw error;
 }
 
 export async function resetPassword(email: string, redirectTo?: string): Promise<void> {

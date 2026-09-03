@@ -1,45 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { describeSignInError, firebaseErrorCode } from "./authErrors";
+import { describeSignInError } from "./authErrors";
 
-// A Firebase error is a plain Error with a `code`.
-function fbError(code: string): Error {
-  return Object.assign(new Error(`Firebase: Error (${code}).`), { code });
+// A Supabase AuthApiError is a plain Error with a `.code` (and always
+// a `.message`, used as the fallback-matching path when `.code` isn't
+// present at all — an older edge case or a bare network failure).
+function supaError(code: string, message = `${code} error`): Error {
+  return Object.assign(new Error(message), { code });
 }
-
-describe("reading a Firebase error code", () => {
-  it("pulls the code out of a Firebase error", () => {
-    expect(firebaseErrorCode(fbError("auth/popup-blocked"))).toBe("auth/popup-blocked");
-  });
-
-  it("returns an empty string for anything that isn't one", () => {
-    expect(firebaseErrorCode(new Error("boom"))).toBe("");
-    expect(firebaseErrorCode(null)).toBe("");
-    expect(firebaseErrorCode(undefined)).toBe("");
-    expect(firebaseErrorCode("auth/popup-blocked")).toBe("");
-    expect(firebaseErrorCode({ code: 42 })).toBe("");
-  });
-});
 
 describe("telling the sign-in failure modes apart", () => {
   // The whole point of the module: these must NOT collapse together.
   const cases: Array<[string, string]> = [
-    ["auth/popup-closed-by-user", "popup-cancelled"],
-    ["auth/cancelled-popup-request", "popup-cancelled"],
-    ["auth/popup-blocked", "popup-blocked"],
-    ["auth/unauthorized-domain", "unauthorized-domain"],
-    ["auth/operation-not-allowed", "provider-config"],
-    ["auth/configuration-not-found", "provider-config"],
-    ["auth/invalid-credential", "invalid-credentials"],
-    ["auth/wrong-password", "invalid-credentials"],
-    ["auth/network-request-failed", "network"],
-    ["unavailable", "unavailable"],
-    ["permission-denied", "permission-denied"],
-    ["unauthenticated", "permission-denied"],
+    ["invalid_credentials", "invalid-credentials"],
+    ["invalid_grant", "invalid-credentials"],
+    ["email_not_confirmed", "email-not-confirmed"],
+    ["user_not_found", "invalid-credentials"],
+    ["user_banned", "invalid-credentials"],
+    ["over_request_rate_limit", "rate-limited"],
+    ["over_email_send_rate_limit", "rate-limited"],
+    ["provider_disabled", "provider-config"],
   ];
 
   for (const [code, failure] of cases) {
     it(`maps ${code} to ${failure}`, () => {
-      expect(describeSignInError(fbError(code)).failure).toBe(failure);
+      expect(describeSignInError(supaError(code)).failure).toBe(failure);
     });
   }
 
@@ -50,23 +34,31 @@ describe("telling the sign-in failure modes apart", () => {
     expect(info.silent).toBe(false);
   });
 
+  it("matches by message when there is no stable .code at all", () => {
+    expect(describeSignInError(new Error("Invalid login credentials")).failure).toBe("invalid-credentials");
+    expect(describeSignInError(new Error("Failed to fetch")).failure).toBe("network");
+    expect(describeSignInError(new Error("popup was closed by the user")).failure).toBe("cancelled");
+  });
+
   it("stays silent only when the user cancelled it themselves", () => {
-    expect(describeSignInError(fbError("auth/popup-closed-by-user")).silent).toBe(true);
-    expect(describeSignInError(fbError("auth/popup-blocked")).silent).toBe(false);
-    expect(describeSignInError(fbError("permission-denied")).silent).toBe(false);
+    expect(describeSignInError(new Error("the popup was closed")).silent).toBe(true);
+    expect(describeSignInError(supaError("invalid_credentials")).silent).toBe(false);
+    expect(describeSignInError(new Error("row-level security policy denied")).silent).toBe(false);
   });
 
   it("every mapped failure carries a non-empty, user-safe message", () => {
     for (const [code] of cases) {
-      const info = describeSignInError(fbError(code));
+      const info = describeSignInError(supaError(code));
       expect(info.message.length).toBeGreaterThan(0);
       expect(info.code).toBe(code);
     }
   });
 
   it("a permission-denied role lookup is never described as 'not an admin'", () => {
-    // Reporting a rules/transport failure as an authorization verdict
-    // is the exact confusion this module exists to prevent.
-    expect(describeSignInError(fbError("permission-denied")).message).not.toMatch(/authorized/i);
+    // Reporting an RLS/transport failure as an authorization verdict is
+    // the exact confusion this module exists to prevent.
+    const info = describeSignInError(new Error("permission denied for table staff_roles"));
+    expect(info.failure).toBe("permission-denied");
+    expect(info.message).not.toMatch(/authorized/i);
   });
 });
