@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
-import { getAdminBookings, type GetAdminBookingsRequest } from "@/services/adminBookingService";
+import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
+import { subscribeToFilteredAdminBookings, type GetAdminBookingsRequest } from "@/services/adminBookingService";
 import { getTeamMembers } from "@/services/adminTeamService";
 import { getAllLabs } from "@/services/adminCatalogService";
 import { getTests } from "@/services/testService";
@@ -14,6 +15,7 @@ import BarList from "@/components/admin/BarList";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
+import type { Booking } from "@/types/booking";
 
 const COLLECTED_STATUSES = ["sample_collected", "received_at_lab", "testing", "report_ready", "completed"];
 const STATUS_LABELS: Record<string, string> = {
@@ -62,9 +64,13 @@ export default function AdminDashboardPage() {
     filterBookingStatus: filterBookingStatus || undefined,
     filterPaymentStatus: filterPaymentStatus || undefined,
   };
-  const bookings = useAsync(() => getAdminBookings(query).then((r) => r.bookings), [
-    range.startDate, range.endDate, filterAdminId, filterSubAdminId, filterAgentId, filterLabId, filterBookingStatus, filterPaymentStatus,
-  ]);
+  // Live: a booking created, reassigned, paid, or moved to a new status
+  // by anyone — website, WhatsApp, or another admin — updates these
+  // figures immediately instead of only on the next manual refresh.
+  const bookings = useRealtimeQuery<Booking[]>(
+    (onData, onError) => subscribeToFilteredAdminBookings(query, (r) => onData(r.bookings), onError),
+    [range.startDate, range.endDate, filterAdminId, filterSubAdminId, filterAgentId, filterLabId, filterBookingStatus, filterPaymentStatus]
+  );
 
   const stats = useMemo(() => {
     const b = bookings.data ?? [];
@@ -117,16 +123,18 @@ export default function AdminDashboardPage() {
 
   return (
     <div style={{ display: "grid", gap: "var(--space-lg)" }}>
-      <div>
-        <h1 style={{ fontSize: "var(--text-xl)" }}>Dashboard</h1>
-        <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-          Signed in as {role}. All figures below are scoped to your team and the selected filters.
-        </p>
+      <div className="mh-page-head">
+        <div>
+          <h1 style={{ fontSize: "var(--text-xl)" }}>Dashboard</h1>
+          <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+            Signed in as {role}. All figures below are scoped to your team and the selected filters, and update live.
+          </p>
+        </div>
       </div>
 
       <DateRangePicker onChange={(r) => setRange(r)} />
 
-      <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+      <div className="mh-filter-row">
         {role === "SUPER_ADMIN" && admins.data && admins.data.length > 0 && (
           <FilterSelect label="Admin" value={filterAdminId} onChange={setFilterAdminId} options={admins.data.map((a) => ({ value: a.uid, label: a.name }))} />
         )}
@@ -200,7 +208,7 @@ export default function AdminDashboardPage() {
 
 function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{label}: all</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>

@@ -61,9 +61,10 @@ export default function AdminBookingDashboardPage() {
   const { user } = useAuth();
   const today = toDateKey(new Date());
 
-  // Live listener straight onto the bookings collection. firestore.rules
-  // allows this unscoped list only for SUPER_ADMIN/ADMIN, so it is the
-  // rules — not this component — that keep it from being a data leak.
+  // Live listener straight onto the bookings table. RLS's
+  // bookings_select policy allows this unscoped list only for
+  // SUPER_ADMIN/ADMIN, so it is the policy — not this component — that
+  // keeps it from being a data leak.
   // A booking created anywhere (website, WhatsApp, admin) lands here
   // with no refresh.
   const bookings = useRealtimeQuery(subscribeToAdminBookings, []);
@@ -351,9 +352,10 @@ function Line({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Status moves and cash collection, written straight to Firestore.
-// firestore.rules re-checks the cash arithmetic and pins which keys an
-// update may touch, so a mistake here is refused rather than stored.
+// Status moves and cash collection go through set_booking_status/
+// record_cash_received (SECURITY DEFINER RPCs) — the database
+// re-checks the cash arithmetic and the permission itself server-side,
+// so a mistake here is refused rather than stored.
 function BookingActions({ booking, actorUid }: { booking: Booking; actorUid: string }) {
   const [received, setReceived] = useState(String(receivedFor(booking)));
   const [busy, setBusy] = useState<string | null>(null);
