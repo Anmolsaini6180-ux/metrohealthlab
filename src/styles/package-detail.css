@@ -1,0 +1,145 @@
+/* ============================================================
+   PACKAGE DETAILS PAGE
+   ============================================================ */
+.mh-pkgdetail {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.mh-pkgdetail__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mh-pkgdetail__back,
+.mh-pkgdetail__share {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.mh-pkgdetail__back .mi,
+.mh-pkgdetail__share .mi {
+  font-size: 18px;
+}
+
+.mh-pkgdetail__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mh-pkgdetail__tag {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mh-pkgdetail__stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.mh-pkgdetail__stat-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.mh-pkgdetail__stat-row .mi {
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.mh-pkgdetail__price-card {
+  background: var(--color-bg-tint);
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  padding: var(--space-md);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.mh-pkgdetail__price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mh-pkgdetail__price {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+.mh-pkgdetail__mrp {
+  color: var(--color-ink-soft);
+  font-size: var(--text-base);
+}
+
+.mh-pkgdetail__off {
+  color: var(--color-danger);
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.mh-pkgdetail__includes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.mh-pkgdetail__includes li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  font-size: var(--text-sm);
+}
+
+.mh-pkgdetail__includes .mi {
+  font-size: 18px;
+  color: var(--color-success);
+  flex-shrink: 0;
+}
+
+.mh-pkgdetail__lab-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+
+@media (min-width: 768px) {
+  .mh-pkgdetail__includes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
