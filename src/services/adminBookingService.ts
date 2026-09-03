@@ -7,8 +7,8 @@
 // their own assignments, COLLECTION_AGENT their own assignments), so a
 // plain filtered select replaces the callable outright.
 import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
-import { rowToBooking } from "@/supabase/bookingMappers";
-import type { Booking, BookingStatus } from "@/types/booking";
+import { rowToBooking, rowToBookingStatusHistory } from "@/supabase/bookingMappers";
+import type { Booking, BookingStatus, BookingStatusHistoryEntry } from "@/types/booking";
 
 type Unsubscribe = () => void;
 
@@ -97,4 +97,24 @@ export async function updateBookingStatus(bookingId: string, status: BookingStat
   });
   if (error) throw error;
   return { ok: true };
+}
+
+/**
+ * Full status timeline for one booking's detail view. RLS scopes this
+ * to bookings the caller may see at all (own booking, or staff with a
+ * role-appropriate reason) — same policy bookingService.ts's customer-
+ * facing subscribeToBookingStatusHistory relies on for its own
+ * ownership check, so a plain filtered select is enough here too.
+ * "Previous status" for any row is simply the row before it in this
+ * same ordered list — set_booking_status doesn't store it as a
+ * separate column, and doesn't need to.
+ */
+export async function getBookingStatusHistory(bookingId: string): Promise<BookingStatusHistoryEntry[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("booking_status_history")
+    .select("*")
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(rowToBookingStatusHistory);
 }

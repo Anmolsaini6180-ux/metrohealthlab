@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
-import { assignBooking, getAdminBookings, updateBookingStatus } from "@/services/adminBookingService";
+import { assignBooking, getAdminBookings, getBookingStatusHistory, updateBookingStatus } from "@/services/adminBookingService";
 import { getTeamMembers } from "@/services/adminTeamService";
 import { formatCurrencyInr } from "@/services/pricingService";
-import type { BookingStatus } from "@/types/booking";
+import { computeMargin } from "@/utils/margin";
+import type { Booking, BookingStatus } from "@/types/booking";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -51,6 +52,7 @@ export default function AdminBookingsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const bookings = useAsync(
     () => getAdminBookings({ ...range, filterBookingStatus: statusFilter || undefined }),
@@ -107,6 +109,12 @@ export default function AdminBookingsPage() {
   }
 
   const isPrivileged = !!role && PRIVILEGED.includes(role);
+  // Margin/TP visibility matches the SAME roles that can already edit
+  // catalog pricing (can_manage_catalog() server-side) — not the wider
+  // PRIVILEGED set above, which also includes SUB_ADMIN for booking
+  // operations. Internal cost is a narrower need-to-know than "can
+  // change a booking's status."
+  const canSeeMargin = role === "SUPER_ADMIN" || role === "ADMIN";
 
   return (
     <div>
@@ -148,6 +156,9 @@ export default function AdminBookingsPage() {
                 </div>
 
                 <div style={{ display: "flex", gap: "var(--space-sm)", marginTop: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
+                  <button className="btn btn-outline" onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}>
+                    {expandedId === b.id ? "Hide details" : "Details"}
+                  </button>
                   {b.bookingStatus === "confirmed" && isPrivileged && (
                     <select
                       defaultValue=""
@@ -172,6 +183,8 @@ export default function AdminBookingsPage() {
                     </button>
                   )}
                 </div>
+
+                {expandedId === b.id && <BookingDetailPanel booking={b} canSeeMargin={canSeeMargin} />}
               </div>
             );
           })}
@@ -192,6 +205,123 @@ export default function AdminBookingsPage() {
           onCancel={() => setPendingCancelId(null)}
         />
       )}
+    </div>
+  );
+}
+
+function formatWhen(value: unknown): string {
+  if (!value) return "—";
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/**
+ * Full detail for one booking — everything the flat list row above
+ * doesn't have room for: contact/address, per-item pricing (with TP/
+ * margin gated to canSeeMargin), notes, assigned staff ids, and the
+ * real status-change history. Fetches its own history lazily (only
+ * when actually expanded) rather than the parent list prefetching it
+ * for every row up front.
+ */
+function BookingDetailPanel({ booking: b, canSeeMargin }: { booking: Booking; canSeeMargin: boolean }) {
+  const history = useAsync(() => getBookingStatusHistory(b.id), [b.id]);
+
+  const itemsTp = b.items.every((i) => i.tp == null) ? null : b.items.reduce((sum, i) => sum + (i.tp ?? 0), 0);
+  const bookingMargin = canSeeMargin ? computeMargin(b.subtotal, itemsTp) : null;
+
+  return (
+    <div style={{ marginTop: "var(--space-sm)", paddingTop: "var(--space-sm)", borderTop: "1px solid var(--color-line)", display: "grid", gap: "var(--space-sm)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-sm)", fontSize: "var(--text-sm)" }}>
+        <div>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Customer</p>
+          <p>{b.contact?.name ?? "—"}</p>
+          <p className="text-soft">{b.contact?.phone ?? "—"}</p>
+        </div>
+        <div>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Address</p>
+          <p>{b.contact?.address ?? (b.collectionType === "home" ? "(saved address on file)" : "Center visit — no address")}</p>
+        </div>
+        <div>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Payment</p>
+          <p>{(b.paymentMethod ?? "cash_on_home").replace(/_/g, " ")} • {b.paymentStatus.replace(/_/g, " ")}</p>
+          <p className="text-soft">Received {formatCurrencyInr(b.amountReceived ?? 0)} of {formatCurrencyInr(b.finalAmount)}</p>
+        </div>
+        <div>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Assigned staff</p>
+          <p className="text-soft">
+            {[
+              b.assignedAdminId && `Admin: ${b.assignedAdminId}`,
+              b.assignedSubAdminId && `Sub-admin: ${b.assignedSubAdminId}`,
+              b.assignedAgentId && `Agent: ${b.assignedAgentId}`,
+            ]
+              .filter(Boolean)
+              .join(" • ") || "Unassigned"}
+          </p>
+        </div>
+        <div>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Created</p>
+          <p>{formatWhen(b.createdAt)}</p>
+        </div>
+      </div>
+
+      {b.notes && (
+        <div>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Instructions / notes</p>
+          <p style={{ fontSize: "var(--text-sm)" }}>{b.notes}</p>
+        </div>
+      )}
+
+      <div>
+        <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginBottom: 4 }}>Items</p>
+        <div style={{ display: "grid", gap: 4 }}>
+          {b.items.map((item, idx) => {
+            const margin = canSeeMargin ? computeMargin(item.price, item.tp) : null;
+            return (
+              <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", gap: 8 }}>
+                <span>{item.name} <span className="text-soft">({item.itemType})</span></span>
+                <span className="text-soft">
+                  {formatCurrencyInr(item.price)}
+                  {canSeeMargin && (
+                    <> • TP {item.tp != null ? formatCurrencyInr(item.tp) : "not set"}
+                      {margin && ` • Margin ${formatCurrencyInr(margin.amount)}${margin.percent != null ? ` (${margin.percent.toFixed(0)}%)` : ""}`}
+                    </>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", fontWeight: 600, marginTop: 4, paddingTop: 4, borderTop: "1px dashed var(--color-line)" }}>
+            <span>Subtotal {formatCurrencyInr(b.subtotal)} + collection {formatCurrencyInr(b.collectionFee)} − discount {formatCurrencyInr(b.discount)}</span>
+            <span>{formatCurrencyInr(b.finalAmount)}</span>
+          </div>
+          {canSeeMargin && (
+            <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+              {itemsTp == null
+                ? "Gross margin: TP not set on one or more items"
+                : `Gross margin (items only, excludes collection fee): ${formatCurrencyInr(bookingMargin!.amount)}${bookingMargin!.percent != null ? ` (${bookingMargin!.percent.toFixed(0)}%)` : ""}`}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginBottom: 4 }}>Status history</p>
+        {history.loading && !history.data && <LoadingState rows={2} />}
+        {history.error && <ErrorState message={history.error} onRetry={history.retry} />}
+        {history.data && history.data.length === 0 && <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>No history recorded.</p>}
+        {history.data && history.data.length > 0 && (
+          <div style={{ display: "grid", gap: 4 }}>
+            {history.data.map((h) => (
+              <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", gap: 8 }}>
+                <span>
+                  <StatusBadge status={h.status} /> {h.note && <span className="text-soft">— {h.note}</span>}
+                </span>
+                <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{formatWhen(h.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

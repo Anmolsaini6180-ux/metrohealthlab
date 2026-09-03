@@ -5,9 +5,21 @@ import { rowToPackage } from "@/supabase/mappers";
 import type { HealthPackage } from "@/types/package";
 
 const DEFAULT_LIST_LIMIT = 200;
-const PACKAGE_SELECT = "*, package_tests(test_id)";
+// packages_public (not the packages table — see below) already embeds
+// the joined test ids as a plain jsonb column of its own, so this is
+// just "every column of the view", not a PostgREST relationship embed.
+const PACKAGE_SELECT = "*";
 type Unsubscribe = () => void;
 
+// Customer-facing reads go through packages_public, a view with the
+// exact same active-package rows minus one column: tp (internal cost).
+// That's a hard boundary, not a display choice — see the migration
+// that created it. It also does its own package_tests aggregation
+// (as a jsonb array literally shaped like {test_id}[]) because
+// PostgREST's relationship embedding is resolved from real foreign
+// keys, which a view's underlying query doesn't expose the same way a
+// base table's would.
+//
 // package_tests is a junction table (package_id, test_id) — rowToPackage
 // itself always sets testIds: [] (it has no way to know the join
 // result), so every caller here fills it in from the embedded
@@ -23,7 +35,7 @@ function toPackageWithTests(row: Record<string, unknown>): HealthPackage {
 
 export async function getPackages(options?: { category?: string }): Promise<HealthPackage[]> {
   let q = getSupabaseClient()
-    .from("packages")
+    .from("packages_public")
     .select(PACKAGE_SELECT)
     .eq("active", true)
     .order("display_order", { ascending: true })
@@ -36,7 +48,7 @@ export async function getPackages(options?: { category?: string }): Promise<Heal
 
 export async function getPackageBySlug(slug: string): Promise<HealthPackage | null> {
   const { data, error } = await getSupabaseClient()
-    .from("packages")
+    .from("packages_public")
     .select(PACKAGE_SELECT)
     .eq("slug", slug)
     .eq("active", true)
@@ -58,6 +70,19 @@ export async function searchPackages(queryText: string): Promise<HealthPackage[]
   return all.filter((p) => p.name.toLowerCase().includes(q));
 }
 
+// HONEST LIMITATION, introduced by the tp migration: Realtime's
+// postgres_changes only exists on real tables, and Supabase Realtime
+// filters *whether an event is delivered at all* by the subscriber's
+// own row-level SELECT policy on that table — not by the columns the
+// query asks for. Customers no longer have SELECT on the base
+// `packages` table (see packages_staff_read), so this channel now
+// receives zero events for them; it was never safe to "fix" by
+// broadcasting from the base table instead, because postgres_changes
+// payloads carry the FULL changed row, tp included, straight to every
+// open subscriber regardless of column-level grants — the exact leak
+// this whole migration exists to close. The initial refetch() below
+// still runs and still shows real data; only the "then update live if
+// an admin edits something" behaviour is gone for customers now.
 export function subscribeToPackages(
   options: { category?: string } | undefined,
   callback: (packages: HealthPackage[]) => void,

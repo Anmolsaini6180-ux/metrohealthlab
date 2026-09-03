@@ -61,6 +61,11 @@ export function rowToTest(r: Record<string, unknown>): DiagnosticTest {
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    // Absent entirely on rows from tests_public (customer reads) — the
+    // `"tp" in r` guard keeps that absence as `undefined`, not `null`,
+    // so admin code can still tell "not selected" apart from "selected
+    // and genuinely unset" if that distinction ever matters.
+    tp: "tp" in r ? (r.tp == null ? null : Number(r.tp)) : undefined,
   };
 }
 
@@ -90,6 +95,8 @@ export function rowToPackage(r: Record<string, unknown>): HealthPackage {
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    // Absent entirely on rows from packages_public (customer reads).
+    tp: "tp" in r ? (r.tp == null ? null : Number(r.tp)) : undefined,
   } as HealthPackage;
 }
 

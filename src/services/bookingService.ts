@@ -16,7 +16,17 @@ import { rowToBooking, rowToBookingStatusHistory } from "@/supabase/bookingMappe
 import type { Booking, BookingItem, BookingStatusHistoryEntry, CollectionType } from "@/types/booking";
 
 type Unsubscribe = () => void;
-const BOOKING_SELECT = "*, booking_items(*)";
+// Explicit column list on the embedded booking_items, NOT `(*)` — this
+// is the customer-facing read path (see the header comment above), and
+// booking_items now has a `tp` (internal cost) column. Omitting it
+// here means it is never present in the response body at all, not
+// just unused by the UI: the distinction matters because RLS lets a
+// customer legitimately read their OWN booking's items (row-level
+// access is correct for them), so only leaving tp out of the query
+// itself — not a display choice — keeps it out of what reaches the
+// browser. adminBookingService.ts/adminCustomerService.ts keep their
+// own separate `booking_items(*)` for staff, who are meant to see it.
+const BOOKING_SELECT = "*, booking_items(id, booking_id, item_type, ref_id, name, lab_id, price)";
 
 // Type-only holdover from the removed Cloud-Function quote call:
 // BookingFlowPage still types its own client-computed price preview

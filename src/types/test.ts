@@ -25,6 +25,14 @@ export interface DiagnosticTest {
   updatedBy?: string; // uid of the admin who last edited this
   createdAt: unknown;
   updatedAt: unknown;
+  /**
+   * Internal purchase/fulfillment cost — STAFF-ONLY. Absent (undefined)
+   * for every customer-facing read (testService.ts queries the
+   * tests_public view, which has no tp column at all). null means
+   * "staff added this test but hasn't entered a cost yet" — never
+   * treat that the same as a real zero.
+   */
+  tp?: number | null;
 }
 
 export interface TestCategory {

@@ -91,6 +91,7 @@ export async function createTest(
       active: data.active,
       display_order: data.displayOrder ?? 0,
       updated_by_firebase_uid: actorUid,
+      tp: optional(data.tp),
     })
     .select("id")
     .single();
@@ -125,6 +126,7 @@ export async function updateTest(
   if (data.seoDescription !== undefined) patch.seo_description = optional(data.seoDescription);
   if (data.active !== undefined) patch.active = data.active;
   if (data.displayOrder !== undefined) patch.display_order = data.displayOrder;
+  if (data.tp !== undefined) patch.tp = optional(data.tp);
 
   const { error } = await getSupabaseClient().from("tests").update(patch).eq("id", testId);
   if (error) throw error;
@@ -230,6 +232,7 @@ export async function createPackage(
       active: data.active,
       display_order: data.displayOrder ?? 0,
       updated_by_firebase_uid: actorUid,
+      tp: optional(data.tp),
     })
     .select("id")
     .single();
@@ -262,6 +265,7 @@ export async function updatePackage(
   if (data.seoDescription !== undefined) patch.seo_description = optional(data.seoDescription);
   if (data.active !== undefined) patch.active = data.active;
   if (data.displayOrder !== undefined) patch.display_order = data.displayOrder;
+  if (data.tp !== undefined) patch.tp = optional(data.tp);
 
   const { error } = await getSupabaseClient().from("packages").update(patch).eq("id", packageId);
   if (error) throw error;

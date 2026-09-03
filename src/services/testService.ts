@@ -12,7 +12,7 @@ const DEFAULT_LIST_LIMIT = 200;
 
 export async function getTests(options?: { categoryId?: string; max?: number }): Promise<DiagnosticTest[]> {
   let q = getSupabaseClient()
-    .from("tests")
+    .from("tests_public")
     .select("*")
     .eq("active", true)
     .order("display_order", { ascending: true })
@@ -25,7 +25,7 @@ export async function getTests(options?: { categoryId?: string; max?: number }):
 
 export async function getTestBySlug(slug: string): Promise<DiagnosticTest | null> {
   const { data, error } = await getSupabaseClient()
-    .from("tests")
+    .from("tests_public")
     .select("*")
     .eq("slug", slug)
     .eq("active", true)
@@ -35,7 +35,7 @@ export async function getTestBySlug(slug: string): Promise<DiagnosticTest | null
 }
 
 export async function getTestById(id: string): Promise<DiagnosticTest | null> {
-  const { data, error } = await getSupabaseClient().from("tests").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await getSupabaseClient().from("tests_public").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return data ? rowToTest(data) : null;
 }
@@ -75,6 +75,17 @@ function channelUnsubscribe(channel: RealtimeChannel): Unsubscribe {
 // subscription re-runs the equivalent SELECT on every change rather
 // than patching a single row in place — simplest correct behaviour,
 // and these lists are small (a few hundred rows at most).
+// HONEST LIMITATION, introduced by the tp migration: customers no
+// longer have SELECT on the base `tests` table (see tests_staff_read),
+// and Supabase Realtime's postgres_changes gates event DELIVERY on
+// that same row-level policy — not on which columns a query asked
+// for — so this channel now receives zero events for customers. That
+// is deliberate, not a bug: postgres_changes payloads carry the full
+// changed row straight to every subscriber regardless of column
+// grants, so broadcasting from the base table would hand every open
+// customer session tp the moment any test changed — the exact leak
+// this migration exists to prevent. The initial refetch() below still
+// runs with real data; only later live updates are gone for customers.
 export function subscribeToTests(
   options: { categoryId?: string; max?: number } | undefined,
   callback: (tests: DiagnosticTest[]) => void,
@@ -110,6 +121,8 @@ export function subscribeToTestCategories(
 // same reasoning as the Firestore version's own comment (Firestore's
 // `in` cap; kept for parity even though Postgres' `in` has no such
 // limit, so RadiologyPage's calling convention never needs to change).
+// Same tp-migration realtime limitation as subscribeToTests above —
+// this channel goes quietly inert for customers now, by design.
 export function subscribeToTestsByCategoryIds(
   categoryIds: string[],
   callback: (tests: DiagnosticTest[]) => void,
@@ -123,7 +136,7 @@ export function subscribeToTestsByCategoryIds(
   const refetch = async () => {
     try {
       const { data, error } = await getSupabaseClient()
-        .from("tests")
+        .from("tests_public")
         .select("*")
         .in("category_id", ids)
         .eq("active", true)

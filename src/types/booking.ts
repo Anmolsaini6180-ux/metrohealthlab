@@ -25,6 +25,15 @@ export interface BookingItem {
   name: string;
   labId: string;
   price: number;
+  /**
+   * Internal cost, snapshotted at booking time — STAFF-ONLY.
+   * undefined for every customer-facing read (bookingService.ts's own
+   * BOOKING_SELECT never asks for this column at all); null means a
+   * staff-created booking whose item had no tp entered yet. Never
+   * default this to 0 for a margin calculation — that would draw a
+   * fake 100% margin on an unpriced item.
+   */
+  tp?: number | null;
 }
 
 // Where the booking came from. Reporting depends on this being set at
@@ -86,6 +95,15 @@ export interface Booking {
   assignedAgentId?: string;
   assignedSubAdminId?: string;
   assignedAdminId?: string;
+  /**
+   * Free-text instructions/notes captured at booking time. Only ever
+   * set today by create_staff_booking (a phone/WhatsApp booking taken
+   * by staff) — create_website_booking has no equivalent input yet, so
+   * this is undefined on every self-service website booking. Real,
+   * confirmed gap: the customer-facing flow has no "special
+   * instructions" step to write one, even though it's a real column.
+   */
+  notes?: string;
   createdAt: unknown; // Firestore server timestamp
   updatedAt: unknown;
 }

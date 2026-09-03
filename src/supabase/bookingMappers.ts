@@ -15,6 +15,9 @@ export function rowToBooking(r: Record<string, unknown>): Booking {
         name: i.name as string,
         labId: (i.lab_id as string) ?? "",
         price: Number(i.price ?? 0),
+        // Absent ("tp" not in i) on the customer-facing BOOKING_SELECT
+        // in bookingService.ts, which never queries this column.
+        tp: "tp" in i ? (i.tp == null ? null : Number(i.tp)) : undefined,
       })
     ),
     labId: (r.lab_id as string) ?? "",
@@ -38,6 +41,7 @@ export function rowToBooking(r: Record<string, unknown>): Booking {
     assignedAgentId: (r.assigned_agent_id as string) ?? undefined,
     assignedSubAdminId: (r.assigned_sub_admin_id as string) ?? undefined,
     assignedAdminId: (r.assigned_admin_id as string) ?? undefined,
+    notes: (r.notes as string) ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
 import { createTest, getAllTests, updateTest } from "@/services/adminCatalogService";
 import { formatCurrencyInr } from "@/services/pricingService";
+import { computeMargin } from "@/utils/margin";
 import type { DiagnosticTest } from "@/types/test";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
@@ -21,6 +22,7 @@ const EMPTY_FORM = {
   homeCollection: true,
   centerCollection: true,
   fastingRequired: false,
+  tp: "",
 };
 
 export default function AdminTestsPage() {
@@ -77,6 +79,13 @@ export default function AdminTestsPage() {
                   {t.name} {!t.active && <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>(inactive)</span>}
                 </p>
                 <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{formatCurrencyInr(t.sellingPrice)} • {t.sampleType}</p>
+                <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+                  {(() => {
+                    const margin = computeMargin(t.sellingPrice, t.tp);
+                    if (t.tp == null) return "TP not set";
+                    return `TP ${formatCurrencyInr(t.tp)} • Margin ${formatCurrencyInr(margin!.amount)}${margin!.percent != null ? ` (${margin!.percent.toFixed(0)}%)` : ""}`;
+                  })()}
+                </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-outline" onClick={() => setEditing(t)}>Edit</button>
@@ -115,6 +124,7 @@ function TestForm({
           homeCollection: existing.homeCollection,
           centerCollection: existing.centerCollection,
           fastingRequired: existing.fastingRequired,
+          tp: existing.tp != null ? String(existing.tp) : "",
         }
       : EMPTY_FORM
   );
@@ -130,10 +140,13 @@ function TestForm({
     setBusy(true);
     setError(null);
     try {
+      // Blank means "not entered" (null), never a real 0 — see
+      // computeMargin's own comment on why that distinction matters.
+      const tp = form.tp.trim() === "" ? null : Number(form.tp);
       if (existing) {
-        await updateTest(actorUid, existing.id, form);
+        await updateTest(actorUid, existing.id, { ...form, tp });
       } else {
-        await createTest(actorUid, { ...form, labIds: [], active: true });
+        await createTest(actorUid, { ...form, tp, labIds: [], active: true });
       }
       onDone();
     } catch (err) {
@@ -154,6 +167,23 @@ function TestForm({
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
         <input type="number" placeholder="MRP" required value={form.mrp} onChange={(e) => update("mrp", Number(e.target.value))} style={{ flex: 1 }} />
         <input type="number" placeholder="Selling price" required value={form.sellingPrice} onChange={(e) => update("sellingPrice", Number(e.target.value))} style={{ flex: 1 }} />
+      </div>
+      <div>
+        <input
+          type="number"
+          placeholder="TP / internal cost (staff-only, never shown to customers)"
+          value={form.tp}
+          onChange={(e) => update("tp", e.target.value)}
+          min={0}
+        />
+        <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginTop: 4 }}>
+          {form.tp.trim() === ""
+            ? "Leave blank if not yet known — shown as \"TP not set\", never as a fake ₹0."
+            : (() => {
+                const margin = computeMargin(form.sellingPrice, Number(form.tp));
+                return `Margin: ${formatCurrencyInr(margin!.amount)}${margin!.percent != null ? ` (${margin!.percent.toFixed(0)}%)` : ""}`;
+              })()}
+        </p>
       </div>
       <label><input type="checkbox" checked={form.homeCollection} onChange={(e) => update("homeCollection", e.target.checked)} /> Home collection</label>
       <label><input type="checkbox" checked={form.centerCollection} onChange={(e) => update("centerCollection", e.target.checked)} /> Center collection</label>

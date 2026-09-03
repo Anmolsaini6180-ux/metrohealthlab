@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
 import { createPackage, getAllPackages, updatePackage } from "@/services/adminCatalogService";
 import { formatCurrencyInr } from "@/services/pricingService";
+import { computeMargin } from "@/utils/margin";
 import type { HealthPackage } from "@/types/package";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
@@ -19,6 +20,7 @@ const EMPTY_FORM = {
   mrp: 0,
   sellingPrice: 0,
   homeCollection: true,
+  tp: "",
 };
 
 export default function AdminPackagesPage() {
@@ -63,6 +65,13 @@ export default function AdminPackagesPage() {
                 <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
                   {formatCurrencyInr(p.sellingPrice)} • {p.testIds.length} tests
                 </p>
+                <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+                  {(() => {
+                    const margin = computeMargin(p.sellingPrice, p.tp);
+                    if (p.tp == null) return "TP not set";
+                    return `TP ${formatCurrencyInr(p.tp)} • Margin ${formatCurrencyInr(margin!.amount)}${margin!.percent != null ? ` (${margin!.percent.toFixed(0)}%)` : ""}`;
+                  })()}
+                </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-outline" onClick={() => setEditing(p)}>Edit</button>
@@ -91,6 +100,7 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
           mrp: existing.mrp,
           sellingPrice: existing.sellingPrice,
           homeCollection: existing.homeCollection,
+          tp: existing.tp != null ? String(existing.tp) : "",
         }
       : EMPTY_FORM
   );
@@ -107,10 +117,13 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
     setError(null);
     try {
       const testIds = form.testIds.split(",").map((s) => s.trim()).filter(Boolean);
+      // Blank means "not entered" (null), never a real 0 — see
+      // computeMargin's own comment on why that distinction matters.
+      const tp = form.tp.trim() === "" ? null : Number(form.tp);
       if (existing) {
-        await updatePackage(actorUid, existing.id, { ...form, testIds });
+        await updatePackage(actorUid, existing.id, { ...form, testIds, tp });
       } else {
-        await createPackage(actorUid, { ...form, testIds, labIds: [], active: true });
+        await createPackage(actorUid, { ...form, testIds, tp, labIds: [], active: true });
       }
       onDone();
     } catch (err) {
@@ -135,6 +148,23 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
         <input type="number" placeholder="MRP" required value={form.mrp} onChange={(e) => update("mrp", Number(e.target.value))} style={{ flex: 1 }} />
         <input type="number" placeholder="Selling price" required value={form.sellingPrice} onChange={(e) => update("sellingPrice", Number(e.target.value))} style={{ flex: 1 }} />
+      </div>
+      <div>
+        <input
+          type="number"
+          placeholder="TP / internal cost (staff-only, never shown to customers)"
+          value={form.tp}
+          onChange={(e) => update("tp", e.target.value)}
+          min={0}
+        />
+        <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginTop: 4 }}>
+          {form.tp.trim() === ""
+            ? "Leave blank if not yet known — shown as \"TP not set\", never as a fake ₹0."
+            : (() => {
+                const margin = computeMargin(form.sellingPrice, Number(form.tp));
+                return `Margin: ${formatCurrencyInr(margin!.amount)}${margin!.percent != null ? ` (${margin!.percent.toFixed(0)}%)` : ""}`;
+              })()}
+        </p>
       </div>
       <label><input type="checkbox" checked={form.homeCollection} onChange={(e) => update("homeCollection", e.target.checked)} /> Home collection</label>
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
