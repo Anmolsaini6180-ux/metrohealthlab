@@ -17,6 +17,11 @@ const STATUS_COLORS: Record<string, string> = {
   arrived: "var(--color-primary)",
   sample_collected: "var(--color-primary)",
   testing: "var(--color-primary)",
+  // support tickets
+  open: "var(--color-amber)",
+  in_progress: "var(--color-primary)",
+  resolved: "var(--color-success)",
+  closed: "var(--color-ink-soft)",
 };
 
 // Consistent colored status pill — established here and used on the

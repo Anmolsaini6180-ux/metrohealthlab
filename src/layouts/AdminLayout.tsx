@@ -60,6 +60,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { to: "/admin/content/media", label: "Media Library", icon: "photo_library", roles: CAN_MANAGE_CATALOG },
       { to: "/admin/payments", label: "Payments", icon: "account_balance_wallet", roles: CAN_MANAGE_CATALOG },
       { to: "/admin/notifications", label: "Notifications", icon: "notifications", roles: CAN_MANAGE_CATALOG },
+      { to: "/admin/support", label: "Support", icon: "support_agent", roles: CAN_MANAGE_CATALOG },
       { to: "/agent", label: "My Collections", icon: "local_shipping", roles: ["COLLECTION_AGENT"] },
       { to: "/admin/security/audit-logs", label: "Audit Logs", icon: "history", roles: ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN"] },
     ],

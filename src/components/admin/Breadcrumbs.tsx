@@ -23,6 +23,7 @@ const LABELS: Record<string, string> = {
   reports: "Reports",
   payments: "Payments",
   notifications: "Notifications",
+  support: "Support",
   content: "Content",
   articles: "Articles",
   media: "Media Library",

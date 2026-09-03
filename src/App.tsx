@@ -56,6 +56,7 @@ import AdminReportsPage from "@/pages/admin/AdminReportsPage";
 import AdminMediaPage from "@/pages/admin/AdminMediaPage";
 import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
 import AdminNotificationsPage from "@/pages/admin/AdminNotificationsPage";
+import AdminSupportPage from "@/pages/admin/AdminSupportPage";
 import AdminArticlesPage from "@/pages/admin/AdminArticlesPage";
 import AdminBrandingSettingsPage from "@/pages/admin/AdminBrandingSettingsPage";
 import AdminTeamPage from "@/pages/admin/AdminTeamPage";
@@ -236,6 +237,7 @@ export default function App() {
         <Route path="reports" element={<AdminReportsPage />} />
         <Route path="payments" element={<AdminPaymentsPage />} />
         <Route path="notifications" element={<AdminNotificationsPage />} />
+        <Route path="support" element={<AdminSupportPage />} />
         <Route path="content/articles" element={<AdminArticlesPage />} />
         <Route path="content/media" element={<AdminMediaPage />} />
         <Route path="settings/branding" element={<AdminBrandingSettingsPage />} />
