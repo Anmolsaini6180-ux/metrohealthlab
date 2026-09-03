@@ -6,6 +6,7 @@ import { createTestCategory, getAllTestCategories, updateTestCategory } from "@/
 import type { TestCategory } from "@/types/test";
 import CategoryIcon from "@/components/common/CategoryIcon";
 import IconPicker from "@/components/admin/IconPicker";
+import ImagePicker from "@/components/admin/ImagePicker";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
@@ -244,6 +245,17 @@ function CategoryForm({
             Choose an icon to represent this category. Categories saved without one show a default icon.
           </span>
         </div>
+
+        {existing && (
+          <div style={{ gridColumn: "1 / -1" }}>
+            <ImagePicker
+              label="Category photo (optional)"
+              category="tests"
+              relatedId={existing.id}
+              hint="Shown on the homepage category card instead of the icon once set. Leave unset to keep the icon."
+            />
+          </div>
+        )}
       </div>
 
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}

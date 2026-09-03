@@ -5,6 +5,7 @@ import { getBrandingSettings, updateBrandingSettings } from "@/services/settings
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import MediaUploader from "@/components/admin/MediaUploader";
+import ImagePicker from "@/components/admin/ImagePicker";
 import { toUserMessage } from "@/utils/errors";
 
 export default function AdminBrandingSettingsPage() {
@@ -119,6 +120,24 @@ export default function AdminBrandingSettingsPage() {
             onChange={(e) => update("aboutText", e.target.value)}
           />
         </div>
+
+        {/* Site-section images save themselves immediately (they assign
+            an already-uploaded/newly-uploaded asset via mediaService's
+            assignMedia, independent of this form's own Save button) —
+            not part of the businessName/tagline/... submit cycle below. */}
+        <ImagePicker
+          label="About Us — hero image"
+          category="site_sections"
+          relatedId="about_hero"
+          hint="Shown at the top of the public About Us page."
+        />
+        <ImagePicker
+          label="Contact Us — image"
+          category="site_sections"
+          relatedId="contact_image"
+          hint="Shown on the public Contact Us page."
+        />
+
         <MediaUploader
           label="Logo"
           category="branding"

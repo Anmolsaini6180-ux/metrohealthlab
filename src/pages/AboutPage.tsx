@@ -1,4 +1,6 @@
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import { useAsync } from "@/hooks/useAsync";
+import { getAssignedMedia } from "@/services/mediaService";
 
 // A generic-but-true fallback used only until an admin writes real copy
 // in Admin -> Branding settings -> "About Us page content". It never
@@ -12,9 +14,18 @@ const DEFAULT_ABOUT =
 export default function AboutPage() {
   const { settings } = useBrandingSettings();
   const name = settings?.businessName ?? "Metro Health Lab";
+  // Admin -> Branding settings -> "About Us — hero image" (media_assets,
+  // category "site_sections", relatedId "about_hero"). No image ever
+  // invented in its place — the page simply has no hero until one is
+  // actually assigned.
+  const hero = useAsync(() => getAssignedMedia("site_sections", "about_hero"), []);
 
   return (
     <article className="mh-static-page">
+      {hero.data && (
+        <img className="mh-static-page__hero" src={hero.data.secureUrl} alt={hero.data.altText ?? ""} />
+      )}
+
       <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-md)" }}>About {name}</h1>
       <p className="text-soft">{settings?.aboutText?.trim() || DEFAULT_ABOUT}</p>
 

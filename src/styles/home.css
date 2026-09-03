@@ -330,6 +330,22 @@
   margin-bottom: 6px;
 }
 
+/* When an admin has assigned a real photo (Admin -> Categories ->
+   Choose Image), it replaces the icon chip with a proper photo panel —
+   the reference's own category-card treatment — instead of the icon
+   sitting on top of the tint. Title/support/arrow are unchanged. */
+.mh-cat-card__image {
+  width: calc(100% + 32px);
+  margin: -16px -16px 8px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 18px 18px 0 0;
+}
+
+.mh-cat-card.has-image {
+  padding-bottom: 40px;
+}
+
 .mh-cat-card__title {
   font-family: var(--font-display);
   font-weight: 700;

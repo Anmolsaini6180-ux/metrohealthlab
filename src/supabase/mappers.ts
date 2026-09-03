@@ -343,6 +343,10 @@ export function rowToMediaAsset(r: Record<string, unknown>): MediaAsset {
     folder: r.folder as string,
     filename: r.filename as string,
     secureUrl: r.secure_url as string,
+    title: (r.title as string) ?? undefined,
+    altText: (r.alt_text as string) ?? undefined,
+    active: r.active !== false,
+    sortOrder: Number(r.sort_order ?? 0),
     uploadedBy: (r.uploaded_by_firebase_uid as string) ?? (r.uploaded_by as string) ?? "",
     uploadedAt: r.uploaded_at,
   };

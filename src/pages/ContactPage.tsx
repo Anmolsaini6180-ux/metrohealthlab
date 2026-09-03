@@ -1,12 +1,20 @@
 import { Link } from "react-router-dom";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import { useAsync } from "@/hooks/useAsync";
+import { getAssignedMedia } from "@/services/mediaService";
 
 export default function ContactPage() {
   const { settings } = useBrandingSettings();
   const hasAnyContact = !!(settings?.phone || settings?.email || settings?.whatsapp || settings?.address);
+  // Admin -> Branding settings -> "Contact Us — image".
+  const image = useAsync(() => getAssignedMedia("site_sections", "contact_image"), []);
 
   return (
     <article className="mh-static-page">
+      {image.data && (
+        <img className="mh-static-page__hero" src={image.data.secureUrl} alt={image.data.altText ?? ""} />
+      )}
+
       <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-md)" }}>Contact us</h1>
       <p className="text-soft">
         For booking help, use the <Link to="/support">in-app Support page</Link> once signed in — it creates a

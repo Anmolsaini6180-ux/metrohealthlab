@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import CategoryIcon from "@/components/common/CategoryIcon";
 import { formatCurrencyInr } from "@/services/pricingService";
+import { useAsync } from "@/hooks/useAsync";
+import { getAssignedMediaMap } from "@/services/mediaService";
 import type { TestCategory } from "@/types/test";
 import type { DiagnosticTest } from "@/types/test";
 
@@ -28,6 +30,15 @@ function supportLineFor(category: TestCategory, tests: DiagnosticTest[]): string
 const TINTS = ["is-blue", "is-peach", "is-mint"] as const;
 
 export default function QuickCategories({ categories, tests }: Props) {
+  // A category's own real photo, assigned from Admin -> Categories ->
+  // Choose Image (media_assets, category "tests", relatedId = this
+  // category's own id — see mediaService.ts's ImagePicker workflow).
+  // Every category starts with none assigned: the icon+tint treatment
+  // below is the honest fallback, not a placeholder pretending to be a
+  // photo, until an admin actually picks one for that specific row.
+  const categoryIds = categories.map((c) => c.id);
+  const images = useAsync(() => getAssignedMediaMap("tests", categoryIds), [categoryIds.join(",")]);
+
   if (categories.length === 0) return null;
 
   return (
@@ -42,16 +53,21 @@ export default function QuickCategories({ categories, tests }: Props) {
       <div className="mh-cats__rail" role="list">
         {categories.map((c, i) => {
           const support = supportLineFor(c, tests);
+          const image = images.data?.get(c.id);
           return (
             <Link
               key={c.id}
               role="listitem"
               to={`/tests?category=${c.id}`}
-              className={`mh-cat-card ${TINTS[i % TINTS.length]}`}
+              className={`mh-cat-card ${TINTS[i % TINTS.length]}${image ? " has-image" : ""}`}
             >
-              <span className="mh-cat-card__icon">
-                <CategoryIcon iconName={c.icon} size={28} color="currentColor" fallback="science" />
-              </span>
+              {image ? (
+                <img className="mh-cat-card__image" src={image.secureUrl} alt="" loading="lazy" />
+              ) : (
+                <span className="mh-cat-card__icon">
+                  <CategoryIcon iconName={c.icon} size={28} color="currentColor" fallback="science" />
+                </span>
+              )}
               <span className="mh-cat-card__title">{c.name}</span>
               {support && <span className="mh-cat-card__support">{support}</span>}
               <span className="mh-cat-card__go" aria-hidden="true">
