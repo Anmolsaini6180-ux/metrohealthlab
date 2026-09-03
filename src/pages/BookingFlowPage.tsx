@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
 import { getPatients, addPatient } from "@/services/patientService";
-import { getAddresses } from "@/services/addressService";
+import { getAddresses, addAddress } from "@/services/addressService";
 import { checkServiceability } from "@/services/serviceabilityService";
 import { subscribeToSlots } from "@/services/slotService";
 import { formatCurrencyInr } from "@/services/pricingService";
@@ -23,8 +23,8 @@ interface BookingSelection {
   refId: string;
   name: string;
   labId: string;
-  price: number; // display-only — firestore.rules re-derives it from pricingRefId
-  /** labPricing document the price came from; the rules verify against it. */
+  price: number; // display-only — create_website_booking re-derives it server-side from pricingRefId
+  /** pricing row the price came from; the RPC verifies against it. */
   pricingRefId?: string;
   labName?: string;
 }
@@ -60,6 +60,7 @@ export default function BookingFlowPage() {
 
   const [collectionType, setCollectionType] = useState<CollectionType>("home");
   const [addressId, setAddressId] = useState<string | null>(null);
+  const [showAddAddress, setShowAddAddress] = useState(false);
   const [pincode, setPincode] = useState("");
   const [pincodeChecked, setPincodeChecked] = useState<
     { areaId: string; collectionFee: number; available: boolean } | null
@@ -69,7 +70,8 @@ export default function BookingFlowPage() {
   const [slotId, setSlotId] = useState<string | null>(null);
 
   // What the customer is shown as "what you'll pay". Composed in
-  // fetchQuote() below and re-verified by firestore.rules on write.
+  // fetchQuote() below and re-verified server-side by
+  // create_website_booking (the RPC, not the browser) on write.
   const [quote, setQuote] = useState<GetBookingQuoteResponse | null>(null);
   const quoteLoading = false;
   const [quoteError, setQuoteError] = useState<string | null>(null);
@@ -400,16 +402,11 @@ export default function BookingFlowPage() {
               <h2 className="mh-booking__section-title">Delivery / Collection Address</h2>
               {addresses.loading && <LoadingState rows={2} />}
               {addresses.error && <ErrorState message={addresses.error} onRetry={addresses.retry} />}
-              {addresses.data && addresses.data.length === 0 && (
-                <EmptyState
-                  icon="location_on"
-                  title="No saved addresses"
-                  description="Add one from your profile before booking home collection."
-                  action={{ label: "Add address", onClick: () => navigate("/addresses") }}
-                />
-              )}
-              {addresses.data && addresses.data.length > 0 && (
+              {addresses.data && (
                 <div className="mh-select-list">
+                  {addresses.data.length === 0 && !showAddAddress && (
+                    <EmptyState icon="location_on" title="No saved addresses yet" description="Add one below to continue." />
+                  )}
                   {addresses.data.map((a) => (
                     <button
                       key={a.id}
@@ -437,6 +434,29 @@ export default function BookingFlowPage() {
                       )}
                     </button>
                   ))}
+                  {/* Always available, list empty or not — this used to
+                      only exist inside the empty-list EmptyState (and
+                      navigated away to /addresses), so once a customer
+                      had one saved address there was no way left to add
+                      a second without leaving the booking flow. */}
+                  {!showAddAddress && (
+                    <button className="mh-add-row" onClick={() => setShowAddAddress(true)}>
+                      <span className="mi" aria-hidden="true">add_circle</span>
+                      Add a new address
+                    </button>
+                  )}
+                  {showAddAddress && supabaseUserId && (
+                    <QuickAddAddressForm
+                      userId={supabaseUserId}
+                      onAdded={(id, savedPincode) => {
+                        setAddressId(id);
+                        setPincode(savedPincode);
+                        setShowAddAddress(false);
+                        addresses.retry();
+                      }}
+                      onCancel={() => setShowAddAddress(false)}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -654,6 +674,64 @@ function QuickAddPatientForm({ userId, onAdded }: { userId: string; onAdded: (id
       <button className="btn btn-primary" type="submit" disabled={busy}>
         Save
       </button>
+    </form>
+  );
+}
+
+// Same field set as AddressesPage.tsx's own AddAddressForm — kept in
+// sync deliberately, since both write the exact same addresses row
+// shape. This one lives inline in the booking flow so adding a second
+// (or first) address never requires leaving mid-booking.
+function QuickAddAddressForm({
+  userId,
+  onAdded,
+  onCancel,
+}: {
+  userId: string;
+  onAdded: (id: string, pincode: string) => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState({ label: "Home", house: "", street: "", area: "", city: "", state: "", pincode: "", landmark: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  function update<K extends keyof typeof form>(key: K, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const id = await addAddress(userId, form);
+      onAdded(id, form.pincode);
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)" }}>
+      <input placeholder="Label (Home / Work)" required value={form.label} onChange={(e) => update("label", e.target.value)} />
+      <input placeholder="House / flat no." required value={form.house} onChange={(e) => update("house", e.target.value)} />
+      <input placeholder="Street" required value={form.street} onChange={(e) => update("street", e.target.value)} />
+      <input placeholder="Area" required value={form.area} onChange={(e) => update("area", e.target.value)} />
+      <input placeholder="City" required value={form.city} onChange={(e) => update("city", e.target.value)} />
+      <input placeholder="State" required value={form.state} onChange={(e) => update("state", e.target.value)} />
+      <input placeholder="Pincode" required value={form.pincode} onChange={(e) => update("pincode", e.target.value)} />
+      <input placeholder="Landmark (optional)" value={form.landmark} onChange={(e) => update("landmark", e.target.value)} />
+      {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
+      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+        <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+          {busy ? "Saving..." : "Save address"}
+        </button>
+        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }
