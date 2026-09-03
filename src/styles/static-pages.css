@@ -1,0 +1,33 @@
+/* ============================================================
+   ABOUT / CONTACT
+   ============================================================ */
+.mh-static-page {
+  max-width: 640px;
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.mh-static-page__contact {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.mh-static-page__dl {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.mh-static-page__dl dt {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.mh-static-page__dl dd {
+  font-size: var(--text-base);
+}
+
+.mh-static-page__dl a {
+  color: var(--color-primary);
+  font-weight: 600;
+}

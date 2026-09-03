@@ -27,53 +27,42 @@ export default function ProfilePage() {
   const initial = (profile?.name ?? profile?.email ?? user?.email ?? "?").charAt(0).toUpperCase();
 
   return (
-    <div style={{ display: "grid", gap: "var(--space-lg)" }}>
-      <div className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: "50%",
-            background: "var(--color-bg-tint)",
-            color: "var(--color-primary)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 700,
-            fontSize: "var(--text-xl)",
-            flexShrink: 0,
-          }}
-        >
-          {initial}
-        </div>
+    <div className="mh-profile">
+      <div className="mh-profile__head">
+        <div className="mh-profile__avatar">{initial}</div>
         <div>
-          <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>{profile?.name ?? "Your account"}</p>
-          <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-            {profile?.email ?? user?.email ?? profile?.phone ?? ""}
-          </p>
+          <p className="mh-profile__name">{profile?.name ?? "Your account"}</p>
+          <p className="mh-profile__contact">{profile?.email ?? user?.email ?? profile?.phone ?? ""}</p>
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: "var(--space-sm)" }}>
+      <div className="mh-profile__menu">
         {LINKS.map((l) => (
-          <Link key={l.to} to={l.to} className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-            <span className="mi" style={{ color: "var(--color-primary)" }}>{l.icon}</span>
-            {l.label}
+          <Link key={l.to} to={l.to} className="mh-profile__item">
+            <span className="mh-profile__item-icon" aria-hidden="true">
+              <span className="mi">{l.icon}</span>
+            </span>
+            <span className="mh-profile__item-label">{l.label}</span>
+            <span className="mi mh-profile__item-chevron" aria-hidden="true">chevron_right</span>
           </Link>
         ))}
         {/* Shown only when the ID token actually carries a staff role
             claim. A normal customer never sees this — and if they
             navigated to /admin directly anyway, AdminProtectedRoute and
-            firestore.rules would both refuse them. */}
+            the RLS policies would both refuse them. */}
         {adminHomePathForRole(role) && (
-          <Link to={adminHomePathForRole(role)!} className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-            <span className="mi" style={{ color: "var(--color-accent)" }}>admin_panel_settings</span>
-            {adminMenuLabelForRole(role)}
+          <Link to={adminHomePathForRole(role)!} className="mh-profile__item">
+            <span className="mh-profile__item-icon is-accent" aria-hidden="true">
+              <span className="mi">admin_panel_settings</span>
+            </span>
+            <span className="mh-profile__item-label">{adminMenuLabelForRole(role)}</span>
+            <span className="mi mh-profile__item-chevron" aria-hidden="true">chevron_right</span>
           </Link>
         )}
       </div>
 
-      <button className="btn btn-outline" onClick={handleLogout}>
+      <button className="mh-profile__logout" onClick={handleLogout}>
+        <span className="mi" aria-hidden="true">logout</span>
         Log out
       </button>
     </div>

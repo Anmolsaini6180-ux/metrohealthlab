@@ -21,6 +21,7 @@ export default function AdminBrandingSettingsPage() {
     email: "",
     address: "",
     city: "",
+    aboutText: "",
     facebook: "",
     instagram: "",
     twitter: "",
@@ -41,6 +42,7 @@ export default function AdminBrandingSettingsPage() {
       email: settings.data.email ?? "",
       address: settings.data.address ?? "",
       city: settings.data.city ?? "",
+      aboutText: settings.data.aboutText ?? "",
       facebook: settings.data.socialLinks?.facebook ?? "",
       instagram: settings.data.socialLinks?.instagram ?? "",
       twitter: settings.data.socialLinks?.twitter ?? "",
@@ -70,6 +72,7 @@ export default function AdminBrandingSettingsPage() {
         email: form.email,
         address: form.address,
         city: form.city,
+        aboutText: form.aboutText,
         socialLinks: {
           facebook: form.facebook,
           instagram: form.instagram,
@@ -100,6 +103,22 @@ export default function AdminBrandingSettingsPage() {
       <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", maxWidth: 480 }}>
         <input placeholder="Business name" required value={form.businessName} onChange={(e) => update("businessName", e.target.value)} />
         <input placeholder="Tagline" value={form.tagline} onChange={(e) => update("tagline", e.target.value)} />
+        <div style={{ display: "grid", gap: 6 }}>
+          <label htmlFor="branding-about" style={{ fontSize: "var(--text-sm)", fontWeight: 600 }}>
+            About Us page content
+          </label>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+            Shown on the public About Us page. Leave empty to show a short default description
+            instead — never invent your company's history for you.
+          </p>
+          <textarea
+            id="branding-about"
+            placeholder="Write a few paragraphs about your lab, your labs network, or your story..."
+            rows={5}
+            value={form.aboutText}
+            onChange={(e) => update("aboutText", e.target.value)}
+          />
+        </div>
         <MediaUploader
           label="Logo"
           category="branding"

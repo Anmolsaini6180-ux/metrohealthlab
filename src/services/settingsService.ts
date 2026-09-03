@@ -34,7 +34,7 @@ export function subscribeToBrandingSettings(
   }, onError);
 }
 
-const OPTIONAL_BRANDING_FIELDS = ["tagline", "logoUrl", "faviconUrl", "phone", "whatsapp", "email", "address", "city"] as const;
+const OPTIONAL_BRANDING_FIELDS = ["tagline", "logoUrl", "faviconUrl", "phone", "whatsapp", "email", "address", "city", "aboutText"] as const;
 const OPTIONAL_SOCIAL_FIELDS = ["facebook", "instagram", "twitter", "youtube", "linkedin"] as const;
 
 // What the branding form hands over. Same three-way convention as

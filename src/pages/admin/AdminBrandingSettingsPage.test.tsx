@@ -66,4 +66,16 @@ describe("Branding settings form", () => {
     expect(html.indexOf('placeholder="Address"')).toBeLessThan(html.indexOf('id="branding-city"'));
     expect(html.indexOf('id="branding-city"')).toBeLessThan(html.indexOf('placeholder="Facebook URL"'));
   });
+
+  // The public About Us page reads settings.aboutText — this pins that
+  // the admin form actually has a labelled box bound to that same key,
+  // not just a TypeScript field nobody can ever set. Like the city
+  // field above, the form only fills in from the loaded document
+  // inside an effect that server rendering does not run, so this only
+  // asserts the box exists and is a controlled field, not its content.
+  it("shows a labelled, controlled About Us page content box", () => {
+    const html = render(null);
+    expect(html).toContain("About Us page content");
+    expect(html).toMatch(/<textarea id="branding-about"[^>]*><\/textarea>/);
+  });
 });

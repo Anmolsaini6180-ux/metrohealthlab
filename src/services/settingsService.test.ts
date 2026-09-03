@@ -124,6 +124,26 @@ describe("updateBrandingSettings", () => {
     expect(lastData().city).toBe("Ghaziabad, UP");
   });
 
+  // The public About Us page copy. Same three-way contract as every
+  // other optional branding field, and it must never be silently
+  // fabricated by the service — only ever what the admin actually typed.
+  it("saves the About Us page copy typed into the branding form", async () => {
+    await updateBrandingSettings(ACTOR, { aboutText: "We are a diagnostics network serving Ghaziabad." });
+    expect(lastData().aboutText).toBe("We are a diagnostics network serving Ghaziabad.");
+  });
+
+  it("removes the About Us copy when the admin clears the box", async () => {
+    state.current = { aboutText: "Old copy" };
+    await updateBrandingSettings(ACTOR, { aboutText: "" });
+    expect("aboutText" in lastData()).toBe(false);
+  });
+
+  it("leaves stored About Us copy untouched when the form does not mention it", async () => {
+    state.current = { aboutText: "Existing copy" };
+    await updateBrandingSettings(ACTOR, { phone: "+91 99999 88888" });
+    expect(lastData().aboutText).toBe("Existing copy");
+  });
+
   it("does not write a socialLinks key at all when none were mentioned and none existed", async () => {
     await updateBrandingSettings(ACTOR, { businessName: "Metro Health Lab" });
     expect("socialLinks" in lastData()).toBe(false);

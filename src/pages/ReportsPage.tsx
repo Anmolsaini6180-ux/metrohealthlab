@@ -29,8 +29,8 @@ export default function ReportsPage() {
   }
 
   return (
-    <div>
-      <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-md)" }}>Reports</h1>
+    <div className="mh-reports">
+      <h1 style={{ fontSize: "var(--text-2xl)" }}>Reports</h1>
       {reports.loading && <LoadingState rows={3} />}
       {reports.error && <ErrorState message={reports.error} onRetry={reports.retry} />}
       {reports.data && reports.data.length === 0 && (
@@ -38,22 +38,37 @@ export default function ReportsPage() {
       )}
       {downloadError && <ErrorState message={downloadError} />}
       {reports.data && reports.data.length > 0 && (
-        <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-          {reports.data.map((r) => (
-            <div key={r.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <p style={{ fontWeight: 600 }}>Booking {r.bookingId}</p>
-                <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-                  {r.status === "ready" ? "Ready" : "Processing"}
-                </p>
+        <div className="mh-reports__list">
+          {reports.data.map((r) => {
+            // uploadedAt/createdAt come straight off a Postgres
+            // timestamptz column via Supabase, so this is always a real
+            // ISO string once a value exists — never a guess or a
+            // formatted placeholder.
+            const rawDate = r.uploadedAt ?? r.createdAt;
+            const dateLabel = rawDate ? new Date(String(rawDate)).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null;
+            return (
+              <div key={r.id} className="mh-report-card">
+                <span className="mh-report-card__icon" aria-hidden="true">
+                  <span className="mi">description</span>
+                </span>
+                <span className="mh-report-card__body">
+                  <span className="mh-report-card__title">{r.filename ?? `Booking ${r.bookingId}`}</span>
+                  <span className="mh-report-card__meta">
+                    <span className={`mh-status-badge ${r.status === "ready" ? "is-completed" : "is-active"}`}>
+                      {r.status === "ready" ? "Ready" : "Processing"}
+                    </span>
+                    {dateLabel && <span className="mh-report-card__date">{dateLabel}</span>}
+                  </span>
+                </span>
+                {r.status === "ready" && (
+                  <button className="btn btn-outline" onClick={() => handleDownload(r.id)} disabled={downloadingId === r.id}>
+                    <span className="mi" aria-hidden="true">download</span>
+                    {downloadingId === r.id ? "Opening..." : "Download"}
+                  </button>
+                )}
               </div>
-              {r.status === "ready" && (
-                <button className="btn btn-outline" onClick={() => handleDownload(r.id)} disabled={downloadingId === r.id}>
-                  {downloadingId === r.id ? "Opening..." : "Download"}
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

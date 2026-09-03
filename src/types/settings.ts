@@ -19,6 +19,8 @@ export interface BrandingSettings {
   address?: string;
   /** Short service-area label shown beside the mobile wordmark, e.g. "Ghaziabad, UP". */
   city?: string;
+  /** Admin-written copy shown on the public About Us page. Absent until an admin sets it. */
+  aboutText?: string;
   socialLinks?: SocialLinks;
   updatedBy?: string;
   updatedAt?: unknown;

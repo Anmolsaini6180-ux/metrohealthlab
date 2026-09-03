@@ -42,6 +42,23 @@ function matchesTab(b: Booking, tab: Tab): boolean {
   }
 }
 
+// Same four buckets as matchesTab, but keyed by a single booking so the
+// card badge always agrees with whichever tab the booking would appear
+// under - one source of truth for the grouping, two different views.
+function statusTone(status: BookingStatus): Tab {
+  if (status === "payment_pending" || status === "confirmed") return "Upcoming";
+  if (ACTIVE_STATUSES.includes(status)) return "Active";
+  if (status === "completed" || status === "report_ready") return "Completed";
+  return "Cancelled";
+}
+
+const TONE_CLASS: Record<Tab, string> = {
+  Upcoming: "is-upcoming",
+  Active: "is-active",
+  Completed: "is-completed",
+  Cancelled: "is-cancelled",
+};
+
 export default function BookingsPage() {
   // bookings.user_id is a Supabase uuid FK to profiles.id — must use
   // supabaseUserId here, never the Firebase user.uid (see
@@ -59,17 +76,12 @@ export default function BookingsPage() {
   const filtered = useMemo(() => (bookings.data ?? []).filter((b) => matchesTab(b, tab)), [bookings.data, tab]);
 
   return (
-    <div>
-      <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-md)" }}>Your bookings</h1>
+    <div className="mh-bookings">
+      <h1 style={{ fontSize: "var(--text-2xl)" }}>My Bookings</h1>
 
-      <div className="mh-chip-row" style={{ display: "flex", gap: "var(--space-sm)", overflowX: "auto", marginBottom: "var(--space-md)" }}>
+      <div className="mh-tab-row">
         {TABS.map((t) => (
-          <button
-            key={t}
-            className={tab === t ? "btn btn-primary" : "btn btn-outline"}
-            onClick={() => setTab(t)}
-            style={{ whiteSpace: "nowrap" }}
-          >
+          <button key={t} className={`mh-tab-btn${tab === t ? " is-active" : ""}`} onClick={() => setTab(t)}>
             {t}
           </button>
         ))}
@@ -81,20 +93,29 @@ export default function BookingsPage() {
         <EmptyState icon="calendar_month" title={`No ${tab.toLowerCase()} bookings`} description="Book a test or package to see it here." />
       )}
       {bookings.data && filtered.length > 0 && (
-        <div style={{ display: "grid", gap: "var(--space-sm)" }}>
+        <div className="mh-bookings__list">
           {filtered.map((b) => (
-            <Link key={b.id} to={`/bookings/${b.id}`} className="card" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <p style={{ fontWeight: 600 }}>{b.id}</p>
-                <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-                  {b.items.map((i) => i.name).join(", ")}
-                </p>
-                <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{b.date}</p>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontWeight: 600 }}>{formatCurrencyInr(b.finalAmount)}</p>
-                <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{STATUS_LABELS[b.bookingStatus] ?? b.bookingStatus}</p>
-              </div>
+            <Link key={b.id} to={`/bookings/${b.id}`} className="mh-booking-card">
+              <span className="mh-booking-card__icon" aria-hidden="true">
+                <span className="mi">science</span>
+              </span>
+              <span className="mh-booking-card__body">
+                <span className="mh-booking-card__row">
+                  <span className="mh-booking-card__id">{b.id}</span>
+                  <span className={`mh-status-badge ${TONE_CLASS[statusTone(b.bookingStatus)]}`}>
+                    {STATUS_LABELS[b.bookingStatus] ?? b.bookingStatus}
+                  </span>
+                </span>
+                <span className="mh-booking-card__items">{b.items.map((i) => i.name).join(", ")}</span>
+                <span className="mh-booking-card__row">
+                  <span className="mh-booking-card__date">
+                    <span className="mi" aria-hidden="true">event</span>
+                    {new Date(b.date).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                  </span>
+                  <span className="mh-booking-card__price">{formatCurrencyInr(b.finalAmount)}</span>
+                </span>
+              </span>
+              <span className="mh-booking-card__chevron mi" aria-hidden="true">chevron_right</span>
             </Link>
           ))}
         </div>

@@ -1,0 +1,139 @@
+/* ============================================================
+   MY BOOKINGS
+   ============================================================ */
+.mh-bookings {
+  display: grid;
+  gap: var(--space-md);
+}
+
+/* ---- Generic pill tab row (reused by other list pages) ---- */
+.mh-tab-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.mh-tab-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+}
+
+.mh-tab-btn.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.mh-bookings__list {
+  display: grid;
+  gap: 10px;
+}
+
+.mh-booking-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: var(--space-md);
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.mh-booking-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh-booking-card__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mh-booking-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mh-booking-card__id {
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.mh-booking-card__items {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mh-booking-card__date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+
+.mh-booking-card__date .mi {
+  font-size: 15px;
+}
+
+.mh-booking-card__price {
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.mh-booking-card__chevron {
+  color: var(--color-ink-soft);
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.mh-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mh-status-badge.is-upcoming {
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+}
+
+.mh-status-badge.is-active {
+  background: #fff2e6;
+  color: var(--color-accent);
+}
+
+.mh-status-badge.is-completed {
+  background: #e6f7f0;
+  color: var(--color-success);
+}
+
+.mh-status-badge.is-cancelled {
+  background: #fbe9e9;
+  color: var(--color-danger);
+}

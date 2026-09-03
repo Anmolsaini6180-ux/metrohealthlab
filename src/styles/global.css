@@ -3,6 +3,9 @@
 @import "./package-detail.css";
 @import "./booking-flow.css";
 @import "./track-booking.css";
+@import "./bookings-list.css";
+@import "./reports-profile.css";
+@import "./static-pages.css";
 
 *,
 *::before,
