@@ -40,10 +40,18 @@ describe("Header service-area chip", () => {
     expect(render({ city: "   " })).not.toContain("mh-header__city");
   });
 
-  it("keeps the greeting and the bookings shortcut alongside it", () => {
+  it("keeps the greeting and the search control alongside it", () => {
     const html = render({ city: "Ghaziabad, UP" });
     expect(html).toContain("Hi, Aman");
-    expect(html).toContain('aria-label="My bookings"');
     expect(html).toContain("tune");
+  });
+
+  // The bookings shortcut was deliberately dropped from the header: a
+  // fourth icon wrapped the wordmark onto two lines at 375px, and the
+  // mobile bottom nav already carries a Bookings tab (see BottomNav),
+  // so the capability is unchanged - only the duplicate entry point is
+  // gone.
+  it("does not duplicate the bottom nav bookings shortcut in the header", () => {
+    expect(render({ city: "Ghaziabad, UP" })).not.toContain(String.raw`aria-label="My bookings"`);
   });
 });

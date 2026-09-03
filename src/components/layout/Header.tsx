@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Logo from "@/components/brand/Logo";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
+import HeaderCallButton from "./HeaderCallButton";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 
 export default function Header() {
@@ -64,6 +65,7 @@ export default function Header() {
         </form>
 
         <div className="mh-header__icons">
+          <HeaderCallButton />
           <NotificationBell />
           <ProfileMenu />
         </div>
@@ -89,10 +91,11 @@ export default function Header() {
             </span>
           </Link>
           <div className="mh-header__icons">
+            <HeaderCallButton />
             <NotificationBell />
-            <Link to="/bookings" className="icon-btn" aria-label="My bookings">
-              <span className="mi" aria-hidden="true">assignment</span>
-            </Link>
+            {/* No bookings icon here: the mobile bottom nav already has a
+                Bookings tab, and a fourth icon pushed the wordmark onto
+                two lines at 375px. */}
             <ProfileMenu />
           </div>
         </div>
