@@ -18,6 +18,7 @@ import BookingStepper from "@/components/common/BookingStepper";
 import { isCallableUnavailable, logOperationError, toUserMessage } from "@/utils/errors";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { buildWhatsAppLink } from "@/utils/whatsappBooking";
+import { isValidIndianMobile, normalizeIndianMobile } from "@/utils/phone";
 
 interface BookingSelection {
   itemType: "test" | "package";
@@ -58,6 +59,33 @@ export default function BookingFlowPage() {
 
   const [patientId, setPatientId] = useState<string | null>(null);
   const [showAddPatient, setShowAddPatient] = useState(false);
+
+  // Booking contact number — who our team calls about THIS booking.
+  // Seeded from the signed-in profile/account so a customer who
+  // already has one on file is never asked to retype it, but it stays
+  // a real, editable field: profile?.phone can be stale, and a Google
+  // account may have no phone at all (user.phoneNumber only exists for
+  // the Firebase-phone-OTP auth path — see src/types/authUser.ts).
+  const [phone, setPhone] = useState(() => profile?.phone ?? user?.phoneNumber ?? "");
+  const [editingPhone, setEditingPhone] = useState(() => !isValidIndianMobile(profile?.phone ?? user?.phoneNumber ?? ""));
+  // useAuth() resolves asynchronously — on first render `profile` is
+  // often still null, so the useState initializers above can seed an
+  // empty phone even for a customer who genuinely has one on file.
+  // Fills it in once the real value arrives, but only while the field
+  // is still untouched (empty) — never overwrites something the
+  // customer has already started typing.
+  useEffect(() => {
+    const known = profile?.phone ?? user?.phoneNumber ?? "";
+    if (known && !phone) {
+      setPhone(known);
+      setEditingPhone(!isValidIndianMobile(known));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.phone, user?.phoneNumber]);
+  // Optional landmark/gate/collection note — never sent anywhere
+  // internal (no tp, no margin), just a note for whoever collects the
+  // sample. Deliberately free-text, deliberately optional.
+  const [instructions, setInstructions] = useState("");
 
   const [collectionType, setCollectionType] = useState<CollectionType>("home");
   const [addressId, setAddressId] = useState<string | null>(null);
@@ -261,8 +289,12 @@ export default function BookingFlowPage() {
         slotId,
         contact: {
           name: profile?.name ?? user.displayName ?? undefined,
-          phone: profile?.phone ?? user.phoneNumber ?? undefined,
+          // The number confirmed/edited on the "Who is this test for?"
+          // step — not the raw profile value, which may be stale or
+          // (for a Google/email account) not exist at all.
+          phone: normalizeIndianMobile(phone),
         },
+        notes: instructions.trim() || undefined,
       });
       setCreatedBooking(result);
       // justBooked only lives in router state for this one navigation,
@@ -289,7 +321,7 @@ export default function BookingFlowPage() {
   function canGoNext(): boolean {
     switch (step) {
       case "patient":
-        return !!patientId;
+        return !!patientId && isValidIndianMobile(phone);
       case "collection":
         if (collectionType === "home" && !addressId) return false;
         return !!pincodeChecked?.available;
@@ -366,6 +398,49 @@ export default function BookingFlowPage() {
               )}
             </div>
           )}
+
+          <div className="mh-contact-phone" style={{ marginTop: "var(--space-md)" }}>
+            <h2 className="mh-booking__section-title">Booking contact number</h2>
+            <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginBottom: 8 }}>
+              Our team will call this number about your booking.
+            </p>
+            {!editingPhone ? (
+              <div className="mh-select-card is-selected" style={{ cursor: "default" }}>
+                <span className="mh-select-card__icon" aria-hidden="true">
+                  <span className="mi">call</span>
+                </span>
+                <span className="mh-select-card__body">
+                  <span className="mh-select-card__title">+91 {normalizeIndianMobile(phone)}</span>
+                </span>
+                <button type="button" className="btn btn-outline" onClick={() => setEditingPhone(true)}>
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="mh-pincode-row">
+                <span className="mh-pincode-row__prefix">+91</span>
+                <input
+                  className="mh-pincode-row__input"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="10-digit mobile number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  maxLength={10}
+                />
+                {isValidIndianMobile(phone) && (
+                  <button type="button" className="btn btn-outline" onClick={() => setEditingPhone(false)}>
+                    Done
+                  </button>
+                )}
+              </div>
+            )}
+            {phone.trim() !== "" && !isValidIndianMobile(phone) && (
+              <p style={{ color: "var(--color-danger)", fontSize: "var(--text-xs)", marginTop: 4 }}>
+                Enter a valid 10-digit Indian mobile number.
+              </p>
+            )}
+          </div>
         </section>
       )}
 
@@ -612,6 +687,19 @@ export default function BookingFlowPage() {
       {step === "review" && (
         <section className="mh-booking__section" style={{ display: "grid", gap: "var(--space-sm)" }}>
           <h2 className="mh-booking__section-title">Review &amp; Confirm</h2>
+
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>
+              Special instructions <span className="text-soft">(optional)</span>
+            </span>
+            <textarea
+              rows={2}
+              maxLength={500}
+              placeholder="Landmark, gate/security note, or anything the collector should know"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+            />
+          </label>
 
           {quoteLoading && <LoadingState label="Getting the latest price..." rows={2} />}
           {quoteError && <ErrorState message={quoteError} onRetry={() => fetchQuote()} />}

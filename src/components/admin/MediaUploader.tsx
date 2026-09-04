@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { deleteMedia, uploadMedia } from "@/services/mediaService";
+import { isCloudinaryConfigured } from "@/services/cloudinaryService";
 import type { MediaAsset, MediaCategory } from "@/types/media";
 import { toUserMessage } from "@/utils/errors";
 
@@ -25,8 +26,10 @@ interface Props {
 export default function MediaUploader({ label, category, relatedId, value, onChange, onClear, hint }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [percent, setPercent] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [lastAsset, setLastAsset] = useState<MediaAsset | null>(null);
+  const configured = isCloudinaryConfigured();
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -35,15 +38,17 @@ export default function MediaUploader({ label, category, relatedId, value, onCha
     if (!file) return;
 
     setBusy(true);
+    setPercent(0);
     setError(null);
     try {
-      const asset = await uploadMedia(file, category, relatedId);
+      const asset = await uploadMedia(file, category, relatedId, setPercent);
       setLastAsset(asset);
       onChange(asset.secureUrl, asset);
     } catch (err) {
       setError(toUserMessage(err));
     } finally {
       setBusy(false);
+      setPercent(0);
     }
   }
 
@@ -92,9 +97,9 @@ export default function MediaUploader({ label, category, relatedId, value, onCha
 
       <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-outline" disabled={busy} onClick={() => inputRef.current?.click()}>
-          {busy ? "Uploading…" : value ? "Replace image" : "Upload image"}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button type="button" className="btn btn-outline" disabled={busy || !configured} onClick={() => inputRef.current?.click()}>
+          {busy ? `Uploading… ${percent}%` : value ? "Replace image" : "Upload image"}
         </button>
         {value && (
           <button type="button" className="btn btn-outline" disabled={busy} onClick={handleDelete}>
@@ -102,6 +107,21 @@ export default function MediaUploader({ label, category, relatedId, value, onCha
           </button>
         )}
       </div>
+
+      {busy && (
+        <div
+          aria-hidden="true"
+          style={{ height: 4, borderRadius: 999, background: "var(--color-line)", overflow: "hidden", maxWidth: 240 }}
+        >
+          <div style={{ width: `${percent}%`, height: "100%", background: "var(--color-primary)", transition: "width .15s linear" }} />
+        </div>
+      )}
+
+      {!configured && (
+        <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+          Image upload is not configured (missing Cloudinary settings — see DEPLOYMENT.md).
+        </p>
+      )}
 
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
     </div>

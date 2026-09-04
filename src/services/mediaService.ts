@@ -17,8 +17,13 @@ import type { MediaAsset, MediaCategory } from "@/types/media";
 
 type Unsubscribe = () => void;
 
-export async function uploadMedia(file: File, category: MediaCategory, relatedId?: string): Promise<MediaAsset> {
-  const result = await uploadToCloudinary(file, { folder: category });
+export async function uploadMedia(
+  file: File,
+  category: MediaCategory,
+  relatedId?: string,
+  onProgress?: (percent: number) => void
+): Promise<MediaAsset> {
+  const result = await uploadToCloudinary(file, { folder: category, onProgress });
   const { data: row, error } = await getSupabaseClient()
     .from("media_assets")
     .insert({

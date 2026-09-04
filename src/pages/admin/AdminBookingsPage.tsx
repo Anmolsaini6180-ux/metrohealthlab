@@ -41,16 +41,6 @@ const STATUS_GROUPS: { value: string; label: string }[] = [
   { value: "cancelled,refunded", label: "Cancelled + refunded" },
 ];
 
-const FORWARD_SEQUENCE: BookingStatus[] = [
-  "assigned", "on_the_way", "arrived", "sample_collected", "received_at_lab", "testing", "report_ready", "completed",
-];
-
-function nextStatus(current: BookingStatus): BookingStatus | null {
-  const idx = FORWARD_SEQUENCE.indexOf(current);
-  if (idx === -1 || idx === FORWARD_SEQUENCE.length - 1) return null;
-  return FORWARD_SEQUENCE[idx + 1];
-}
-
 const PRIVILEGED = ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN"];
 
 export default function AdminBookingsPage() {
@@ -89,7 +79,12 @@ export default function AdminBookingsPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  // Carries which of the two terminal statuses was actually requested —
+  // a real bug caught while adding the status dropdown: the confirm
+  // dialog used to hardcode "cancelled" regardless of which one a
+  // dedicated button called it for, which would have been silently
+  // wrong the moment "Refunded" became reachable from the same flow.
+  const [pendingCancel, setPendingCancel] = useState<{ id: string; status: "cancelled" | "refunded" } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const bookings = useAsync(
@@ -135,13 +130,13 @@ export default function AdminBookingsPage() {
   }
 
   async function handleConfirmCancel() {
-    if (!pendingCancelId) return;
-    setBusyId(pendingCancelId);
+    if (!pendingCancel) return;
+    setBusyId(pendingCancel.id);
     setActionError(null);
     try {
-      await updateBookingStatus(pendingCancelId, "cancelled");
-      showToast("Booking cancelled.");
-      setPendingCancelId(null);
+      await updateBookingStatus(pendingCancel.id, pendingCancel.status);
+      showToast(pendingCancel.status === "refunded" ? "Booking marked refunded." : "Booking cancelled.");
+      setPendingCancel(null);
       bookings.retry();
     } catch (err) {
       setActionError(toUserMessage(err));
@@ -188,7 +183,6 @@ export default function AdminBookingsPage() {
       {bookings.data && bookings.data.bookings.length > 0 && (
         <div style={{ display: "grid", gap: "var(--space-sm)" }}>
           {bookings.data.bookings.map((b) => {
-            const next = nextStatus(b.bookingStatus);
             const canAdvance = isPrivileged || (role === "COLLECTION_AGENT" && b.assignedAgentId);
             return (
               <div key={b.id} className="card">
@@ -222,15 +216,42 @@ export default function AdminBookingsPage() {
                       ))}
                     </select>
                   )}
-                  {next && canAdvance && (
-                    <button className="btn btn-outline" disabled={busyId === b.id} onClick={() => handleAdvance(b.id, next)}>
-                      Mark {STATUS_LABELS[next]}
-                    </button>
+                  {canAdvance && !["completed", "cancelled", "refunded"].includes(b.bookingStatus) && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--text-sm)" }}>
+                      Status:
+                      <select
+                        value={b.bookingStatus}
+                        disabled={busyId === b.id}
+                        onChange={(e) => {
+                          const value = e.target.value as BookingStatus;
+                          if (value === b.bookingStatus) return;
+                          // Cancelling/refunding is the one transition
+                          // here with its own real consequence (the
+                          // customer is told, cash-collection plans
+                          // change) — route it through the same
+                          // confirm dialog the old dedicated button
+                          // used, instead of applying on a single
+                          // misclick like every other status does.
+                          if (value === "cancelled" || value === "refunded") {
+                            setPendingCancel({ id: b.id, status: value });
+                            return;
+                          }
+                          handleAdvance(b.id, value);
+                        }}
+                        style={{ padding: 6, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+                      >
+                        {Object.entries(STATUS_LABELS)
+                          .filter(([value]) => value === b.bookingStatus || !["cancelled", "refunded"].includes(value) || isPrivileged)
+                          .map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                      </select>
+                    </label>
                   )}
-                  {isPrivileged && !["completed", "cancelled", "refunded"].includes(b.bookingStatus) && (
-                    <button className="btn btn-danger" disabled={busyId === b.id} onClick={() => setPendingCancelId(b.id)}>
-                      Cancel booking
-                    </button>
+                  {["completed", "cancelled", "refunded"].includes(b.bookingStatus) && (
+                    <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+                      {STATUS_LABELS[b.bookingStatus]} — no further status changes.
+                    </span>
                   )}
                 </div>
 
@@ -245,14 +266,14 @@ export default function AdminBookingsPage() {
           )}
         </div>
       )}
-      {pendingCancelId && (
+      {pendingCancel && (
         <ConfirmDialog
-          title="Cancel this booking?"
-          message={`Booking ${pendingCancelId} will be marked cancelled. This can't be undone from here.`}
-          confirmLabel="Cancel booking"
-          busy={busyId === pendingCancelId}
+          title={pendingCancel.status === "refunded" ? "Mark this booking refunded?" : "Cancel this booking?"}
+          message={`Booking ${pendingCancel.id} will be marked ${pendingCancel.status}. This can't be undone from here.`}
+          confirmLabel={pendingCancel.status === "refunded" ? "Mark refunded" : "Cancel booking"}
+          busy={busyId === pendingCancel.id}
           onConfirm={handleConfirmCancel}
-          onCancel={() => setPendingCancelId(null)}
+          onCancel={() => setPendingCancel(null)}
         />
       )}
     </div>
@@ -285,7 +306,13 @@ function BookingDetailPanel({ booking: b, canSeeMargin }: { booking: Booking; ca
         <div>
           <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Customer</p>
           <p>{b.contact?.name ?? "—"}</p>
-          <p className="text-soft">{b.contact?.phone ?? "—"}</p>
+          {b.contact?.phone ? (
+            <a href={`tel:${b.contact.phone.replace(/[^\d+]/g, "")}`} className="text-soft">
+              <span className="mi" aria-hidden="true" style={{ fontSize: 14, verticalAlign: "middle" }}>call</span> {b.contact.phone}
+            </a>
+          ) : (
+            <p className="text-soft">—</p>
+          )}
         </div>
         <div>
           <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Address</p>

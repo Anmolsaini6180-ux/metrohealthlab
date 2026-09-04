@@ -6,6 +6,7 @@ import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import { formatCurrencyInr } from "@/services/pricingService";
+import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 
 const TIMELINE: BookingStatus[] = [
   "confirmed",
@@ -39,6 +40,10 @@ const STEP_LABELS: Record<BookingStatus, string> = {
 export default function TrackBookingPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const location = useLocation();
+  const { settings } = useBrandingSettings();
+  // Never hardcoded — absent entirely (no "Call us" link) rather than
+  // fabricating a number if admin/settings hasn't set one yet.
+  const contactPhone = settings?.phone?.trim() || null;
   // Only true for the one navigation BookingFlowPage makes right after
   // creating this booking - set via router state, not derived from
   // status, so revisiting a saved tracking link later never re-shows
@@ -171,6 +176,12 @@ export default function TrackBookingPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {contactPhone && (
+        <a className="btn btn-outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`} style={{ justifySelf: "start" }}>
+          <span className="mi" aria-hidden="true">call</span> Call us about this booking
+        </a>
       )}
     </div>
   );

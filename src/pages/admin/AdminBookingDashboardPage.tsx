@@ -299,7 +299,16 @@ function BookingDetail({
         <div style={{ display: "grid", gap: "var(--space-sm)" }}>
           <Section title="Customer">
             <Line label="Name" value={booking.contact?.name ?? "—"} />
-            <Line label="Phone" value={booking.contact?.phone ?? "—"} />
+            <Line
+              label="Phone"
+              value={
+                booking.contact?.phone ? (
+                  <a href={`tel:${booking.contact.phone.replace(/[^\d+]/g, "")}`}>{booking.contact.phone}</a>
+                ) : (
+                  "—"
+                )
+              }
+            />
             <Line label="Address" value={booking.contact?.address ?? "—"} />
           </Section>
 
@@ -360,7 +369,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Line({ label, value }: { label: string; value: string }) {
+function Line({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <p style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-sm)", fontSize: "var(--text-sm)" }}>
       <span className="text-soft">{label}</span>

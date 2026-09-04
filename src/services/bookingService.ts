@@ -61,6 +61,8 @@ export interface CreateCashBookingInput {
   date: string;
   slotId: string;
   contact?: { name?: string; phone?: string; address?: string };
+  /** Optional landmark/gate/collection note — never internal (tp etc.), just for the visit itself. */
+  notes?: string;
 }
 
 export async function createCashBooking(
@@ -79,6 +81,7 @@ export async function createCashBooking(
     p_address: input.contact?.address ?? null,
     p_patient_id: input.patientId || null,
     p_address_id: input.addressId ?? null,
+    p_notes: input.notes?.trim() || null,
   });
   if (error) throw error;
   const row = data as unknown as Record<string, unknown>;
