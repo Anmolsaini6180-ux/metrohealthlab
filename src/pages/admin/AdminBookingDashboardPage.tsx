@@ -3,6 +3,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { subscribeToAdminBookings } from "@/services/bookingService";
 import { recordCashReceived, setBookingStatus } from "@/services/adminBookingWriteService";
+import { getBookingStatusHistory } from "@/services/adminBookingService";
+import { useAsync } from "@/hooks/useAsync";
 import { formatCurrencyInr } from "@/services/pricingService";
 import {
   computeBookingMetrics,
@@ -276,6 +278,7 @@ function BookingDetail({
   // box, not the original generated one.
   const [message, setMessage] = useState(() => buildWhatsAppBookingMessage(booking, businessName));
   const waLink = booking.contact?.phone ? buildWhatsAppLink(booking.contact.phone, message) : null;
+  const history = useAsync(() => getBookingStatusHistory(booking.id), [booking.id]);
 
   async function handleCopy() {
     try {
@@ -327,6 +330,28 @@ function BookingDetail({
             <Line label="Amount received" value={formatCurrencyInr(receivedFor(booking))} />
             <Line label="Pending amount" value={formatCurrencyInr(pendingFor(booking))} />
             <Line label="Payment status" value={String(booking.paymentStatus).replace(/_/g, " ")} />
+          </Section>
+
+          <Section title="Status history">
+            {history.loading && !history.data && <LoadingState rows={2} />}
+            {history.error && <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{history.error}</p>}
+            {history.data && history.data.length === 0 && (
+              <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>No history recorded.</p>
+            )}
+            {history.data && history.data.length > 0 && (
+              <div style={{ display: "grid", gap: 4 }}>
+                {history.data.map((h) => (
+                  <p key={h.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "var(--text-sm)" }}>
+                    <span>
+                      <StatusBadge status={h.status} /> {h.note && <span className="text-soft">— {h.note}</span>}
+                    </span>
+                    <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+                      {new Date(String(h.createdAt)).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                    </span>
+                  </p>
+                ))}
+              </div>
+            )}
           </Section>
 
           <BookingActions booking={booking} actorUid={actorUid} />
