@@ -26,7 +26,15 @@ export type MediaCategory =
   | "lab_testing"
   | "xray"
   | "diagnostics"
-  | "home_collection";
+  | "home_collection"
+  | "preventive_health"
+  | "womens_health"
+  | "mens_health"
+  | "childrens_health"
+  | "full_body_checkup"
+  | "vitamin_testing"
+  | "diabetes"
+  | "heart_health";
 
 export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
   branding: "Branding",
@@ -44,6 +52,14 @@ export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
   xray: "X-Ray",
   diagnostics: "Diagnostics",
   home_collection: "Home Collection",
+  preventive_health: "Preventive Health",
+  womens_health: "Women's Health",
+  mens_health: "Men's Health",
+  childrens_health: "Children's Health",
+  full_body_checkup: "Full Body Checkup",
+  vitamin_testing: "Vitamin Testing",
+  diabetes: "Diabetes",
+  heart_health: "Heart Health",
 };
 
 // The fixed set of named slots addressable under category
@@ -52,12 +68,21 @@ export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
 // package, or a lab already have their own imageUrl-style column, so
 // they are addressed by relatedId = that row's own id instead of a
 // slot name from this list.
-export type SiteSectionSlot = "about_hero" | "contact_image" | "campaign_banner";
+export type SiteSectionSlot =
+  | "about_hero"
+  | "contact_image"
+  | "campaign_banner"
+  | "home_collection_section"
+  | "family_health_section"
+  | "senior_health_section";
 
 export const SITE_SECTION_LABELS: Record<SiteSectionSlot, string> = {
   about_hero: "About Us — hero image",
   contact_image: "Contact Us — image",
   campaign_banner: "Marketing — campaign banner",
+  home_collection_section: "Homepage — Home Collection section image",
+  family_health_section: "Homepage — Family Health section image",
+  senior_health_section: "Homepage — Senior Health section image",
 };
 
 export interface MediaAsset {

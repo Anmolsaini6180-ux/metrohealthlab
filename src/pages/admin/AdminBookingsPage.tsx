@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
@@ -86,6 +86,10 @@ export default function AdminBookingsPage() {
   // wrong the moment "Refunded" became reachable from the same flow.
   const [pendingCancel, setPendingCancel] = useState<{ id: string; status: "cancelled" | "refunded" } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Client-side, over whatever the date/status filters above already
+  // fetched — a real search over the same real data, not a second
+  // query. Matches booking id, customer name, phone, or item name.
+  const [search, setSearch] = useState("");
 
   const bookings = useAsync(
     () =>
@@ -153,6 +157,19 @@ export default function AdminBookingsPage() {
   // change a booking's status."
   const canSeeMargin = role === "SUPER_ADMIN" || role === "ADMIN";
 
+  const visibleBookings = useMemo(() => {
+    const all = bookings.data?.bookings ?? [];
+    const q = search.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter(
+      (b) =>
+        b.id.toLowerCase().includes(q) ||
+        (b.contact?.name ?? "").toLowerCase().includes(q) ||
+        (b.contact?.phone ?? "").includes(q) ||
+        b.items.some((i) => i.name.toLowerCase().includes(q))
+    );
+  }, [bookings.data, search]);
+
   return (
     <div>
       <h1 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-md)" }}>Bookings</h1>
@@ -173,16 +190,28 @@ export default function AdminBookingsPage() {
             Clear status filter
           </button>
         )}
+        <input
+          type="search"
+          placeholder="Search booking ID, customer, phone, or test/package"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 220, padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+        />
       </div>
 
       {actionError && <ErrorState message={actionError} />}
       {bookings.loading && <LoadingState label="Loading bookings..." rows={4} />}
       {bookings.error && <ErrorState message={bookings.error} onRetry={bookings.retry} />}
-      {bookings.data && bookings.data.bookings.length === 0 && <EmptyState icon="calendar_month" title="No bookings in this range" />}
+      {bookings.data && visibleBookings.length === 0 && (
+        <EmptyState
+          icon="calendar_month"
+          title={search ? "No bookings match your search" : "No bookings in this range"}
+        />
+      )}
 
-      {bookings.data && bookings.data.bookings.length > 0 && (
+      {bookings.data && visibleBookings.length > 0 && (
         <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-          {bookings.data.bookings.map((b) => {
+          {visibleBookings.map((b) => {
             const canAdvance = isPrivileged || (role === "COLLECTION_AGENT" && b.assignedAgentId);
             return (
               <div key={b.id} className="card">

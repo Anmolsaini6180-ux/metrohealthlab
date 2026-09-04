@@ -16,9 +16,13 @@ import {
   CompareLabsPromo,
   DoorstepSteps,
   FamilyCareRow,
+  FamilyHealthStory,
+  FinalCta,
   HealthConcernGrid,
   HealthInsights,
+  HomeCollectionStory,
   RadiologyRow,
+  SeniorHealthStory,
   WhyChooseUs,
   isHealthConcern,
 } from "@/components/home/HomeSections";
@@ -94,12 +98,20 @@ export default function HomePage() {
       {tests.error && <ErrorState message={tests.error} onRetry={tests.retry} />}
       {tests.data && <RadiologyRow categories={categoryList} tests={testList} />}
 
+      {/* ---- Large visual storytelling — image comes only from Admin ->
+          Media Library (site_sections); copy/CTA are real either way ---- */}
+      <HomeCollectionStory />
+      <FamilyHealthStory categories={categoryList} />
+      <SeniorHealthStory categories={categoryList} />
+
       {/* ---- Static explainers ---- */}
       <DoorstepSteps />
       <WhyChooseUs businessName={businessName} />
 
       {/* ---- Articles ---- */}
       {articles.data && <HealthInsights articles={articles.data.slice(0, 8)} />}
+
+      <FinalCta />
     </div>
   );
 }

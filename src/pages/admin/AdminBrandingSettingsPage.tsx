@@ -137,6 +137,24 @@ export default function AdminBrandingSettingsPage() {
           relatedId="contact_image"
           hint="Shown on the public Contact Us page."
         />
+        <ImagePicker
+          label="Homepage — Home Collection section"
+          category="site_sections"
+          relatedId="home_collection_section"
+          hint="Large image on the homepage's Home Sample Collection section. An icon panel shows until one is set."
+        />
+        <ImagePicker
+          label="Homepage — Family Health section"
+          category="site_sections"
+          relatedId="family_health_section"
+          hint="Large image on the homepage's Family Health section. An icon panel shows until one is set."
+        />
+        <ImagePicker
+          label="Homepage — Senior Health section"
+          category="site_sections"
+          relatedId="senior_health_section"
+          hint="Large image on the homepage's Senior Health section. An icon panel shows until one is set."
+        />
 
         <MediaUploader
           label="Logo"

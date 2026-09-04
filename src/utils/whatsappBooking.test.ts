@@ -188,6 +188,71 @@ describe("buildWhatsAppBookingMessage", () => {
   });
 });
 
+describe("buildWhatsAppBookingMessage — partial contact field combinations", () => {
+  // A real booking always has id/items/finalAmount/bookingStatus/date
+  // (they're required on the Booking type — there is no "draft a
+  // message before a booking exists" tool in this codebase, only this
+  // post-confirmation message), but contact/labName are genuinely
+  // optional and vary per booking source. Each case below is a
+  // realistic combination, not a synthetic one.
+  const minimal = {
+    id: "MH26090400001",
+    items: [{ itemType: "package", refId: "p1", name: "Full Body Checkup", labId: "l1", price: 999 }],
+    finalAmount: 999,
+    amountReceived: 0,
+    bookingStatus: "confirmed",
+    date: "2026-09-10",
+  } as unknown as Booking;
+
+  it("name only (no phone, no address, no lab)", () => {
+    const msg = buildWhatsAppBookingMessage({ ...minimal, contact: { name: "Asha" } } as Booking, "Metro Health Lab");
+    expect(msg).toContain("Customer Name: Asha");
+    expect(msg).not.toContain("Customer Phone:");
+    expect(msg).not.toContain("Customer Address:");
+    expect(msg).not.toContain("Lab:");
+    expect(msg).not.toContain("undefined");
+    expect(msg).not.toContain("null");
+  });
+
+  it("name + phone only", () => {
+    const msg = buildWhatsAppBookingMessage({ ...minimal, contact: { name: "Asha", phone: "9876543210" } } as Booking, "Metro Health Lab");
+    expect(msg).toContain("Customer Name: Asha");
+    expect(msg).toContain("Customer Phone: 9876543210");
+    expect(msg).not.toContain("Customer Address:");
+    expect(msg).not.toContain("undefined");
+  });
+
+  it("package only — no contact at all", () => {
+    const msg = buildWhatsAppBookingMessage({ ...minimal, contact: undefined } as Booking, "Metro Health Lab");
+    expect(msg).toContain("Full Body Checkup");
+    expect(msg).not.toContain("Customer Name:");
+    expect(msg).not.toContain("Customer Phone:");
+    expect(msg).not.toContain("undefined");
+    expect(msg).not.toContain("null");
+  });
+
+  it("name + address only (no phone)", () => {
+    const msg = buildWhatsAppBookingMessage({ ...minimal, contact: { name: "Asha", address: "12 Nehru Road" } } as Booking, "Metro Health Lab");
+    expect(msg).toContain("Customer Name: Asha");
+    expect(msg).toContain("Customer Address: 12 Nehru Road");
+    expect(msg).not.toContain("Customer Phone:");
+    expect(msg).not.toContain("undefined");
+  });
+
+  it("complete booking — every optional field present", () => {
+    const msg = buildWhatsAppBookingMessage(
+      { ...minimal, labName: "Dr. Lal PathLabs", contact: { name: "Asha", phone: "9876543210", address: "12 Nehru Road" } } as Booking,
+      "Metro Health Lab"
+    );
+    expect(msg).toContain("Customer Name: Asha");
+    expect(msg).toContain("Customer Phone: 9876543210");
+    expect(msg).toContain("Customer Address: 12 Nehru Road");
+    expect(msg).toContain("Lab: Dr. Lal PathLabs");
+    expect(msg).not.toContain("undefined");
+    expect(msg).not.toContain("null");
+  });
+});
+
 describe("buildWhatsAppLink", () => {
   it("builds a wa.me link with the message encoded", () => {
     const link = buildWhatsAppLink("9876543210", "Booking ID: MH1");

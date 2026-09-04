@@ -760,3 +760,132 @@
     display: none;
   }
 }
+
+/* ---- Large image storytelling sections (Home Collection / Family /
+   Senior Health) ---- */
+.mh-story {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  align-items: center;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+
+.mh-story--reverse {
+  direction: rtl;
+}
+
+.mh-story--reverse > * {
+  direction: ltr;
+}
+
+.mh-story__media {
+  aspect-ratio: 4 / 3;
+  min-height: 200px;
+}
+
+.mh-story__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Honest placeholder, never a stand-in stock photo: a brand-toned icon
+   panel that fills the same space until a real image is assigned in
+   Admin -> Media Library. */
+.mh-story__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary));
+}
+
+.mh-story__placeholder .mi {
+  font-size: 64px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.mh-story__copy {
+  padding: var(--space-lg);
+  display: grid;
+  gap: 8px;
+}
+
+.mh-story__eyebrow {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.mh-story__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.mh-story__body {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.mh-story__copy .btn {
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .mh-story {
+    grid-template-columns: 1fr;
+  }
+
+  .mh-story--reverse {
+    direction: ltr;
+  }
+
+  .mh-story__media {
+    aspect-ratio: 16 / 9;
+    min-height: 160px;
+  }
+}
+
+/* ---- Final call to action ---- */
+.mh-final-cta {
+  text-align: center;
+  padding: var(--space-lg) var(--space-md);
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary));
+  color: #fff;
+  display: grid;
+  gap: var(--space-md);
+  justify-items: center;
+}
+
+.mh-final-cta__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  max-width: 420px;
+}
+
+.mh-final-cta__actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mh-final-cta__actions .btn-outline {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #fff;
+}

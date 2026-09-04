@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
 import CategoryIcon from "@/components/common/CategoryIcon";
 import { formatCurrencyInr } from "@/services/pricingService";
+import { useAsync } from "@/hooks/useAsync";
+import { getAssignedMedia } from "@/services/mediaService";
+import type { SiteSectionSlot } from "@/types/media";
 import type { TestCategory, DiagnosticTest } from "@/types/test";
 import type { Article } from "@/types/content";
 
@@ -233,6 +236,131 @@ function readMinutes(body: string): number {
 function articleCategory(article: Article): string | null {
   const raw = (article as Article & { category?: unknown }).category ?? article.categoryId;
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+// ---------- Large image storytelling sections ----------
+//
+// Home Collection / Family Health / Senior Health each get a real,
+// large visual section (not another icon strip) — but the photo comes
+// ONLY from Admin -> Media Library (site_sections category), never
+// invented here. Same honest-degradation rule AboutPage.tsx already
+// established for its own hero: no image assigned means no <img>, not
+// a stand-in stock photo. The difference here is the section's copy/
+// CTA are real and true regardless of whether a photo exists yet, so
+// only the picture is conditional — an icon panel fills that space
+// instead of the section just disappearing, matching the same premium
+// treatment WhyChooseUs/DoorstepPromo already use elsewhere on this
+// page.
+function StorySection({
+  slot,
+  eyebrow,
+  title,
+  body,
+  ctaLabel,
+  ctaTo,
+  icon,
+  reverse,
+}: {
+  slot: SiteSectionSlot;
+  eyebrow: string;
+  title: string;
+  body: string;
+  ctaLabel: string;
+  ctaTo: string;
+  icon: string;
+  reverse?: boolean;
+}) {
+  const image = useAsync(() => getAssignedMedia("site_sections", slot), [slot]);
+  return (
+    <section className={`mh-story${reverse ? " mh-story--reverse" : ""}`}>
+      <div className="mh-story__media">
+        {image.data ? (
+          <img className="mh-story__photo" src={image.data.secureUrl} alt={image.data.altText ?? title} loading="lazy" />
+        ) : (
+          <div className="mh-story__placeholder" aria-hidden="true">
+            <span className="mi">{icon}</span>
+          </div>
+        )}
+      </div>
+      <div className="mh-story__copy">
+        <p className="mh-story__eyebrow">{eyebrow}</p>
+        <h2 className="mh-story__title">{title}</h2>
+        <p className="mh-story__body">{body}</p>
+        <Link className="btn btn-primary" to={ctaTo}>
+          {ctaLabel}
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+export function HomeCollectionStory() {
+  return (
+    <StorySection
+      slot="home_collection_section"
+      icon="home_health"
+      eyebrow="Home Sample Collection"
+      title="Diagnostics, from the comfort of home."
+      body="Choose a convenient date and time, and our collection team can visit your preferred location wherever home collection is available — no travel, no waiting rooms."
+      ctaLabel="Book Home Collection"
+      ctaTo="/packages"
+    />
+  );
+}
+
+export function FamilyHealthStory({ categories }: { categories: TestCategory[] }) {
+  const familyCategory = categories.find((c) =>
+    ["women", "womens-health", "women-health", "men", "mens-health", "men-health", "child", "children", "paediatric", "pediatric"].some(
+      (s) => c.slug === s || c.slug.includes(s)
+    )
+  );
+  return (
+    <StorySection
+      slot="family_health_section"
+      icon="diversity_3"
+      eyebrow="Family Health"
+      title="Healthcare for the whole family"
+      body="From routine checkups to condition-specific tests, book the right package for every member of your family and manage everyone's bookings from one account."
+      ctaLabel="Explore Family Packages"
+      ctaTo={familyCategory ? `/tests?category=${familyCategory.id}` : "/packages"}
+      reverse
+    />
+  );
+}
+
+export function SeniorHealthStory({ categories }: { categories: TestCategory[] }) {
+  const seniorCategory = categories.find((c) =>
+    ["senior", "senior-citizen", "elderly"].some((s) => c.slug === s || c.slug.includes(s))
+  );
+  return (
+    <StorySection
+      slot="senior_health_section"
+      icon="elderly"
+      eyebrow="Senior Health"
+      title="Care that makes diagnostics easier for seniors"
+      body="Home collection means no travel and no waiting for the tests seniors need most often — book a slot that works around their schedule, not a clinic's."
+      ctaLabel="Explore Senior Health"
+      ctaTo={seniorCategory ? `/tests?category=${seniorCategory.id}` : "/packages"}
+    />
+  );
+}
+
+// ---------- Final call to action ----------
+
+export function FinalCta() {
+  return (
+    <section className="mh-final-cta">
+      <h2 className="mh-final-cta__title">Take the next step towards better health.</h2>
+      <div className="mh-final-cta__actions">
+        <Link className="btn btn-primary" to="/tests">
+          Explore Tests
+        </Link>
+        <Link className="btn btn-outline" to="/packages">
+          View Health Packages
+        </Link>
+      </div>
+    </section>
+  );
 }
 
 export function HealthInsights({ articles }: { articles: Article[] }) {
