@@ -53,7 +53,12 @@ describe("createTestCategory", () => {
     });
 
     const row = lastInsert();
+    // id is a fresh crypto.randomUUID() per call — see the real bug
+    // this locks in below (test_categories.id has no DB default; the
+    // insert must set one itself or every create fails with 23502).
+    expect(row.id).toEqual(expect.any(String));
     expect(row).toEqual({
+      id: row.id,
       name: "Blood Tests",
       slug: "blood-tests",
       subtitle: "Up to 70% off",
@@ -62,6 +67,17 @@ describe("createTestCategory", () => {
       display_order: 0,
       updated_by_firebase_uid: ACTOR,
     });
+  });
+
+  it("sets an explicit id, since test_categories.id has no database default", async () => {
+    await createTestCategory(ACTOR, {
+      name: "Blood Tests",
+      slug: "blood-tests",
+      active: true,
+    });
+    const row = lastInsert();
+    expect(typeof row.id).toBe("string");
+    expect((row.id as string).length).toBeGreaterThan(10);
   });
 
   it("writes the ligature name when an icon was chosen", async () => {

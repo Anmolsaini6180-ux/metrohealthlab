@@ -49,7 +49,11 @@ describe("createCampaign", () => {
     await createCampaign(ACTOR, { ...base, description: "", offerId: "", couponId: "" });
 
     const row = lastInsert();
+    // id is a fresh crypto.randomUUID() per call — real bug this locks
+    // in: campaigns.id has no database default, so the insert must set
+    // one itself or every create fails with a 23502 not-null violation.
     expect(row).toEqual({
+      id: expect.any(String),
       name: "Diwali",
       type: "seasonal",
       start_at: "2026-10-01",
@@ -112,7 +116,10 @@ describe("createLead", () => {
     await createLead(ACTOR, { name: "Asha", phone: "9990001111", status: "NEW", email: "", source: "" });
 
     const row = lastInsert();
+    // Same real bug as createCampaign above: leads.id has no database
+    // default either.
     expect(row).toEqual({
+      id: expect.any(String),
       name: "Asha",
       phone: "9990001111",
       status: "NEW",

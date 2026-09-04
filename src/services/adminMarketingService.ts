@@ -59,6 +59,10 @@ export async function createCampaign(actorUid: string, input: CampaignInput): Pr
   const { data: row, error } = await getSupabaseClient()
     .from("campaigns")
     .insert({
+      // Same real bug as adminCatalogService.ts's create* functions:
+      // campaigns.id is `text not null` with no default — never set
+      // here, so this always 23502'd. Fixed the same way.
+      id: crypto.randomUUID(),
       name: input.name.trim(),
       type: input.type.trim(),
       start_at: input.startAt,
@@ -135,6 +139,7 @@ export async function createLead(actorUid: string, input: LeadInput): Promise<st
   const { data: row, error } = await getSupabaseClient()
     .from("leads")
     .insert({
+      id: crypto.randomUUID(),
       name: input.name.trim(),
       phone: input.phone.trim(),
       status: input.status,

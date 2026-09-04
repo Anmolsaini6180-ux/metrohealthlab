@@ -4,7 +4,29 @@
 // recorded in relatedId, using the SiteSectionSlot values below - the
 // exact same related_id convention "tests"/"packages"/"labs" already
 // use to point an asset at one specific catalogue row.
-export type MediaCategory = "branding" | "banners" | "tests" | "packages" | "labs" | "site_sections";
+export type MediaCategory =
+  | "branding"
+  | "banners"
+  | "tests"
+  | "packages"
+  | "labs"
+  | "site_sections"
+  // General-purpose stock-photo themes — not tied to one catalogue
+  // row (nothing to set relatedId to), just licensed photography an
+  // admin uploads once and then places anywhere an ImagePicker shows
+  // (a site_sections slot today; more places as they gain one).
+  // Actual image files come only from the business's own licensed/
+  // supplied assets, uploaded through the admin media library —
+  // never fabricated or extracted from an unlicensed reference image.
+  | "healthcare_professionals"
+  | "families"
+  | "couples"
+  | "senior_citizens"
+  | "blood_collection"
+  | "lab_testing"
+  | "xray"
+  | "diagnostics"
+  | "home_collection";
 
 export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
   branding: "Branding",
@@ -13,6 +35,15 @@ export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
   packages: "Packages",
   labs: "Labs",
   site_sections: "Site Sections",
+  healthcare_professionals: "Healthcare Professionals",
+  families: "Families",
+  couples: "Couples",
+  senior_citizens: "Senior Citizens",
+  blood_collection: "Blood Collection",
+  lab_testing: "Lab Testing",
+  xray: "X-Ray",
+  diagnostics: "Diagnostics",
+  home_collection: "Home Collection",
 };
 
 // The fixed set of named slots addressable under category

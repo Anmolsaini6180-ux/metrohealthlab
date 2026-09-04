@@ -22,6 +22,15 @@ export async function uploadMedia(file: File, category: MediaCategory, relatedId
   const { data: row, error } = await getSupabaseClient()
     .from("media_assets")
     .insert({
+      // media_assets.id is `text not null` with NO column default and
+      // no insert trigger — REAL, CONFIRMED BUG found while working
+      // this section: every upload through this function has always
+      // thrown a 23502 not-null violation and never actually
+      // persisted a row (the live table had zero rows, for every
+      // category, not just the newer ones — this was broken from the
+      // start, not something that regressed). Same client-generated-
+      // uuid pattern already used for packages/tests/addresses/patients.
+      id: crypto.randomUUID(),
       public_id: result.publicId,
       asset_id: result.publicId,
       category,

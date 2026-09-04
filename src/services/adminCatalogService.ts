@@ -69,6 +69,14 @@ export async function createTest(
   const { data: row, error } = await getSupabaseClient()
     .from("tests")
     .insert({
+      // REAL, CONFIRMED BUG found while auditing this file: tests.id
+      // is `text not null` with no column default and no insert
+      // trigger — this insert has never set one, so every "Create
+      // test" click has always failed with a 23502 not-null
+      // violation. Every one of this file's 11 create* functions had
+      // the identical gap; all fixed the same way, matching the
+      // pattern addresses/patients already used correctly.
+      id: crypto.randomUUID(),
       category_id: data.categoryId,
       name: data.name,
       short_name: optional(data.shortName),
@@ -147,6 +155,7 @@ export async function createTestCategory(actorUid: string, input: TestCategoryIn
   const { data: row, error } = await getSupabaseClient()
     .from("test_categories")
     .insert({
+      id: crypto.randomUUID(),
       name: input.name.trim(),
       slug: input.slug.trim(),
       subtitle: optional(input.subtitle),
@@ -213,6 +222,7 @@ export async function createPackage(
   const { data: row, error } = await getSupabaseClient()
     .from("packages")
     .insert({
+      id: crypto.randomUUID(),
       name: data.name,
       slug: data.slug,
       category: data.category,
@@ -287,6 +297,7 @@ export async function createLab(
   const { data: row, error } = await getSupabaseClient()
     .from("labs")
     .insert({
+      id: crypto.randomUUID(),
       name: data.name,
       logo: optional(data.logo),
       description: optional(data.description),
@@ -338,6 +349,7 @@ export async function createLabPricing(
   const { data: row, error } = await getSupabaseClient()
     .from("lab_pricing")
     .insert({
+      id: crypto.randomUUID(),
       lab_id: data.labId,
       test_id: optional(data.testId),
       package_id: optional(data.packageId),
@@ -385,6 +397,7 @@ export async function createOffer(actorUid: string, data: Omit<Offer, "id" | "up
   const { data: row, error } = await getSupabaseClient()
     .from("offers")
     .insert({
+      id: crypto.randomUUID(),
       title: data.title,
       subtitle: optional(data.subtitle),
       description: optional(data.description),
@@ -436,6 +449,7 @@ export async function createBanner(actorUid: string, data: Omit<Banner, "id" | "
   const { data: row, error } = await getSupabaseClient()
     .from("banners")
     .insert({
+      id: crypto.randomUUID(),
       title: data.title,
       subtitle: optional(data.subtitle),
       cta_label: optional(data.ctaLabel),
@@ -481,6 +495,7 @@ export async function createCoupon(actorUid: string, data: Omit<Coupon, "id" | "
   const { data: row, error } = await getSupabaseClient()
     .from("coupons")
     .insert({
+      id: crypto.randomUUID(),
       code: data.code.toUpperCase(),
       discount_type: data.discountType,
       discount_value: data.discountValue,
@@ -544,6 +559,7 @@ export async function createSlot(actorUid: string, data: Omit<Slot, "id" | "upda
   const { data: row, error } = await getSupabaseClient()
     .from("slots")
     .insert({
+      id: crypto.randomUUID(),
       date: data.date,
       start_time: data.startTime,
       end_time: data.endTime,
@@ -586,6 +602,7 @@ export async function createServiceArea(actorUid: string, data: Omit<ServiceArea
   const { data: row, error } = await getSupabaseClient()
     .from("service_areas")
     .insert({
+      id: crypto.randomUUID(),
       pincode: data.pincode,
       city: data.city,
       area: optional(data.area),
@@ -625,6 +642,7 @@ export async function createArticle(actorUid: string, data: Omit<Article, "id" |
   const { data: row, error } = await getSupabaseClient()
     .from("articles")
     .insert({
+      id: crypto.randomUUID(),
       title: data.title,
       slug: data.slug,
       category: optional(data.categoryId),
