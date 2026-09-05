@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
@@ -13,10 +12,17 @@ import { getAllReports } from "@/services/adminOpsService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import BarList from "@/components/admin/BarList";
+import TrendChart from "@/components/admin/TrendChart";
+import Metric from "@/components/admin/MetricCard";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
-import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
+import { enumerateDays, resolveDateRange, type DateRange } from "@/utils/dateRanges";
 import type { Booking } from "@/types/booking";
+
+function shortDayLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+}
 
 const COLLECTED_STATUSES = ["sample_collected", "received_at_lab", "testing", "report_ready", "completed"];
 const STATUS_LABELS: Record<string, string> = {
@@ -90,11 +96,15 @@ export default function AdminDashboardPage() {
     };
   }, [bookings.data]);
 
+  // Zero-filled across every real day in the selected range (not just
+  // days that happen to have a booking) so the trend chart shows
+  // genuine gaps instead of silently compressing a sparse month into
+  // what looks like a busy consecutive run of days.
   const bookingsByDay = useMemo(() => {
     const map = new Map<string, number>();
     for (const b of bookings.data ?? []) map.set(b.date, (map.get(b.date) ?? 0) + 1);
-    return [...map.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [bookings.data]);
+    return enumerateDays(range.startDate, range.endDate).map((day) => ({ x: shortDayLabel(day), y: map.get(day) ?? 0 }));
+  }, [bookings.data, range.startDate, range.endDate]);
 
   const statusBreakdown = useMemo(() => {
     const map = new Map<string, number>();
@@ -198,7 +208,7 @@ export default function AdminDashboardPage() {
                   <span className="mi" aria-hidden="true">trending_up</span>
                   <h3>Bookings trend</h3>
                 </div>
-                <BarList items={bookingsByDay} />
+                <TrendChart series={[{ label: "Bookings", color: "var(--color-primary)", data: bookingsByDay }]} />
               </div>
               <div className="card">
                 <div className="mh-chart-card__head">
@@ -252,48 +262,5 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
       <option value="">{label}: all</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
-  );
-}
-
-type MetricTone = "success" | "warning" | "danger" | "accent";
-
-function Metric({
-  icon,
-  label,
-  value,
-  to,
-  tone,
-  muted,
-}: {
-  icon: string;
-  label: string;
-  value: string | number;
-  to?: string;
-  tone?: MetricTone;
-  muted?: boolean;
-}) {
-  const className = `mh-metric-card${tone ? ` mh-metric-card--${tone}` : ""}${muted ? " mh-metric-card--muted" : ""}`;
-  const content = (
-    <>
-      <span className="mh-metric-card__icon" aria-hidden="true">
-        <span className="mi">{icon}</span>
-      </span>
-      <span className="mh-metric-card__body">
-        <span className="mh-metric-card__value">{value}</span>
-        <span className="mh-metric-card__label">{label}</span>
-      </span>
-    </>
-  );
-  // Real data only: every `to` link points at Booking Management (or
-  // the catalog page it's actually counting) filtered/scoped to the
-  // SAME real data this number was just counted from (see
-  // bookingsLink above) — never a local label swap that could drift
-  // from what's actually in Supabase.
-  return to ? (
-    <Link to={to} className={className}>
-      {content}
-    </Link>
-  ) : (
-    <div className={className}>{content}</div>
   );
 }

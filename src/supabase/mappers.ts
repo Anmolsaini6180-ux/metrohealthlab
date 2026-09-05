@@ -314,6 +314,7 @@ export function rowToCampaign(r: Record<string, unknown>): Campaign {
     offerId: (r.offer_id as string) ?? undefined,
     couponId: (r.coupon_id as string) ?? undefined,
     targetSegment: (r.target_segment as string) ?? undefined,
+    spend: Number(r.spend ?? 0),
     createdBy: (r.created_by as string) ?? "",
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
     createdAt: r.created_at,

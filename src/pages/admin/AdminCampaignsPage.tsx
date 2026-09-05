@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
 import { createCampaign, getAllCampaigns, updateCampaign } from "@/services/adminMarketingService";
 import { getAllOffers, getAllCoupons } from "@/services/adminCatalogService";
+import { formatCurrencyInr } from "@/services/pricingService";
 import type { Campaign, CampaignStatus } from "@/types/marketing";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
@@ -48,6 +49,11 @@ export default function AdminCampaignsPage() {
                 <div>
                   <p style={{ fontWeight: 600 }}>{c.name}</p>
                   <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{c.type} • {c.startAt} → {c.endAt}</p>
+                  {c.spend > 0 && (
+                    <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginTop: 2 }}>
+                      Ad spend: {formatCurrencyInr(c.spend)}
+                    </p>
+                  )}
                 </div>
                 <span style={{ fontSize: "var(--text-xs)", fontWeight: 600 }}>{c.status}</span>
               </div>
@@ -92,6 +98,7 @@ function CampaignForm({
     endAt: existing?.endAt ?? "",
     offerId: existing?.offerId ?? "",
     couponId: existing?.couponId ?? "",
+    spend: existing ? String(existing.spend) : "0",
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -105,6 +112,7 @@ function CampaignForm({
     setBusy(true);
     setError(null);
     try {
+      const parsedSpend = Number.parseFloat(form.spend);
       const payload = {
         name: form.name,
         description: form.description,
@@ -113,6 +121,7 @@ function CampaignForm({
         endAt: form.endAt,
         offerId: form.offerId,
         couponId: form.couponId,
+        spend: Number.isFinite(parsedSpend) && parsedSpend >= 0 ? parsedSpend : 0,
       };
       if (existing) {
         await updateCampaign(actorUid, existing.id, payload);
@@ -136,6 +145,10 @@ function CampaignForm({
         <input type="date" required value={form.startAt} onChange={(e) => update("startAt", e.target.value)} style={{ flex: 1 }} />
         <input type="date" required value={form.endAt} onChange={(e) => update("endAt", e.target.value)} style={{ flex: 1 }} />
       </div>
+      <label style={{ display: "grid", gap: 4, fontSize: "var(--text-sm)" }}>
+        Ad spend (₹) <span className="text-soft">— what this campaign actually cost, for the Finance dashboard's cost-per-lead/ROI</span>
+        <input type="number" min="0" step="0.01" value={form.spend} onChange={(e) => update("spend", e.target.value)} style={{ maxWidth: 180 }} />
+      </label>
       <select value={form.offerId} onChange={(e) => update("offerId", e.target.value)}>
         <option value="">Link an offer (optional)</option>
         {offers.map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}

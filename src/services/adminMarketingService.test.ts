@@ -82,6 +82,19 @@ describe("createCampaign", () => {
     expect(lastInsert().created_by).toBe(state.supabaseUserId);
     expect(lastInsert().updated_by_firebase_uid).toBe(ACTOR);
   });
+
+  // Omitted (not 0, not null) so a create that doesn't mention spend at
+  // all leaves the database's own `default 0` in place, same as every
+  // other optional field's undefined-means-omit convention here.
+  it("omits spend entirely when not provided, rather than writing 0 or null", async () => {
+    await createCampaign(ACTOR, base);
+    expect("spend" in lastInsert()).toBe(false);
+  });
+
+  it("writes a real ad-spend figure when provided", async () => {
+    await createCampaign(ACTOR, { ...base, spend: 4999.5 });
+    expect(lastInsert().spend).toBe(4999.5);
+  });
 });
 
 describe("updateCampaign", () => {
@@ -96,6 +109,14 @@ describe("updateCampaign", () => {
   it("sets an optional field that was filled in", async () => {
     await updateCampaign(ACTOR, "camp-1", { description: "Now with free home collection" });
     expect(lastUpdate().description).toBe("Now with free home collection");
+  });
+
+  it("updates ad spend when provided, and leaves it untouched otherwise", async () => {
+    await updateCampaign(ACTOR, "camp-1", { spend: 12500 });
+    expect(lastUpdate().spend).toBe(12500);
+
+    await updateCampaign(ACTOR, "camp-1", { description: "unrelated edit" });
+    expect("spend" in lastUpdate()).toBe(false);
   });
 
   // The pause/resume buttons send only a status; they must not wipe the

@@ -53,6 +53,8 @@ export interface CampaignInput {
   offerId?: string | null;
   couponId?: string | null;
   targetSegment?: string | null;
+  /** Real ad spend for this campaign (INR). Omit to leave the database default (0) on create, or leave unchanged on update. */
+  spend?: number;
 }
 
 export async function createCampaign(actorUid: string, input: CampaignInput): Promise<string> {
@@ -72,6 +74,7 @@ export async function createCampaign(actorUid: string, input: CampaignInput): Pr
       offer_id: optional(input.offerId),
       coupon_id: optional(input.couponId),
       target_segment: optional(input.targetSegment),
+      ...(input.spend !== undefined ? { spend: input.spend } : {}),
       created_by: await currentSupabaseUserId(),
       updated_by_firebase_uid: actorUid,
     })
@@ -92,6 +95,7 @@ export async function updateCampaign(actorUid: string, campaignId: string, input
   if (input.offerId !== undefined) patch.offer_id = optional(input.offerId);
   if (input.couponId !== undefined) patch.coupon_id = optional(input.couponId);
   if (input.targetSegment !== undefined) patch.target_segment = optional(input.targetSegment);
+  if (input.spend !== undefined) patch.spend = input.spend;
 
   const { error } = await getSupabaseClient().from("campaigns").update(patch).eq("id", campaignId);
   if (error) throw error;

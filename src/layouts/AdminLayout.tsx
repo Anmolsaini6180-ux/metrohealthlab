@@ -72,6 +72,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { to: "/admin/settings/branding", label: "Branding", icon: "storefront", roles: CAN_MANAGE_CATALOG },
       { to: "/admin/settings/staff", label: "Admin & Staff", icon: "admin_panel_settings", roles: CAN_MANAGE_TEAM },
       { to: "/admin/team/performance", label: "Team Performance", icon: "insights", roles: CAN_VIEW_ANALYTICS },
+      { to: "/admin/finance", label: "Finance", icon: "payments", roles: CAN_VIEW_ANALYTICS },
     ],
   },
 ];

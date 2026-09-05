@@ -63,6 +63,7 @@ import AdminContentPage from "@/pages/admin/AdminContentPage";
 import AdminBrandingSettingsPage from "@/pages/admin/AdminBrandingSettingsPage";
 import AdminTeamPage from "@/pages/admin/AdminTeamPage";
 import AdminTeamPerformancePage from "@/pages/admin/AdminTeamPerformancePage";
+import AdminFinancePage from "@/pages/admin/AdminFinancePage";
 import AgentProtectedRoute from "@/components/common/AgentProtectedRoute";
 import AgentDashboardPage from "@/pages/AgentDashboardPage";
 import AdminAuditLogsPage from "@/pages/admin/AdminAuditLogsPage";
@@ -250,6 +251,7 @@ export default function App() {
             stays valid so existing links and bookmarks keep working. */}
         <Route path="settings/staff" element={<AdminTeamPage />} />
         <Route path="team/performance" element={<AdminTeamPerformancePage />} />
+        <Route path="finance" element={<AdminFinancePage />} />
         <Route path="security/audit-logs" element={<AdminAuditLogsPage />} />
       </Route>
 

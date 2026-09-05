@@ -11,6 +11,8 @@ export interface Campaign {
   offerId?: string;
   couponId?: string;
   targetSegment?: string;
+  /** Real admin-entered ad spend for this campaign (INR) — 0 until an admin sets it, never estimated. */
+  spend: number;
   createdBy: string;
   updatedBy?: string;
   createdAt: unknown;

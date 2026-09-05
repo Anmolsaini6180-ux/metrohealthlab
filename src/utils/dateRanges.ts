@@ -63,3 +63,22 @@ export function resolveDateRange(preset: DateRangePreset, custom?: DateRange): D
       return custom ?? { startDate: toIsoDate(now), endDate: toIsoDate(now) };
   }
 }
+
+/**
+ * Every ISO date from startDate to endDate inclusive — lets a trend
+ * chart show a continuous X axis (including real zero days) instead of
+ * only the days something happened to occur. Capped at 92 days (a
+ * generous ~3 months): a chart with one bar per day stops being
+ * readable well before that, and this is a UI-rendering limit, not a
+ * data limit — the underlying totals still cover the full range
+ * regardless of how many days this returns.
+ */
+export function enumerateDays(startDate: string, endDate: string, maxDays = 92): string[] {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  const days: string[] = [];
+  for (let d = new Date(start); d <= end && days.length < maxDays; d.setUTCDate(d.getUTCDate() + 1)) {
+    days.push(toIsoDate(d));
+  }
+  return days;
+}

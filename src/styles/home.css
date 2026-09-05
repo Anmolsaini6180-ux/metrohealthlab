@@ -257,6 +257,27 @@
   }
 }
 
+/* Wide desktop: .container caps at --container-max (1280px), so the
+   card itself keeps growing wider while min-height stayed pinned at
+   300px — well past 1024px that's a 4:1+ letterbox, and object-fit:
+   cover on that shape crops most of any uploaded photo's height away
+   regardless of what the photo actually shows. Scaling min-height up
+   at the same breakpoints the rest of the shell already uses keeps the
+   card's proportions sane so object-position: center has an actually
+   reasonable box to center within, for whatever image an admin
+   uploads — not a fix for one specific photo's framing. */
+@media (min-width: 1024px) {
+  .mh-hero {
+    min-height: 380px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .mh-hero {
+    min-height: 440px;
+  }
+}
+
 /* ---- Category rail ---- */
 .mh-cats__rail {
   display: flex;
