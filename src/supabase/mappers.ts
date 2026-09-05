@@ -269,6 +269,11 @@ export function rowToNotification(r: Record<string, unknown>): AppNotification {
     type: r.type as AppNotification["type"],
     read: !!r.read,
     createdAt: r.created_at,
+    imageUrl: (r.image_url as string) ?? undefined,
+    actionUrl: (r.action_url as string) ?? undefined,
+    bookingId: (r.booking_id as string) ?? undefined,
+    sentBy: (r.sent_by as string) ?? undefined,
+    batchId: (r.batch_id as string) ?? undefined,
   };
 }
 

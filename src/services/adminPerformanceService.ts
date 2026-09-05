@@ -4,6 +4,8 @@
 // booking read is: a SUPER_ADMIN sees everything, anyone else sees
 // only what RLS already allows them to see.
 import { getSupabaseClient } from "@/supabase/client";
+import { rowToBooking } from "@/supabase/bookingMappers";
+import type { Booking } from "@/types/booking";
 
 export interface AgentPerformance {
   uid: string;
@@ -18,45 +20,65 @@ export interface AgentPerformance {
 const PENDING_STATUSES = new Set(["payment_pending", "confirmed", "assigned", "on_the_way", "arrived", "sample_collected", "received_at_lab", "testing"]);
 const CANCELLED_STATUSES = new Set(["cancelled", "refunded"]);
 
-export async function getTeamPerformance(
-  startDate: string,
-  endDate: string
-): Promise<{ performance: AgentPerformance[]; truncated: boolean }> {
+export interface TeamPerformanceResult {
+  performance: AgentPerformance[];
+  truncated: boolean;
+  /** Bookings in range with no staff member assigned in any of the three assignment columns yet. */
+  unassignedCount: number;
+  totalInRange: number;
+}
+
+/**
+ * Credits a booking to a staff member if THEY appear in any of the
+ * three assignment columns (assigned_agent_id/assigned_admin_id/
+ * assigned_sub_admin_id) — not agent-only. A booking with both an
+ * admin and an agent assigned genuinely counts for both; that's real
+ * shared responsibility, not double-counting an error.
+ */
+export async function getTeamPerformance(startDate: string, endDate: string): Promise<TeamPerformanceResult> {
   const client = getSupabaseClient();
   const LIMIT = 2000;
   const { data, error } = await client
     .from("bookings")
-    .select("assigned_agent_id, booking_status")
+    .select("assigned_agent_id, assigned_admin_id, assigned_sub_admin_id, booking_status")
     .gte("date", startDate)
     .lte("date", endDate)
-    .not("assigned_agent_id", "is", null)
     .limit(LIMIT + 1);
   if (error) throw error;
   const rows = data ?? [];
   const truncated = rows.length > LIMIT;
   const scoped = truncated ? rows.slice(0, LIMIT) : rows;
 
-  const byAgent = new Map<string, { assigned: number; completed: number; pending: number; cancelled: number }>();
+  const byStaff = new Map<string, { assigned: number; completed: number; pending: number; cancelled: number }>();
+  let unassignedCount = 0;
   for (const r of scoped) {
-    const agentId = r.assigned_agent_id as string;
-    const entry = byAgent.get(agentId) ?? { assigned: 0, completed: 0, pending: 0, cancelled: 0 };
-    entry.assigned += 1;
-    if (r.booking_status === "completed") entry.completed += 1;
-    else if (CANCELLED_STATUSES.has(r.booking_status as string)) entry.cancelled += 1;
-    else if (PENDING_STATUSES.has(r.booking_status as string)) entry.pending += 1;
-    byAgent.set(agentId, entry);
+    const staffIds = [r.assigned_agent_id, r.assigned_admin_id, r.assigned_sub_admin_id].filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    );
+    if (staffIds.length === 0) {
+      unassignedCount += 1;
+      continue;
+    }
+    for (const staffId of new Set(staffIds)) {
+      const entry = byStaff.get(staffId) ?? { assigned: 0, completed: 0, pending: 0, cancelled: 0 };
+      entry.assigned += 1;
+      if (r.booking_status === "completed") entry.completed += 1;
+      else if (CANCELLED_STATUSES.has(r.booking_status as string)) entry.cancelled += 1;
+      else if (PENDING_STATUSES.has(r.booking_status as string)) entry.pending += 1;
+      byStaff.set(staffId, entry);
+    }
   }
 
-  const agentIds = [...byAgent.keys()];
+  const staffIds = [...byStaff.keys()];
   const names = new Map<string, string>();
-  if (agentIds.length > 0) {
-    const { data: profileRows, error: profileError } = await client.from("profiles").select("id, name, email").in("id", agentIds);
+  if (staffIds.length > 0) {
+    const { data: profileRows, error: profileError } = await client.from("profiles").select("id, name, email").in("id", staffIds);
     if (profileError) throw profileError;
     for (const p of profileRows ?? []) names.set(p.id, p.name || p.email || p.id);
   }
 
-  const performance: AgentPerformance[] = agentIds.map((uid) => {
-    const e = byAgent.get(uid)!;
+  const performance: AgentPerformance[] = staffIds.map((uid) => {
+    const e = byStaff.get(uid)!;
     return {
       uid,
       name: names.get(uid) ?? uid,
@@ -68,5 +90,29 @@ export async function getTeamPerformance(
     };
   });
 
-  return { performance, truncated };
+  return { performance, truncated, unassignedCount, totalInRange: scoped.length };
+}
+
+/**
+ * The real bookings behind one staff member's row in getTeamPerformance
+ * above — matches its own crediting rule exactly (any of the three
+ * assignment columns, not just assigned_agent_id), so a click-through
+ * never comes up empty for an admin/sub-admin whose credit came from a
+ * column this didn't think to check.
+ */
+export async function getBookingsForStaffMember(
+  staffUid: string,
+  startDate: string,
+  endDate: string
+): Promise<Booking[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("bookings")
+    .select("*, booking_items(*)")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .or(`assigned_agent_id.eq.${staffUid},assigned_admin_id.eq.${staffUid},assigned_sub_admin_id.eq.${staffUid}`)
+    .order("date", { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return (data ?? []).map(rowToBooking);
 }

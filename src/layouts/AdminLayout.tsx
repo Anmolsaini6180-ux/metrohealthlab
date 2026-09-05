@@ -51,6 +51,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { to: "/admin/marketing/leads", label: "Leads", icon: "person_search", roles: CAN_MANAGE_CATALOG },
       { to: "/admin/marketing/segments", label: "Segments", icon: "pie_chart", roles: CAN_MANAGE_CATALOG },
       { to: "/admin/content/articles", label: "Articles", icon: "article", roles: CAN_MANAGE_CATALOG },
+      { to: "/admin/content/pages", label: "Website Content", icon: "description", roles: CAN_MANAGE_CATALOG },
     ],
   },
   {

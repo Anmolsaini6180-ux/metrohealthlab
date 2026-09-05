@@ -59,6 +59,7 @@ import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
 import AdminNotificationsPage from "@/pages/admin/AdminNotificationsPage";
 import AdminSupportPage from "@/pages/admin/AdminSupportPage";
 import AdminArticlesPage from "@/pages/admin/AdminArticlesPage";
+import AdminContentPage from "@/pages/admin/AdminContentPage";
 import AdminBrandingSettingsPage from "@/pages/admin/AdminBrandingSettingsPage";
 import AdminTeamPage from "@/pages/admin/AdminTeamPage";
 import AdminTeamPerformancePage from "@/pages/admin/AdminTeamPerformancePage";
@@ -242,6 +243,7 @@ export default function App() {
         <Route path="support" element={<AdminSupportPage />} />
         <Route path="content/articles" element={<AdminArticlesPage />} />
         <Route path="content/media" element={<AdminMediaPage />} />
+        <Route path="content/pages" element={<AdminContentPage />} />
         <Route path="settings/branding" element={<AdminBrandingSettingsPage />} />
         <Route path="team" element={<AdminTeamPage />} />
         {/* Settings -> Admin & Staff. Same screen as /admin/team, which

@@ -19,4 +19,14 @@ export interface AppNotification {
   type: NotificationType;
   read: boolean;
   createdAt: unknown;
+  /** Media Library asset URL, when the admin attached one — never fabricated. */
+  imageUrl?: string;
+  /** In-app path to navigate to on click/tap, e.g. "/track/<bookingId>". */
+  actionUrl?: string;
+  /** Set automatically for booking-lifecycle notifications; absent for admin broadcasts. */
+  bookingId?: string;
+  /** Set only for admin-sent broadcasts — absent for automatic booking-lifecycle ones. */
+  sentBy?: string;
+  /** Shared by every recipient of the same admin broadcast — lets the admin list group/count them as one send. */
+  batchId?: string;
 }

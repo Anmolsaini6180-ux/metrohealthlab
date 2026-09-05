@@ -80,3 +80,87 @@ export async function sendAdminNotification(payload: SendNotificationRequest): P
   if (error) throw error;
   return { ok: true };
 }
+
+export interface BroadcastNotificationRequest {
+  audience: "all" | "selected";
+  customerUids?: string[];
+  type: "offer" | "system";
+  title: string;
+  message: string;
+  imageUrl?: string;
+  actionUrl?: string;
+}
+
+/**
+ * Fans out to every matching recipient in ONE server-side INSERT ...
+ * SELECT (see the send_broadcast_notification RPC) — never a browser
+ * loop over customer ids, and never the service-role key. "all" is
+ * resolved (and excludes staff) entirely inside the RPC; the browser
+ * never even sees the recipient list for that case.
+ */
+export async function sendBroadcastNotification(
+  payload: BroadcastNotificationRequest
+): Promise<{ batchId: string; recipientCount: number }> {
+  const { data, error } = await getSupabaseClient().rpc("send_broadcast_notification", {
+    p_audience: payload.audience,
+    p_type: payload.type,
+    p_title: payload.title,
+    p_message: payload.message,
+    p_customer_ids: payload.audience === "selected" ? payload.customerUids ?? [] : null,
+    p_image_url: payload.imageUrl ?? null,
+    p_action_url: payload.actionUrl ?? null,
+  });
+  if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as { out_batch_id: string; out_recipient_count: number };
+  return { batchId: row.out_batch_id, recipientCount: row.out_recipient_count };
+}
+
+export interface NotificationBatchSummary {
+  batchId: string | null;
+  title: string;
+  message: string;
+  type: string;
+  imageUrl?: string;
+  createdAt: unknown;
+  recipientCount: number;
+  readCount: number;
+}
+
+/**
+ * One row per admin-sent notification (grouped by batch_id — every
+ * recipient of the same broadcast shares one), rather than the raw
+ * per-recipient rows getAllNotifications returns. Automatic
+ * booking-lifecycle notifications (sent_by is null) are excluded here;
+ * they already have their own home in each booking's own history.
+ */
+export async function getSentNotificationBatches(): Promise<NotificationBatchSummary[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("notifications")
+    .select("id, batch_id, title, message, type, image_url, created_at, read")
+    .not("sent_by", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  if (error) throw error;
+
+  const byBatch = new Map<string, NotificationBatchSummary>();
+  for (const row of data ?? []) {
+    const key = (row.batch_id as string | null) ?? (row as { id?: string }).id ?? crypto.randomUUID();
+    const existing = byBatch.get(key);
+    if (existing) {
+      existing.recipientCount += 1;
+      if (row.read) existing.readCount += 1;
+      continue;
+    }
+    byBatch.set(key, {
+      batchId: row.batch_id as string | null,
+      title: row.title as string,
+      message: row.message as string,
+      type: row.type as string,
+      imageUrl: (row.image_url as string) ?? undefined,
+      createdAt: row.created_at,
+      recipientCount: 1,
+      readCount: row.read ? 1 : 0,
+    });
+  }
+  return [...byBatch.values()].sort((a, b) => (String(b.createdAt) > String(a.createdAt) ? 1 : -1));
+}

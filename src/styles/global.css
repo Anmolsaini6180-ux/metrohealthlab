@@ -1616,6 +1616,41 @@ h1, h2, h3 {
   color: #fff;
 }
 
+/* A selected-item chip with its own remove button (e.g. a picked
+   customer in AdminNotificationsPage's "Selected customers" audience)
+   — distinct from .mh-chip above, which is a single-purpose filter
+   toggle button, not a text+close-button container. */
+.mh-removable-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-line);
+  background: var(--color-bg-tint);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.mh-removable-chip button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--color-ink-soft);
+}
+
+.mh-removable-chip button:hover {
+  background: var(--color-line);
+  color: var(--color-ink);
+}
+
+.mh-removable-chip .mi {
+  font-size: 14px;
+}
+
 /* ---------- Package cards ---------- */
 .mh-pkg-card {
   width: min(63vw, 260px);

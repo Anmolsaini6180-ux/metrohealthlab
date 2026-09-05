@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
-import { getTeamPerformance } from "@/services/adminPerformanceService";
-import { getAdminBookings } from "@/services/adminBookingService";
+import { getBookingsForStaffMember, getTeamPerformance } from "@/services/adminPerformanceService";
+import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
 import { formatCurrencyInr } from "@/services/pricingService";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -17,6 +18,32 @@ export default function AdminTeamPerformancePage() {
   const result = useAsync(() => getTeamPerformance(range.startDate, range.endDate), [range.startDate, range.endDate]);
   const [staffFilter, setStaffFilter] = useState("");
   const [expandedUid, setExpandedUid] = useState<string | null>(null);
+
+  // Live, but debounced: a raw assignment/status change anywhere in
+  // `bookings` re-runs the SAME aggregation query rather than trying to
+  // patch individual counters from the change payload (which fields
+  // moved a booking between staff members and statuses would otherwise
+  // have to be re-derived by hand, for every event, forever). Debounced
+  // so a burst of admin edits (assign, then immediately mark a status)
+  // recalculates once, not once per write.
+  const retryRef = useRef(result.retry);
+  retryRef.current = result.retry;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return safeSubscribe(() => {
+      const channel = getSupabaseClient()
+        .channel("team-performance-bookings")
+        .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => retryRef.current(), 800);
+        })
+        .subscribe();
+      return () => {
+        if (timer) clearTimeout(timer);
+        getSupabaseClient().removeChannel(channel);
+      };
+    });
+  }, []);
 
   const sorted = useMemo(
     () => (result.data?.performance ?? []).slice().sort((a, b) => b.assigned - a.assigned),
@@ -49,7 +76,17 @@ export default function AdminTeamPerformancePage() {
         {result.loading && <LoadingState label="Loading performance..." rows={3} />}
         {result.error && <ErrorState message={result.error} onRetry={result.retry} />}
         {result.data && visible.length === 0 && (
-          <EmptyState icon="insights" title="No performance data for this range" />
+          <EmptyState
+            icon="insights"
+            title="No performance data for this range"
+            description={
+              result.data.totalInRange === 0
+                ? "There are no bookings in this date range yet."
+                : result.data.unassignedCount === result.data.totalInRange
+                  ? `${result.data.totalInRange} booking${result.data.totalInRange === 1 ? "" : "s"} in this range, but none has a staff member assigned yet — assign one from Booking Management to see them here.`
+                  : "No staff member matches the current filter for this range."
+            }
+          />
         )}
         {result.data && visible.length > 0 && (
           <div style={{ display: "grid", gap: "var(--space-sm)" }}>
@@ -90,27 +127,30 @@ export default function AdminTeamPerformancePage() {
 
 /**
  * The real bookings behind one staff member's summary numbers above —
- * fetched fresh via the same assigned_agent_id relationship
- * getTeamPerformance aggregated from, not a client-side re-slice of
- * data that's already been reduced to counts.
+ * matches getTeamPerformance's own crediting rule exactly (any of the
+ * three assignment columns, not assigned_agent_id alone), so an
+ * admin/sub-admin's row never expands to "nothing" just because their
+ * credit came from a column this didn't think to check. Each row
+ * links through to Booking Management for the full detail/status
+ * controls rather than duplicating them here.
  */
 function StaffBookingsList({ agentUid, range }: { agentUid: string; range: DateRange }) {
-  const bookings = useAsync(() => getAdminBookings({ ...range, filterAgentId: agentUid }), [agentUid, range.startDate, range.endDate]);
+  const bookings = useAsync(() => getBookingsForStaffMember(agentUid, range.startDate, range.endDate), [agentUid, range.startDate, range.endDate]);
 
   return (
     <div style={{ marginTop: "var(--space-sm)", paddingTop: "var(--space-sm)", borderTop: "1px solid var(--color-line)" }}>
       {bookings.loading && <LoadingState rows={2} />}
       {bookings.error && <ErrorState message={bookings.error} onRetry={bookings.retry} />}
-      {bookings.data && bookings.data.bookings.length === 0 && (
+      {bookings.data && bookings.data.length === 0 && (
         <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>No bookings assigned in this range.</p>
       )}
-      {bookings.data && bookings.data.bookings.length > 0 && (
+      {bookings.data && bookings.data.length > 0 && (
         <div style={{ display: "grid", gap: 6 }}>
-          {bookings.data.bookings.map((b) => (
-            <div key={b.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", gap: 8, flexWrap: "wrap" }}>
+          {bookings.data.map((b) => (
+            <Link key={b.id} to={`/admin/bookings?status=${b.bookingStatus}`} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", gap: 8, flexWrap: "wrap" }}>
               <span>{b.id} — {b.items.map((i) => i.name).join(", ")}</span>
               <span className="text-soft">{b.date} • {formatCurrencyInr(b.finalAmount)} • <StatusBadge status={b.bookingStatus} /></span>
-            </div>
+            </Link>
           ))}
         </div>
       )}

@@ -60,9 +60,16 @@ async function fetchScopedStaff(): Promise<TeamMember[]> {
   // everyone, for SUPER_ADMIN). Building a client-side where() clause
   // on top would only be convenience, never the boundary, and could
   // silently diverge from what RLS actually allows.
+  // REAL BUG, root-caused: staff_roles has FIVE separate foreign keys
+  // into profiles (user_id, admin_id, sub_admin_id, super_admin_id,
+  // updated_by) — PostgREST has no way to know which one `profiles(...)`
+  // should embed through, and refuses with PGRST201 ("more than one
+  // relationship was found") rather than guessing. Disambiguated by
+  // naming the exact constraint: this embed is the staff member's OWN
+  // profile (user_id), not their manager's.
   const { data, error } = await getSupabaseClient()
     .from("staff_roles")
-    .select("user_id, role, status, super_admin_id, admin_id, sub_admin_id, updated_at, profiles(name, email, phone)")
+    .select("user_id, role, status, super_admin_id, admin_id, sub_admin_id, updated_at, profiles!staff_roles_user_id_fkey(name, email, phone)")
     .limit(500);
   if (error) throw error;
   return ((data ?? []) as unknown as StaffRoleRow[]).map(toTeamMember);

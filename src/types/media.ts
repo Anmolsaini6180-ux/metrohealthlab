@@ -34,7 +34,12 @@ export type MediaCategory =
   | "full_body_checkup"
   | "vitamin_testing"
   | "diabetes"
-  | "heart_health";
+  | "heart_health"
+  // Attached to an outgoing admin notification (see
+  // send_broadcast_notification / notifications.image_url) — a normal
+  // category like any other, not a site_sections slot, since a
+  // notification isn't a fixed page position.
+  | "notifications";
 
 export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
   branding: "Branding",
@@ -60,6 +65,7 @@ export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
   vitamin_testing: "Vitamin Testing",
   diabetes: "Diabetes",
   heart_health: "Heart Health",
+  notifications: "Notifications",
 };
 
 // The fixed set of named slots addressable under category

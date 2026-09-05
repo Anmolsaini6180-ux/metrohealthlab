@@ -79,12 +79,13 @@ export default function AdminBookingsPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  // Carries which of the two terminal statuses was actually requested —
-  // a real bug caught while adding the status dropdown: the confirm
-  // dialog used to hardcode "cancelled" regardless of which one a
-  // dedicated button called it for, which would have been silently
-  // wrong the moment "Refunded" became reachable from the same flow.
-  const [pendingCancel, setPendingCancel] = useState<{ id: string; status: "cancelled" | "refunded" } | null>(null);
+  // Every status change is confirmed — not just cancel/refund — and
+  // the dialog always names the REAL from/to statuses actually
+  // selected rather than a hardcoded "cancelled" (a real bug caught
+  // earlier while this only handled the two terminal statuses: it
+  // would have been silently wrong the moment a third status flowed
+  // through the same dialog).
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ id: string; from: BookingStatus; to: BookingStatus } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Client-side, over whatever the date/status filters above already
   // fetched — a real search over the same real data, not a second
@@ -119,28 +120,15 @@ export default function AdminBookingsPage() {
     }
   }
 
-  async function handleAdvance(bookingId: string, status: BookingStatus) {
-    setBusyId(bookingId);
+  async function handleConfirmStatusChange() {
+    if (!pendingStatusChange) return;
+    const { id, to } = pendingStatusChange;
+    setBusyId(id);
     setActionError(null);
     try {
-      await updateBookingStatus(bookingId, status);
-      showToast(`Marked ${STATUS_LABELS[status]}.`);
-      bookings.retry();
-    } catch (err) {
-      setActionError(toUserMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function handleConfirmCancel() {
-    if (!pendingCancel) return;
-    setBusyId(pendingCancel.id);
-    setActionError(null);
-    try {
-      await updateBookingStatus(pendingCancel.id, pendingCancel.status);
-      showToast(pendingCancel.status === "refunded" ? "Booking marked refunded." : "Booking cancelled.");
-      setPendingCancel(null);
+      await updateBookingStatus(id, to);
+      showToast(`Booking marked ${STATUS_LABELS[to] ?? to}.`);
+      setPendingStatusChange(null);
       bookings.retry();
     } catch (err) {
       setActionError(toUserMessage(err));
@@ -254,18 +242,7 @@ export default function AdminBookingsPage() {
                         onChange={(e) => {
                           const value = e.target.value as BookingStatus;
                           if (value === b.bookingStatus) return;
-                          // Cancelling/refunding is the one transition
-                          // here with its own real consequence (the
-                          // customer is told, cash-collection plans
-                          // change) — route it through the same
-                          // confirm dialog the old dedicated button
-                          // used, instead of applying on a single
-                          // misclick like every other status does.
-                          if (value === "cancelled" || value === "refunded") {
-                            setPendingCancel({ id: b.id, status: value });
-                            return;
-                          }
-                          handleAdvance(b.id, value);
+                          setPendingStatusChange({ id: b.id, from: b.bookingStatus, to: value });
                         }}
                         style={{ padding: 6, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
                       >
@@ -295,14 +272,18 @@ export default function AdminBookingsPage() {
           )}
         </div>
       )}
-      {pendingCancel && (
+      {pendingStatusChange && (
         <ConfirmDialog
-          title={pendingCancel.status === "refunded" ? "Mark this booking refunded?" : "Cancel this booking?"}
-          message={`Booking ${pendingCancel.id} will be marked ${pendingCancel.status}. This can't be undone from here.`}
-          confirmLabel={pendingCancel.status === "refunded" ? "Mark refunded" : "Cancel booking"}
-          busy={busyId === pendingCancel.id}
-          onConfirm={handleConfirmCancel}
-          onCancel={() => setPendingCancel(null)}
+          title={`Change booking ${pendingStatusChange.id} from ${STATUS_LABELS[pendingStatusChange.from] ?? pendingStatusChange.from} to ${STATUS_LABELS[pendingStatusChange.to] ?? pendingStatusChange.to}?`}
+          message={
+            ["cancelled", "refunded"].includes(pendingStatusChange.to)
+              ? "This can't be undone from here — the customer will be notified."
+              : "The customer will be notified and their tracker will update immediately."
+          }
+          confirmLabel={`Mark ${STATUS_LABELS[pendingStatusChange.to] ?? pendingStatusChange.to}`}
+          busy={busyId === pendingStatusChange.id}
+          onConfirm={handleConfirmStatusChange}
+          onCancel={() => setPendingStatusChange(null)}
         />
       )}
     </div>
