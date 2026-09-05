@@ -80,7 +80,8 @@ export type SiteSectionSlot =
   | "campaign_banner"
   | "home_collection_section"
   | "family_health_section"
-  | "senior_health_section";
+  | "senior_health_section"
+  | "homepage_final_cta";
 
 export const SITE_SECTION_LABELS: Record<SiteSectionSlot, string> = {
   about_hero: "About Us — hero image",
@@ -89,6 +90,7 @@ export const SITE_SECTION_LABELS: Record<SiteSectionSlot, string> = {
   home_collection_section: "Homepage — Home Collection section image",
   family_health_section: "Homepage — Family Health section image",
   senior_health_section: "Homepage — Senior Health section image",
+  homepage_final_cta: "Homepage — bottom banner background image",
 };
 
 export interface MediaAsset {

@@ -852,34 +852,9 @@
   }
 }
 
-/* ---- Final call to action ---- */
-.mh-final-cta {
-  text-align: center;
-  padding: var(--space-lg) var(--space-md);
-  border-radius: 20px;
-  background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary));
-  color: #fff;
-  display: grid;
-  gap: var(--space-md);
-  justify-items: center;
-}
-
-.mh-final-cta__title {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  max-width: 420px;
-}
-
-.mh-final-cta__actions {
-  display: flex;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.mh-final-cta__actions .btn-outline {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.6);
-  color: #fff;
-}
+/* ---- Final call to action ----
+   Renders through the shared .mh-story full-background treatment above
+   (see HomeSections.tsx's FinalCta) now that it's admin-editable rather
+   than hardcoded — .mh-final-cta itself carries no rules of its own,
+   kept only as a hook in case this last-before-the-footer section ever
+   needs something the other .mh-story sections don't. */

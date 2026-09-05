@@ -3,6 +3,7 @@ import CategoryIcon from "@/components/common/CategoryIcon";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { useAsync } from "@/hooks/useAsync";
 import { getAssignedMedia } from "@/services/mediaService";
+import { getSiteContent } from "@/services/siteContentService";
 import type { SiteSectionSlot } from "@/types/media";
 import type { TestCategory, DiagnosticTest } from "@/types/test";
 import type { Article } from "@/types/content";
@@ -348,18 +349,41 @@ export function SeniorHealthStory({ categories }: { categories: TestCategory[] }
 }
 
 // ---------- Final call to action ----------
-
+//
+// Admin-editable (Admin -> Website Content -> Homepage bottom banner):
+// heading/eyebrow/description/button all come from site_content, the
+// background image from the same site_sections Media Library slot
+// every other homepage story section uses. Renders nothing at all
+// while the switch is off or nothing has been written yet, rather than
+// falling back to invented copy — this section simply isn't there
+// until an admin turns it on, exactly like every other honestly-
+// degrading section on this page.
 export function FinalCta() {
+  const content = useAsync(() => getSiteContent("homepage_final_cta"), []);
+  const image = useAsync(() => getAssignedMedia("site_sections", "homepage_final_cta"), []);
+
+  if (!content.data?.active || !content.data.title?.trim()) return null;
+  const c = content.data;
+
   return (
-    <section className="mh-final-cta">
-      <h2 className="mh-final-cta__title">Take the next step towards better health.</h2>
-      <div className="mh-final-cta__actions">
-        <Link className="btn btn-primary" to="/tests">
-          Explore Tests
-        </Link>
-        <Link className="btn btn-outline" to="/packages">
-          View Health Packages
-        </Link>
+    <section className="mh-story mh-final-cta">
+      {image.data ? (
+        <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
+      ) : (
+        <div className="mh-story__bg mh-story__bg--fallback" aria-hidden="true">
+          <span className="mi">favorite</span>
+        </div>
+      )}
+      <div className="mh-story__overlay" aria-hidden="true" />
+      <div className="mh-story__copy">
+        {c.subtitle && <p className="mh-story__eyebrow">{c.subtitle}</p>}
+        <h2 className="mh-story__title">{c.title}</h2>
+        {c.body && <p className="mh-story__body">{c.body}</p>}
+        {c.ctaLabel && c.ctaUrl && (
+          <Link className="btn btn-primary" to={c.ctaUrl}>
+            {c.ctaLabel}
+          </Link>
+        )}
       </div>
     </section>
   );

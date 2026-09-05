@@ -13,6 +13,7 @@ function rowToSiteContent(r: Record<string, unknown>): SiteContentBlock {
     imageUrl: (r.image_url as string) ?? undefined,
     ctaLabel: (r.cta_label as string) ?? undefined,
     ctaUrl: (r.cta_url as string) ?? undefined,
+    active: (r.active as boolean | null) ?? true,
     updatedAt: r.updated_at,
     updatedBy: (r.updated_by as string) ?? undefined,
   };
@@ -34,7 +35,7 @@ export async function getAllSiteContent(): Promise<SiteContentBlock[]> {
 export async function updateSiteContent(
   actorUid: string,
   key: SiteContentKey,
-  patch: Partial<Pick<SiteContentBlock, "title" | "subtitle" | "body" | "imageUrl" | "ctaLabel" | "ctaUrl">>
+  patch: Partial<Pick<SiteContentBlock, "title" | "subtitle" | "body" | "imageUrl" | "ctaLabel" | "ctaUrl" | "active">>
 ): Promise<void> {
   const update: Record<string, unknown> = { updated_by: actorUid, updated_at: new Date().toISOString() };
   if (patch.title !== undefined) update.title = patch.title || null;
@@ -43,6 +44,7 @@ export async function updateSiteContent(
   if (patch.imageUrl !== undefined) update.image_url = patch.imageUrl || null;
   if (patch.ctaLabel !== undefined) update.cta_label = patch.ctaLabel || null;
   if (patch.ctaUrl !== undefined) update.cta_url = patch.ctaUrl || null;
+  if (patch.active !== undefined) update.active = patch.active;
 
   const { error } = await getSupabaseClient().from("site_content").update(update).eq("key", key);
   if (error) throw error;
