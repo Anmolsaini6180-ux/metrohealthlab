@@ -63,25 +63,34 @@
   isolation: isolate; /* keeps the stacking context self-contained, so z-index below can't leak past this card */
 }
 
-/* Full-bleed photo — the entire card's background, not a side panel.
-   Absolutely positioned inside .mh-hero (position: relative), so it
-   fills the card regardless of the grid columns defined for the copy/
-   features siblings below. */
+/* Blurred, darkened, full-bleed backdrop — the SAME photo as .mh-hero__bg
+   below, cropped (object-fit: cover, scaled up so the blur radius never
+   samples past its own edge into visible hard edges) to fill the card
+   completely regardless of its aspect ratio. This is what makes the
+   banner still read as a genuine full-background image; the sharp copy
+   on top is never cropped to achieve that any more (see .mh-hero__bg). */
+.mh-hero__bg-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(30px) brightness(0.7) saturate(1.15);
+  transform: scale(1.15);
+  z-index: 0;
+}
+
+/* The real photo, shown WHOLE. object-fit: contain never crops any part
+   of it away, whatever its own aspect ratio is — the blurred fill layer
+   behind it is what keeps the card looking full-bleed either way. */
 .mh-hero__bg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  /* Dead-center cropping on this card's short/wide box (see the
-     1024px/1280px min-height rules below) cuts evenly from the top AND
-     bottom — but a person's face in typical banner photography sits in
-     the upper half, not the vertical middle, so a center crop was
-     cutting through faces/heads first. Biasing the visible window
-     upward keeps more of exactly that content for whatever photo an
-     admin uploads, without assuming one specific image's framing. */
-  object-position: center 20%;
-  z-index: 0;
+  object-fit: contain;
+  z-index: 1;
 }
 
 /* Readable-text overlay — left-to-right gradient (strongest behind the
@@ -91,13 +100,13 @@
 .mh-hero__overlay {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   background: linear-gradient(100deg, rgba(8, 20, 48, 0.72) 0%, rgba(8, 20, 48, 0.42) 45%, rgba(8, 20, 48, 0.12) 75%);
 }
 
 .mh-hero__body {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   min-width: 0;
 }
 
@@ -142,7 +151,7 @@
 
 .mh-hero__aside {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -797,17 +806,37 @@
   align-items: flex-end;
 }
 
+/* Blurred, darkened, full-bleed backdrop — same technique as
+   .mh-hero__bg-fill: the same photo, cropped and blurred to fill the
+   card completely regardless of its aspect ratio, so the sharp copy on
+   top (.mh-story__bg) never has to be cropped to achieve a full-bleed
+   look. Only rendered when a real photo exists — the gradient fallback
+   below already fills the card on its own, honestly, with no photo to
+   blur. */
+.mh-story__bg-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(30px) brightness(0.7) saturate(1.15);
+  transform: scale(1.15);
+  z-index: 0;
+}
+
 .mh-story__bg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  /* Same reasoning as .mh-hero__bg above: a person's face in typical
-     banner photography sits in the upper half, not the vertical
-     middle, so bias the crop upward rather than centering it. */
-  object-position: center 20%;
-  z-index: 0;
+  /* Shown WHOLE, never cropped — the blurred fill layer above is what
+     keeps the card looking full-bleed regardless of this photo's own
+     aspect ratio (see .mh-story__bg-fill). The fallback variant below
+     overrides this with its own flex/gradient rendering (a div, not an
+     img — object-fit is a no-op on it either way). */
+  object-fit: contain;
+  z-index: 1;
 }
 
 /* Honest fallback, never a stand-in stock photo: the SAME full-bleed
@@ -829,7 +858,7 @@
 .mh-story__overlay {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   /* Bottom-anchored copy (see align-items: flex-end above), so the
      gradient strengthens toward the bottom rather than left-to-right
      like the hero's — matches where the text actually sits. */
@@ -838,7 +867,7 @@
 
 .mh-story__copy {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   padding: var(--space-lg);
   display: grid;
   gap: 8px;

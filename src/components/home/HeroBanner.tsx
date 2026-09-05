@@ -76,13 +76,23 @@ export default function HeroBanner({ banners, labCount }: Props) {
       <div className="mh-hero-track" ref={trackRef}>
         {banners.map((b) => (
           <article key={b.id} className="mh-hero">
-            {/* Full-bleed background layer — the photo now covers the
-                WHOLE card, not a small side panel, per the explicit
-                "full banner, not just image area" requirement. Purely
-                decorative (the title/subtitle carry the meaning), so
-                alt stays empty rather than describing generic stock
-                photography as if it depicted this business's own
-                staff or facility. */}
+            {/* Full-bleed backdrop: the SAME photo, blurred and
+                darkened, cropped to fill the whole card edge to edge —
+                this is what makes the banner read as a full-background
+                image regardless of the photo's own aspect ratio.
+                Purely decorative filler, never the actual picture being
+                judged for framing, so aria-hidden. */}
+            <div
+              className="mh-hero__bg-fill"
+              aria-hidden="true"
+              style={{ backgroundImage: `url(${b.imageUrl || FALLBACK_HERO_IMAGE})` }}
+            />
+            {/* The real photo on top, shown WHOLE (object-fit: contain)
+                — no cropping, whatever the source image's own aspect
+                ratio is. Purely decorative (the title/subtitle carry
+                the meaning), so alt stays empty rather than describing
+                generic stock photography as if it depicted this
+                business's own staff or facility. */}
             <img className="mh-hero__bg" src={b.imageUrl || FALLBACK_HERO_IMAGE} alt="" loading="lazy" />
             <div className="mh-hero__overlay" aria-hidden="true" />
 

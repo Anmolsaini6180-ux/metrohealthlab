@@ -277,9 +277,16 @@ function StorySection({
           overlay), never a separate side panel. No real image
           assigned yet doesn't mean no background: the brand gradient
           + icon IS the documented fallback background, not a smaller
-          placeholder box next to the text. */}
+          placeholder box next to the text. When a real photo IS
+          assigned, a blurred full-bleed copy of it fills the card
+          (never a plain gradient once a real photo exists) and the
+          sharp copy sits on top completely uncropped — see
+          .mh-story__bg's own comment in home.css for why. */}
       {image.data ? (
-        <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
+        <>
+          <div className="mh-story__bg-fill" aria-hidden="true" style={{ backgroundImage: `url(${image.data.secureUrl})` }} />
+          <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
+        </>
       ) : (
         <div className="mh-story__bg mh-story__bg--fallback" aria-hidden="true">
           <span className="mi">{icon}</span>
@@ -368,7 +375,10 @@ export function FinalCta() {
   return (
     <section className="mh-story mh-final-cta">
       {image.data ? (
-        <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
+        <>
+          <div className="mh-story__bg-fill" aria-hidden="true" style={{ backgroundImage: `url(${image.data.secureUrl})` }} />
+          <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
+        </>
       ) : (
         <div className="mh-story__bg mh-story__bg--fallback" aria-hidden="true">
           <span className="mi">favorite</span>
