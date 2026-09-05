@@ -28,7 +28,10 @@ const FALLBACK_HERO_IMAGE =
 // uploaded it takes the fallback's place with no code change. Until
 // then this shows real (licensed) healthcare photography rather than a
 // gradient/icon panel, matching the reference design's use of
-// photography in this exact spot.
+// photography in this exact spot. The photo is a full-bleed background
+// across the whole card (mh-hero__bg, position: absolute, behind a
+// readable gradient overlay) — not a small side panel — with the copy
+// and feature chips layered on top.
 //
 // The three feature chips are value props this product genuinely
 // delivers, and the lab count is the real number of active labs rather
@@ -73,6 +76,16 @@ export default function HeroBanner({ banners, labCount }: Props) {
       <div className="mh-hero-track" ref={trackRef}>
         {banners.map((b) => (
           <article key={b.id} className="mh-hero">
+            {/* Full-bleed background layer — the photo now covers the
+                WHOLE card, not a small side panel, per the explicit
+                "full banner, not just image area" requirement. Purely
+                decorative (the title/subtitle carry the meaning), so
+                alt stays empty rather than describing generic stock
+                photography as if it depicted this business's own
+                staff or facility. */}
+            <img className="mh-hero__bg" src={b.imageUrl || FALLBACK_HERO_IMAGE} alt="" loading="lazy" />
+            <div className="mh-hero__overlay" aria-hidden="true" />
+
             <div className="mh-hero__body">
               <h2 className="mh-hero__title">{b.title}</h2>
               {b.subtitle && <p className="mh-hero__subtitle">{b.subtitle}</p>}
@@ -85,8 +98,6 @@ export default function HeroBanner({ banners, labCount }: Props) {
             </div>
 
             <div className="mh-hero__aside">
-              <img className="mh-hero__image" src={b.imageUrl || FALLBACK_HERO_IMAGE} alt="" loading="lazy" />
-
               <ul className="mh-hero__features">
                 <li>
                   <span className="mi" aria-hidden="true">home_health</span>

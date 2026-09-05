@@ -55,32 +55,42 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-sm);
   align-items: center;
-  background: linear-gradient(135deg, #eef4fd 0%, #dfeafb 100%);
-  border: 1px solid #d7e4f7;
   border-radius: 22px;
   padding: 18px;
-  min-height: 210px;
+  min-height: 240px;
   position: relative;
   overflow: hidden;
+  isolation: isolate; /* keeps the stacking context self-contained, so z-index below can't leak past this card */
 }
 
-/* Soft brand glow in the corner — pure decoration, keeps the panel
-   from reading as a flat rectangle at large widths. */
-.mh-hero::after {
-  content: "";
+/* Full-bleed photo — the entire card's background, not a side panel.
+   Absolutely positioned inside .mh-hero (position: relative), so it
+   fills the card regardless of the grid columns defined for the copy/
+   features siblings below. */
+.mh-hero__bg {
   position: absolute;
-  right: -70px;
-  top: -70px;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(30, 75, 163, 0.1), transparent 70%);
-  pointer-events: none;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+}
+
+/* Readable-text overlay — left-to-right gradient (strongest behind the
+   title/CTA on the left, fading toward the feature chips on the
+   right, which are already opaque white cards and don't need as much
+   help). Subtle by design: the photo should still read as a photo. */
+.mh-hero__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(100deg, rgba(8, 20, 48, 0.72) 0%, rgba(8, 20, 48, 0.42) 45%, rgba(8, 20, 48, 0.12) 75%);
 }
 
 .mh-hero__body {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   min-width: 0;
 }
 
@@ -89,11 +99,11 @@
   font-weight: 800;
   line-height: 1.15;
   letter-spacing: -0.5px;
-  color: #10265c;
+  color: #fff;
 }
 
 .mh-hero__subtitle {
-  color: var(--color-ink-soft);
+  color: rgba(255, 255, 255, 0.86);
   font-size: var(--text-sm);
   line-height: 1.5;
   margin-top: 8px;
@@ -110,7 +120,7 @@
   color: #fff;
   font-weight: 700;
   font-size: var(--text-sm);
-  box-shadow: 0 6px 16px rgba(30, 75, 163, 0.28);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
   transition: transform 0.15s ease, background 0.15s ease;
 }
 
@@ -125,19 +135,11 @@
 
 .mh-hero__aside {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 6px;
   width: 152px;
-}
-
-.mh-hero__image {
-  width: 100%;
-  height: 92px;
-  object-fit: cover;
-  border-radius: 16px;
-  box-shadow: var(--shadow-card);
 }
 
 .mh-hero__features {
@@ -208,19 +210,14 @@
 @media (max-width: 420px) {
   .mh-hero {
     grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
+    /* Full-bleed background photo needs a real height to show, even
+       stacked — collapsing to content height (the old min-height: 0)
+       would crush the image down to almost nothing. */
+    min-height: 280px;
   }
 
   .mh-hero__aside {
     width: 100%;
-  }
-
-  /* Stacked mobile layout has the full hero width to work with, so the
-     photo gets more height here than the narrow side-panel treatment
-     above 420px — otherwise a full-width image at only 92px reads as
-     a thin, cropped strip instead of the reference's prominent photo. */
-  .mh-hero__image {
-    height: 140px;
   }
 
   .mh-hero__features {
@@ -252,15 +249,11 @@
 @media (min-width: 768px) {
   .mh-hero {
     padding: 28px 32px;
-    min-height: 260px;
+    min-height: 300px;
   }
 
   .mh-hero__aside {
     width: 210px;
-  }
-
-  .mh-hero__image {
-    height: 120px;
   }
 }
 
@@ -762,59 +755,63 @@
 }
 
 /* ---- Large image storytelling sections (Home Collection / Family /
-   Senior Health) ---- */
+   Senior Health) ----
+   Full-bleed background (photo or fallback), a readable overlay, then
+   copy on top — same three-layer pattern as .mh-hero above, not a
+   text-half/image-half split. */
 .mh-story {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-  align-items: center;
-  border-radius: 20px;
+  position: relative;
+  isolation: isolate;
   overflow: hidden;
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
+  border-radius: 20px;
+  min-height: 320px;
+  display: flex;
+  align-items: flex-end;
 }
 
-.mh-story--reverse {
-  direction: rtl;
-}
-
-.mh-story--reverse > * {
-  direction: ltr;
-}
-
-.mh-story__media {
-  aspect-ratio: 4 / 3;
-  min-height: 200px;
-}
-
-.mh-story__photo {
+.mh-story__bg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
+  object-position: center;
+  z-index: 0;
 }
 
-/* Honest placeholder, never a stand-in stock photo: a brand-toned icon
-   panel that fills the same space until a real image is assigned in
-   Admin -> Media Library. */
-.mh-story__placeholder {
-  width: 100%;
-  height: 100%;
+/* Honest fallback, never a stand-in stock photo: the SAME full-bleed
+   background treatment as a real photo, just a brand gradient + icon
+   instead — until a real image is assigned in Admin -> Media Library.
+   Never a smaller placeholder box beside the text. */
+.mh-story__bg--fallback {
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary));
 }
 
-.mh-story__placeholder .mi {
-  font-size: 64px;
-  color: rgba(255, 255, 255, 0.85);
+.mh-story__bg--fallback .mi {
+  font-size: 88px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.mh-story__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  /* Bottom-anchored copy (see align-items: flex-end above), so the
+     gradient strengthens toward the bottom rather than left-to-right
+     like the hero's — matches where the text actually sits. */
+  background: linear-gradient(0deg, rgba(8, 20, 48, 0.82) 0%, rgba(8, 20, 48, 0.5) 55%, rgba(8, 20, 48, 0.05) 100%);
 }
 
 .mh-story__copy {
+  position: relative;
+  z-index: 2;
   padding: var(--space-lg);
   display: grid;
   gap: 8px;
+  max-width: 520px;
 }
 
 .mh-story__eyebrow {
@@ -822,7 +819,8 @@
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-primary);
+  color: #fff;
+  opacity: 0.85;
 }
 
 .mh-story__title {
@@ -830,10 +828,11 @@
   font-size: var(--text-xl);
   font-weight: 700;
   line-height: 1.25;
+  color: #fff;
 }
 
 .mh-story__body {
-  color: var(--color-ink-soft);
+  color: rgba(255, 255, 255, 0.88);
   font-size: var(--text-sm);
   line-height: 1.5;
   margin-bottom: 6px;
@@ -845,16 +844,11 @@
 
 @media (max-width: 720px) {
   .mh-story {
-    grid-template-columns: 1fr;
+    min-height: 280px;
   }
 
-  .mh-story--reverse {
-    direction: ltr;
-  }
-
-  .mh-story__media {
-    aspect-ratio: 16 / 9;
-    min-height: 160px;
+  .mh-story__copy {
+    max-width: none;
   }
 }
 

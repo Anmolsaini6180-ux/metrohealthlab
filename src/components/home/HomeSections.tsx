@@ -259,7 +259,6 @@ function StorySection({
   ctaLabel,
   ctaTo,
   icon,
-  reverse,
 }: {
   slot: SiteSectionSlot;
   eyebrow: string;
@@ -268,20 +267,24 @@ function StorySection({
   ctaLabel: string;
   ctaTo: string;
   icon: string;
-  reverse?: boolean;
 }) {
   const image = useAsync(() => getAssignedMedia("site_sections", slot), [slot]);
   return (
-    <section className={`mh-story${reverse ? " mh-story--reverse" : ""}`}>
-      <div className="mh-story__media">
-        {image.data ? (
-          <img className="mh-story__photo" src={image.data.secureUrl} alt={image.data.altText ?? title} loading="lazy" />
-        ) : (
-          <div className="mh-story__placeholder" aria-hidden="true">
-            <span className="mi">{icon}</span>
-          </div>
-        )}
-      </div>
+    <section className="mh-story">
+      {/* Full-bleed background layer, photo or fallback — either way
+          it fills the WHOLE card (position: absolute, behind the
+          overlay), never a separate side panel. No real image
+          assigned yet doesn't mean no background: the brand gradient
+          + icon IS the documented fallback background, not a smaller
+          placeholder box next to the text. */}
+      {image.data ? (
+        <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
+      ) : (
+        <div className="mh-story__bg mh-story__bg--fallback" aria-hidden="true">
+          <span className="mi">{icon}</span>
+        </div>
+      )}
+      <div className="mh-story__overlay" aria-hidden="true" />
       <div className="mh-story__copy">
         <p className="mh-story__eyebrow">{eyebrow}</p>
         <h2 className="mh-story__title">{title}</h2>
@@ -323,7 +326,6 @@ export function FamilyHealthStory({ categories }: { categories: TestCategory[] }
       body="From routine checkups to condition-specific tests, book the right package for every member of your family and manage everyone's bookings from one account."
       ctaLabel="Explore Family Packages"
       ctaTo={familyCategory ? `/tests?category=${familyCategory.id}` : "/packages"}
-      reverse
     />
   );
 }
