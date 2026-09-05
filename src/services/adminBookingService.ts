@@ -6,7 +6,7 @@
 // now (SUPER_ADMIN sees all, ADMIN sees assigned/confirmed, SUB_ADMIN
 // their own assignments, COLLECTION_AGENT their own assignments), so a
 // plain filtered select replaces the callable outright.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { rowToBooking, rowToBookingStatusHistory } from "@/supabase/bookingMappers";
 import type { Booking, BookingStatus, BookingStatusHistoryEntry } from "@/types/booking";
 
@@ -80,13 +80,7 @@ export function subscribeToFilteredAdminBookings(
 ): Unsubscribe {
   const refetch = () => getAdminBookings(payload).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel("admin-bookings")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges("admin-bookings", { event: "*", schema: "public", table: "bookings" }, refetch, onError);
 }
 
 export async function assignBooking(bookingId: string, agentUid: string): Promise<{ ok: true }> {

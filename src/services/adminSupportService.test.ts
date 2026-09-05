@@ -40,7 +40,6 @@ vi.mock("@/supabase/client", () => ({
       };
     },
   }),
-  safeSubscribe: (setup: () => () => void) => setup(),
 }));
 
 const { getAllTickets, updateTicketStatus } = await import("@/services/adminSupportService");

@@ -11,7 +11,7 @@ if (typeof globalThis.WebSocket === "undefined") {
   (globalThis as { WebSocket?: unknown }).WebSocket = WebSocket;
 }
 
-import { getSupabaseClient, supabaseConfig, supabaseConfigured, SupabaseNotConfiguredError } from "./client";
+import { getSupabaseClient, subscribeToTableChanges, supabaseConfig, supabaseConfigured, SupabaseNotConfiguredError } from "./client";
 
 describe("supabase client", () => {
   it("reads config from the environment (.env for local dev/test)", () => {
@@ -34,5 +34,62 @@ describe("supabase client", () => {
     const err = new SupabaseNotConfiguredError();
     expect(err.message).toMatch(/VITE_SUPABASE_URL/);
     expect(err.name).toBe("SupabaseNotConfiguredError");
+  });
+});
+
+// Exercises the REAL @supabase/realtime-js client (same singleton as
+// production, no mocking) rather than a mock of it — a mock could not
+// have caught this bug in the first place, since the whole failure mode
+// is a real behaviour of the real library (channel dedup by topic name)
+// that a hand-written mock would have no reason to reproduce.
+describe("subscribeToTableChanges", () => {
+  it("reproduces the real production error for two raw, independent .channel() callers on the same name", () => {
+    // This is exactly the pattern every subscribeTo* function used
+    // before this fix, and exactly what NotificationBell (rendered
+    // twice at once, desktop + mobile nav) and NotificationsPage did
+    // independently for the same signed-in user.
+    const rawTopic = `raw-collision-test-${Math.random().toString(36).slice(2)}`;
+    const client = getSupabaseClient();
+    const channel = client
+      .channel(rawTopic)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {});
+    channel.subscribe();
+
+    // Supabase's real client keys channels by topic name: a second
+    // caller asking for the same name gets this EXACT already-subscribed
+    // object back, not a fresh one.
+    expect(client.channel(rawTopic)).toBe(channel);
+
+    expect(() =>
+      client.channel(rawTopic).on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {})
+    ).toThrow(/cannot add `postgres_changes` callbacks .* after `subscribe\(\)`/);
+
+    client.removeChannel(channel);
+  });
+
+  it("never throws when two independent callers subscribe to the same topic, and shares exactly one real channel", () => {
+    const topic = `notifications-shared-test-${Math.random().toString(36).slice(2)}`;
+    const client = getSupabaseClient();
+    const realtimeTopic = `realtime:${topic}`;
+    const config = { event: "*" as const, schema: "public", table: "notifications" };
+    const calls: string[] = [];
+
+    const unsubscribeA = subscribeToTableChanges(topic, config, () => calls.push("A"));
+    let unsubscribeB: (() => void) | undefined;
+    expect(() => {
+      unsubscribeB = subscribeToTableChanges(topic, config, () => calls.push("B"));
+    }).not.toThrow();
+
+    // One real channel shared by both callers, not two.
+    expect(client.getChannels().filter((c) => c.topic === realtimeTopic)).toHaveLength(1);
+
+    unsubscribeA();
+    // The first caller leaving must not tear down the second caller's
+    // still-active subscription.
+    expect(client.getChannels().some((c) => c.topic === realtimeTopic)).toBe(true);
+
+    unsubscribeB?.();
+    // The last caller leaving does remove the real channel.
+    expect(client.getChannels().some((c) => c.topic === realtimeTopic)).toBe(false);
   });
 });

@@ -10,7 +10,7 @@
 // report goes through the confirm_report_upload / set_report_status
 // RPCs (Phase H), which derive the report's owner from the booking
 // server-side rather than trusting a browser-supplied customer id.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { uploadToCloudinary } from "@/services/cloudinaryService";
 import { rowToMediaAsset } from "@/supabase/mappers";
 import type { MediaAsset, MediaCategory } from "@/types/media";
@@ -156,13 +156,12 @@ export function subscribeToAssignedMedia(
 ): Unsubscribe {
   const refetch = () => getAssignedMedia(category, relatedId).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel(`media-${category}-${relatedId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "media_assets", filter: `related_id=eq.${relatedId}` }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges(
+    `media-${category}-${relatedId}`,
+    { event: "*", schema: "public", table: "media_assets", filter: `related_id=eq.${relatedId}` },
+    refetch,
+    onError
+  );
 }
 
 // ---------- Reports ----------

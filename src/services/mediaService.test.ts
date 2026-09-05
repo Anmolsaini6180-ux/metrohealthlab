@@ -69,7 +69,6 @@ vi.mock("@/supabase/client", () => ({
       };
     },
   }),
-  safeSubscribe: (setup: () => () => void) => setup(),
 }));
 
 const { assignMedia, getAssignedMedia, getAssignedMediaMap, updateMediaMetadata } = await import("@/services/mediaService");

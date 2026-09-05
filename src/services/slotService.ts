@@ -1,5 +1,5 @@
 // Supabase-backed. Same exported shapes as the Firestore version.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { rowToSlot } from "@/supabase/mappers";
 import type { Slot } from "@/types/slot";
 
@@ -51,11 +51,10 @@ export function subscribeToSlots(
   const refetch = () =>
     getAvailableSlots(areaId, date, collectionType).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel(`slots-${areaId}-${date}-${collectionType}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "slots", filter: `area_id=eq.${areaId}` }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges(
+    `slots-${areaId}-${date}-${collectionType}`,
+    { event: "*", schema: "public", table: "slots", filter: `area_id=eq.${areaId}` },
+    refetch,
+    onError
+  );
 }

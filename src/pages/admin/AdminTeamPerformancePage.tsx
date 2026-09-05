@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAsync } from "@/hooks/useAsync";
 import { getBookingsForStaffMember, getTeamPerformance } from "@/services/adminPerformanceService";
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { subscribeToTableChanges } from "@/supabase/client";
 import { formatCurrencyInr } from "@/services/pricingService";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -30,19 +30,14 @@ export default function AdminTeamPerformancePage() {
   retryRef.current = result.retry;
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    return safeSubscribe(() => {
-      const channel = getSupabaseClient()
-        .channel("team-performance-bookings")
-        .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(() => retryRef.current(), 800);
-        })
-        .subscribe();
-      return () => {
-        if (timer) clearTimeout(timer);
-        getSupabaseClient().removeChannel(channel);
-      };
+    const unsubscribe = subscribeToTableChanges("team-performance-bookings", { event: "*", schema: "public", table: "bookings" }, () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => retryRef.current(), 800);
     });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
 
   const sorted = useMemo(

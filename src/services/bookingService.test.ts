@@ -26,7 +26,6 @@ vi.mock("@/supabase/client", () => ({
       },
     }),
   }),
-  safeSubscribe: (setup: () => () => void) => setup(),
 }));
 
 const { getBookingById } = await import("@/services/bookingService");

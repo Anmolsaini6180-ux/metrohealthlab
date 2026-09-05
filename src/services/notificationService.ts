@@ -1,6 +1,6 @@
 // Supabase-backed. RLS: notifications_select allows own row or staff;
 // notifications_mark_read allows only the owner to flip `read`.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { rowToNotification } from "@/supabase/mappers";
 import type { AppNotification } from "@/types/notification";
 
@@ -23,13 +23,17 @@ export function subscribeToNotifications(
 ): Unsubscribe {
   const refetch = () => fetchNotifications(userId).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel(`notifications-${userId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  // Shared/ref-counted: the header renders NotificationBell twice at
+  // once (desktop nav + mobile nav), and the notification page can be
+  // open at the same time as either — all for the same userId, so this
+  // topic name is exactly the one that used to crash. See
+  // subscribeToTableChanges's own doc comment for the full story.
+  return subscribeToTableChanges(
+    `notifications-${userId}`,
+    { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+    refetch,
+    onError
+  );
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {

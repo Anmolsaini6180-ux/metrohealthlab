@@ -1,7 +1,7 @@
 // Supabase-backed. settings.data is a single jsonb column holding the
 // whole branding document — same shape Firestore's settings/branding
 // document always had, so BrandingSettings itself is unchanged.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { optionalText } from "@/utils/firestoreData";
 import type { BrandingSettings } from "@/types/settings";
 
@@ -17,21 +17,24 @@ export async function getBrandingSettings(): Promise<BrandingSettings | null> {
   return (data?.data as BrandingSettings) ?? null;
 }
 
-// Realtime — used by the customer Footer so a branding change appears
-// without a page refresh.
+// Realtime — subscribed exactly once at the app root by
+// BrandingSettingsProvider (see useBrandingSettings.tsx); every component
+// that needs branding reads the shared context instead of subscribing
+// again, so this one is not a live double-subscription case today. Routed
+// through the same shared/ref-counted subscribeToTableChanges as every
+// other channel anyway, so it stays safe if that ever changes.
 export function subscribeToBrandingSettings(
   callback: (settings: BrandingSettings | null) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
   const refetch = () => getBrandingSettings().then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel("settings-branding")
-      .on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: `id=eq.${BRANDING_ID}` }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges(
+    "settings-branding",
+    { event: "*", schema: "public", table: "settings", filter: `id=eq.${BRANDING_ID}` },
+    refetch,
+    onError
+  );
 }
 
 const OPTIONAL_BRANDING_FIELDS = ["tagline", "logoUrl", "faviconUrl", "phone", "whatsapp", "email", "address", "city", "aboutText"] as const;

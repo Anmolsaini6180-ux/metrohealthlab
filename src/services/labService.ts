@@ -1,5 +1,5 @@
 // Supabase-backed. Same exported shapes as the Firestore version.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { rowToLab, rowToLabPricing } from "@/supabase/mappers";
 import type { Lab, LabPricing } from "@/types/lab";
 
@@ -21,13 +21,7 @@ export async function getLabById(id: string): Promise<Lab | null> {
 export function subscribeToActiveLabs(callback: (labs: Lab[]) => void, onError?: (error: Error) => void): Unsubscribe {
   const refetch = () => getActiveLabs().then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel("labs-active")
-      .on("postgres_changes", { event: "*", schema: "public", table: "labs" }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges("labs-active", { event: "*", schema: "public", table: "labs" }, refetch, onError);
 }
 
 export async function getLabPricingForTest(testId: string): Promise<LabPricing[]> {
@@ -51,13 +45,12 @@ export function subscribeToLabPricingForTest(
 ): Unsubscribe {
   const refetch = () => getLabPricingForTest(testId).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel(`lab-pricing-test-${testId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lab_pricing", filter: `test_id=eq.${testId}` }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges(
+    `lab-pricing-test-${testId}`,
+    { event: "*", schema: "public", table: "lab_pricing", filter: `test_id=eq.${testId}` },
+    refetch,
+    onError
+  );
 }
 
 export function subscribeToLabPricingForPackage(
@@ -67,11 +60,10 @@ export function subscribeToLabPricingForPackage(
 ): Unsubscribe {
   const refetch = () => getLabPricingForPackage(packageId).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel(`lab-pricing-package-${packageId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lab_pricing", filter: `package_id=eq.${packageId}` }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges(
+    `lab-pricing-package-${packageId}`,
+    { event: "*", schema: "public", table: "lab_pricing", filter: `package_id=eq.${packageId}` },
+    refetch,
+    onError
+  );
 }

@@ -29,7 +29,6 @@ vi.mock("@/supabase/client", () => ({
       };
     },
   }),
-  safeSubscribe: (setup: () => () => void) => setup(),
 }));
 
 const { getPackageBySlug, getPackageById } = await import("@/services/packageService");

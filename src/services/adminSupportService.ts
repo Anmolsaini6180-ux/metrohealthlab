@@ -5,7 +5,7 @@
 // need a real thread table added first, so this deliberately only
 // exposes what the schema actually supports (list/filter/status),
 // not a fabricated reply box that doesn't persist anywhere.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { rowToSupportTicket } from "@/supabase/mappers";
 import type { SupportTicket } from "@/types/support";
 
@@ -46,13 +46,7 @@ export function subscribeToAllTickets(
 ): Unsubscribe {
   const refetch = () => getAllTickets().then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel("admin-support-tickets")
-      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges("admin-support-tickets", { event: "*", schema: "public", table: "support_tickets" }, refetch, onError);
 }
 
 export async function updateTicketStatus(ticketId: string, status: SupportTicket["status"]): Promise<void> {

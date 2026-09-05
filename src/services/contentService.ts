@@ -1,5 +1,5 @@
 // Supabase-backed.
-import { getSupabaseClient, safeSubscribe } from "@/supabase/client";
+import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { rowToArticle, rowToBanner, rowToOffer } from "@/supabase/mappers";
 import type { Article, Banner, Offer } from "@/types/content";
 
@@ -15,10 +15,7 @@ export async function getBanners(): Promise<Banner[]> {
 export function subscribeToBanners(callback: (banners: Banner[]) => void, onError?: (error: Error) => void): Unsubscribe {
   const refetch = () => getBanners().then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient().channel("banners-active").on("postgres_changes", { event: "*", schema: "public", table: "banners" }, refetch).subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges("banners-active", { event: "*", schema: "public", table: "banners" }, refetch, onError);
 }
 
 export async function getOffers(): Promise<Offer[]> {
@@ -30,10 +27,7 @@ export async function getOffers(): Promise<Offer[]> {
 export function subscribeToOffers(callback: (offers: Offer[]) => void, onError?: (error: Error) => void): Unsubscribe {
   const refetch = () => getOffers().then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient().channel("offers-active").on("postgres_changes", { event: "*", schema: "public", table: "offers" }, refetch).subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges("offers-active", { event: "*", schema: "public", table: "offers" }, refetch, onError);
 }
 
 export async function getArticles(options?: { categoryId?: string }): Promise<Article[]> {
@@ -51,13 +45,12 @@ export function subscribeToArticles(
 ): Unsubscribe {
   const refetch = () => getArticles(options).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel(`articles-${options?.categoryId ?? "all"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "articles" }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges(
+    `articles-${options?.categoryId ?? "all"}`,
+    { event: "*", schema: "public", table: "articles" },
+    refetch,
+    onError
+  );
 }
 
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
@@ -75,11 +68,10 @@ export function subscribeToArticleBySlug(
 ): Unsubscribe {
   const refetch = () => getArticleBySlug(slug).then(callback).catch((err) => onError?.(err));
   refetch();
-  return safeSubscribe(() => {
-    const channel = getSupabaseClient()
-      .channel(`article-${slug}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "articles", filter: `slug=eq.${slug}` }, refetch)
-      .subscribe();
-    return () => getSupabaseClient().removeChannel(channel);
-  }, onError);
+  return subscribeToTableChanges(
+    `article-${slug}`,
+    { event: "*", schema: "public", table: "articles", filter: `slug=eq.${slug}` },
+    refetch,
+    onError
+  );
 }
