@@ -97,6 +97,7 @@ export function rowToPackage(r: Record<string, unknown>): HealthPackage {
     updatedAt: r.updated_at,
     // Absent entirely on rows from packages_public (customer reads).
     tp: "tp" in r ? (r.tp == null ? null : Number(r.tp)) : undefined,
+    testCountOverride: r.test_count_override != null ? Number(r.test_count_override) : null,
   } as HealthPackage;
 }
 

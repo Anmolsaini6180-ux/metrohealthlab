@@ -243,6 +243,7 @@ export async function createPackage(
       display_order: data.displayOrder ?? 0,
       updated_by_firebase_uid: actorUid,
       tp: optional(data.tp),
+      test_count_override: optional(data.testCountOverride),
     })
     .select("id")
     .single();
@@ -276,6 +277,7 @@ export async function updatePackage(
   if (data.active !== undefined) patch.active = data.active;
   if (data.displayOrder !== undefined) patch.display_order = data.displayOrder;
   if (data.tp !== undefined) patch.tp = optional(data.tp);
+  if (data.testCountOverride !== undefined) patch.test_count_override = optional(data.testCountOverride);
 
   const { error } = await getSupabaseClient().from("packages").update(patch).eq("id", packageId);
   if (error) throw error;

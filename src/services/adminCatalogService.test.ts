@@ -13,24 +13,41 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   inserts: [] as Record<string, unknown>[],
   updates: [] as Record<string, unknown>[],
+  // createPackage/updatePackage also replace package_tests rows (see
+  // replacePackageTests) — tracked separately so lastInsert()/
+  // lastUpdate() keep meaning "the packages/categories row itself" for
+  // every existing test in this file, not whichever table happened to
+  // be written to last.
+  packageTestsInserts: [] as Record<string, unknown>[][],
 }));
 
 vi.mock("@/supabase/client", () => ({
   getSupabaseClient: () => ({
-    from: () => ({
-      insert: (row: Record<string, unknown>) => {
-        state.inserts.push(row);
-        return { select: () => ({ single: async () => ({ data: { id: "generated-id" }, error: null }) }) };
-      },
-      update: (row: Record<string, unknown>) => {
-        state.updates.push(row);
-        return { eq: async () => ({ error: null }) };
-      },
-    }),
+    from: (table: string) => {
+      if (table === "package_tests") {
+        return {
+          delete: () => ({ eq: async () => ({ error: null }) }),
+          insert: async (rows: Record<string, unknown>[]) => {
+            state.packageTestsInserts.push(rows);
+            return { error: null };
+          },
+        };
+      }
+      return {
+        insert: (row: Record<string, unknown>) => {
+          state.inserts.push(row);
+          return { select: () => ({ single: async () => ({ data: { id: "generated-id" }, error: null }) }) };
+        },
+        update: (row: Record<string, unknown>) => {
+          state.updates.push(row);
+          return { eq: async () => ({ error: null }) };
+        },
+      };
+    },
   }),
 }));
 
-const { createTestCategory, updateTestCategory } = await import("@/services/adminCatalogService");
+const { createTestCategory, updateTestCategory, createPackage, updatePackage } = await import("@/services/adminCatalogService");
 
 const ACTOR = "admin-firebase-uid-1";
 const lastInsert = () => state.inserts[state.inserts.length - 1];
@@ -39,6 +56,7 @@ const lastUpdate = () => state.updates[state.updates.length - 1];
 beforeEach(() => {
   state.inserts.length = 0;
   state.updates.length = 0;
+  state.packageTestsInserts.length = 0;
 });
 
 describe("createTestCategory", () => {
@@ -128,5 +146,51 @@ describe("updateTestCategory", () => {
   it("always attributes the write to the calling admin (RLS requires can_manage_catalog(), this is provenance)", async () => {
     await updateTestCategory(ACTOR, "cat-1", { subtitle: "Flat 20% off" });
     expect(lastUpdate().updated_by_firebase_uid).toBe(ACTOR);
+  });
+});
+
+// The customer-facing "X Tests" override — replaces the old "type
+// comma-separated test ids" field. NULL means "no override, show the
+// real linked-tests count" (see utils/packageDisplay.ts), so it must
+// round-trip as a real null on create, not be silently dropped.
+const PACKAGE_BASE = {
+  name: "Full Body Checkup",
+  slug: "full-body-checkup",
+  category: "Full Body",
+  description: "",
+  testIds: ["test-1", "test-2"],
+  mrp: 999,
+  sellingPrice: 799,
+  reportTat: "24 hours",
+  homeCollection: true,
+  labIds: [] as string[],
+  active: true,
+  tp: null,
+};
+
+describe("createPackage", () => {
+  it("writes test_count_override as null when no override was entered", async () => {
+    await createPackage(ACTOR, { ...PACKAGE_BASE, testCountOverride: null });
+    expect(lastInsert().test_count_override).toBeNull();
+  });
+
+  it("writes a real override figure when the admin sets one", async () => {
+    await createPackage(ACTOR, { ...PACKAGE_BASE, testCountOverride: 70 });
+    expect(lastInsert().test_count_override).toBe(70);
+  });
+});
+
+describe("updatePackage", () => {
+  it("sets an override when provided, and leaves it untouched otherwise", async () => {
+    await updatePackage(ACTOR, "pkg-1", { testCountOverride: 12 });
+    expect(lastUpdate().test_count_override).toBe(12);
+
+    await updatePackage(ACTOR, "pkg-1", { name: "Renamed Package" });
+    expect("test_count_override" in lastUpdate()).toBe(false);
+  });
+
+  it("clears an override by writing null when the admin blanks the field", async () => {
+    await updatePackage(ACTOR, "pkg-1", { testCountOverride: null });
+    expect(lastUpdate().test_count_override).toBeNull();
   });
 });

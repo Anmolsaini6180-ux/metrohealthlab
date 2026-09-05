@@ -32,4 +32,14 @@ export interface HealthPackage {
    * entered a cost yet" — never treat that the same as a real zero.
    */
   tp?: number | null;
+  /**
+   * Admin-set override for the "X Tests" figure shown on this
+   * package's customer-facing card/detail page — e.g. a bundled panel
+   * marketed as "70+ parameters" that doesn't map 1:1 to individually
+   * cataloged `tests` rows. Present on every read (customer and
+   * admin), unlike `tp`. null/undefined means "no override" — display
+   * code should fall back to testIds.length, the real linked-tests
+   * count, exactly like before this field existed.
+   */
+  testCountOverride?: number | null;
 }

@@ -4,6 +4,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { createPackage, getAllPackages, getAllTests, updatePackage } from "@/services/adminCatalogService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { computeMargin } from "@/utils/margin";
+import { displayedTestCount } from "@/utils/packageDisplay";
 import type { HealthPackage } from "@/types/package";
 import type { DiagnosticTest } from "@/types/test";
 import LoadingState from "@/components/common/LoadingState";
@@ -22,6 +23,7 @@ const EMPTY_FORM = {
   sellingPrice: 0,
   homeCollection: true,
   tp: "",
+  testCountOverride: "",
 };
 
 export default function AdminPackagesPage() {
@@ -64,7 +66,10 @@ export default function AdminPackagesPage() {
                   {p.name} {!p.active && <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>(inactive)</span>}
                 </p>
                 <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-                  {formatCurrencyInr(p.sellingPrice)} • {p.testIds.length} tests
+                  {formatCurrencyInr(p.sellingPrice)} • {displayedTestCount(p)} tests
+                  {p.testCountOverride != null && p.testCountOverride !== p.testIds.length && (
+                    <span> (displayed count overridden — {p.testIds.length} actually linked)</span>
+                  )}
                 </p>
                 <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
                   {(() => {
@@ -102,6 +107,7 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
           sellingPrice: existing.sellingPrice,
           homeCollection: existing.homeCollection,
           tp: existing.tp != null ? String(existing.tp) : "",
+          testCountOverride: existing.testCountOverride != null ? String(existing.testCountOverride) : "",
         }
       : EMPTY_FORM
   );
@@ -120,10 +126,14 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
       // Blank means "not entered" (null), never a real 0 — see
       // computeMargin's own comment on why that distinction matters.
       const tp = form.tp.trim() === "" ? null : Number(form.tp);
+      // Blank means "no override" (null) — falls back to the real
+      // linked-tests count, exactly like every package before this
+      // field existed. A deliberate 0 is a real override, not "unset".
+      const testCountOverride = form.testCountOverride.trim() === "" ? null : Number(form.testCountOverride);
       if (existing) {
-        await updatePackage(actorUid, existing.id, { ...form, tp });
+        await updatePackage(actorUid, existing.id, { ...form, tp, testCountOverride });
       } else {
-        await createPackage(actorUid, { ...form, tp, labIds: [], active: true });
+        await createPackage(actorUid, { ...form, tp, testCountOverride, labIds: [], active: true });
       }
       onDone();
     } catch (err) {
@@ -140,6 +150,23 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
       <input placeholder="Category" required value={form.category} onChange={(e) => update("category", e.target.value)} />
       <textarea placeholder="Description" rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} />
       <TestPicker selectedIds={form.testIds} onChange={(testIds) => update("testIds", testIds)} />
+      <label style={{ display: "grid", gap: 4 }}>
+        <span style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>
+          "X Tests" shown to customers <span className="text-soft">(optional override)</span>
+        </span>
+        <input
+          type="number"
+          min={0}
+          placeholder={`Leave blank to show the real linked count (${form.testIds.length})`}
+          value={form.testCountOverride}
+          onChange={(e) => update("testCountOverride", e.target.value)}
+          style={{ maxWidth: 320 }}
+        />
+        <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+          For a bundled panel marketed as, e.g., "70+ parameters" that doesn't map 1:1 to individually listed tests.
+          This only changes the number shown on the package card — it does not add or remove tests above.
+        </span>
+      </label>
       <input placeholder="Report TAT" required value={form.reportTat} onChange={(e) => update("reportTat", e.target.value)} />
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
         <input type="number" placeholder="MRP" required value={form.mrp} onChange={(e) => update("mrp", Number(e.target.value))} style={{ flex: 1 }} />

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { HealthPackage } from "@/types/package";
 import { formatCurrencyInr } from "@/services/pricingService";
+import { displayedTestCount } from "@/utils/packageDisplay";
 
 export default function PackageCard({ pkg }: { pkg: HealthPackage }) {
   return (
@@ -23,7 +24,7 @@ export default function PackageCard({ pkg }: { pkg: HealthPackage }) {
       )}
       <p style={{ fontWeight: 600, marginBottom: 4 }}>{pkg.name}</p>
       <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginBottom: "var(--space-sm)" }}>
-        {pkg.testIds.length} tests included
+        {displayedTestCount(pkg)} tests included
       </p>
       <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginBottom: 2 }}>Starting from</p>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>

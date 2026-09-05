@@ -103,7 +103,11 @@ export default function PackageDetailPage() {
       <div className="mh-pkgdetail__stat-row">
         <span>
           <span className="mi" aria-hidden="true">science</span>
-          {includedTests.length > 0 ? `${includedTests.length}+ Tests` : `${p.testIds.length} Tests`}
+          {p.testCountOverride != null
+            ? `${p.testCountOverride} Tests`
+            : includedTests.length > 0
+              ? `${includedTests.length}+ Tests`
+              : `${p.testIds.length} Tests`}
         </span>
         {p.homeCollection && (
           <span>

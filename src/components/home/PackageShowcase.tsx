@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrencyInr } from "@/services/pricingService";
+import { displayedTestCount } from "@/utils/packageDisplay";
 import type { HealthPackage } from "@/types/package";
 
 interface Props {
@@ -84,7 +85,7 @@ export default function PackageShowcase({ packages }: Props) {
 
               <h3 className="mh-pkg-card__name">{p.name}</h3>
               <p className="mh-pkg-card__count">
-                {p.testIds.length} {p.testIds.length === 1 ? "Test" : "Tests"}
+                {displayedTestCount(p)} {displayedTestCount(p) === 1 ? "Test" : "Tests"}
               </p>
 
               <p className="mh-pkg-card__prices">
