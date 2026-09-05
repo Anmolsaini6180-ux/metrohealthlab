@@ -3,6 +3,11 @@
    ============================================================ */
 .mh-bookings {
   display: grid;
+  /* See .mh-booking in booking-flow.css: an implicit grid column with
+     no explicit width stretches to the widest descendant's min-content
+     (and drags every row along with it), which can silently push
+     content past the viewport edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
 }
 
@@ -33,6 +38,7 @@
 
 .mh-bookings__list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 

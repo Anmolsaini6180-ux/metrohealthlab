@@ -3,6 +3,18 @@
    ============================================================ */
 .mh-booking {
   display: grid;
+  /* Without an explicit column, a CSS grid's single implicit column
+     sizes to fit the widest child's min-content — and then, by grid's
+     own default stretch behaviour, EVERY row (the stepper, the toggle
+     row, the nav buttons) gets stretched to match that one column's
+     width, even rows whose own content is much narrower. On a real
+     device this pushed the whole booking flow ~40-60px past the
+     viewport edge, invisibly (see html/body's overflow-x: clip above:
+     nothing scrolls to reveal it — a real button's tap target, and the
+     5th step's own label, were simply gone off-screen). minmax(0, 1fr)
+     caps the column at the actually-available width instead; confirmed
+     end to end with production markup down to 320px wide. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-lg);
 }
 
@@ -20,6 +32,7 @@
 
 .mh-booking__section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-sm);
 }
 
@@ -107,6 +120,7 @@
 /* ---- Selectable list cards (patient / address) ---- */
 .mh-select-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 

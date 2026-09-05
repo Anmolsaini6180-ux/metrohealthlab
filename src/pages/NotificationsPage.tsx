@@ -2,38 +2,29 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { markAllNotificationsRead, markNotificationRead, subscribeToNotifications } from "@/services/notificationService";
-import type { AppNotification, NotificationType } from "@/types/notification";
+import { NotificationListItem, resolveNotificationTarget, TYPE_GROUP, type NotificationGroup } from "@/components/notifications/notificationDisplay";
+import type { AppNotification } from "@/types/notification";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 
-const TYPE_ICON: Record<NotificationType, string> = {
-  booking_received: "receipt_long",
-  booking_confirmed: "check_circle",
-  payment_successful: "payments",
-  collector_assigned: "person_pin_circle",
-  on_the_way: "directions_car",
-  sample_collected: "colorize",
-  report_ready: "description",
-  cancelled: "cancel",
-  refund: "currency_rupee",
-  offer: "local_offer",
-  system: "info",
-};
+const PAGE_SIZE = 50;
 
-function formatWhen(value: unknown): string {
-  if (!value) return "";
-  const d = new Date(String(value));
-  if (Number.isNaN(d.getTime())) return "";
-  const diffMs = Date.now() - d.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+type Tab = "all" | "unread" | NotificationGroup;
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "booking", label: "Booking" },
+  { id: "reports", label: "Reports" },
+  { id: "offers", label: "Offers" },
+  { id: "system", label: "System" },
+];
+
+function matchesTab(n: AppNotification, tab: Tab): boolean {
+  if (tab === "all") return true;
+  if (tab === "unread") return !n.read;
+  return TYPE_GROUP[n.type] === tab;
 }
 
 export default function NotificationsPage() {
@@ -43,25 +34,37 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<AppNotification[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("all");
+  // How many of the most recent notifications to keep loaded — "Load
+  // more" just raises this and lets the existing subscription re-fetch
+  // with the bigger limit, same pattern subscribeToNotifications
+  // already uses for every realtime refetch.
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   useEffect(() => {
     if (!supabaseUserId) return;
-    const unsubscribe = subscribeToNotifications(supabaseUserId, setNotifications, (e) => setError(e.message));
+    setNotifications(null);
+    const unsubscribe = subscribeToNotifications(supabaseUserId, setNotifications, (e) => setError(e.message), limit);
     return unsubscribe;
-  }, [supabaseUserId]);
+  }, [supabaseUserId, limit]);
 
-  if (error) return <ErrorState message={error} />;
+  if (error) return <ErrorState message={error} onRetry={() => setError(null)} />;
 
   const hasUnread = !!notifications?.some((n) => !n.read);
+  const visible = (notifications ?? []).filter((n) => matchesTab(n, tab));
+  // If a fresh fetch came back with fewer rows than we asked for, there
+  // is nothing more to load — no separate "total count" query needed.
+  const canLoadMore = (notifications?.length ?? 0) >= limit;
 
   function handleOpen(n: AppNotification) {
-    if (!n.read) markNotificationRead(n.id);
-    if (n.actionUrl) navigate(n.actionUrl);
+    if (!n.read) markNotificationRead(n.id).catch(() => {});
+    const target = resolveNotificationTarget(n);
+    if (target) navigate(target);
   }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-sm)" }}>
         <h1 style={{ fontSize: "var(--text-2xl)" }}>Notifications</h1>
         {hasUnread && supabaseUserId && (
           <button className="btn btn-outline" onClick={() => markAllNotificationsRead(supabaseUserId)}>
@@ -69,60 +72,44 @@ export default function NotificationsPage() {
           </button>
         )}
       </div>
+
+      <div className="mh-filter-row" role="tablist" aria-label="Filter notifications" style={{ marginBottom: "var(--space-md)" }}>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            className={`btn ${tab === t.id ? "btn-primary" : "btn-outline"}`}
+            style={{ padding: "6px 14px", fontSize: "var(--text-sm)" }}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {notifications === null && <LoadingState rows={3} />}
       {notifications && notifications.length === 0 && <EmptyState icon="notifications" title="No notifications yet" />}
-      {notifications && notifications.length > 0 && (
+      {notifications && notifications.length > 0 && visible.length === 0 && (
+        <EmptyState icon="search_off" title="No notifications in this category" />
+      )}
+      {visible.length > 0 && (
         <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-          {notifications.map((n) => (
-            <button
-              key={n.id}
-              className="card"
-              style={{
-                textAlign: "left",
-                display: "flex",
-                gap: "var(--space-sm)",
-                alignItems: "flex-start",
-                background: n.read ? "var(--color-surface)" : "var(--color-bg-tint)",
-                cursor: n.actionUrl ? "pointer" : "default",
-              }}
-              onClick={() => handleOpen(n)}
-            >
-              {n.imageUrl ? (
-                <img
-                  src={n.imageUrl}
-                  alt=""
-                  style={{ width: 48, height: 48, borderRadius: "var(--radius-sm)", objectFit: "cover", flexShrink: 0 }}
-                />
-              ) : (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "var(--radius-sm)",
-                    background: "var(--color-bg-tint)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    color: "var(--color-primary)",
-                  }}
-                >
-                  <span className="mi">{TYPE_ICON[n.type] ?? "notifications"}</span>
-                </span>
-              )}
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <span style={{ fontWeight: n.read ? 500 : 700 }}>{n.title}</span>
-                  <span className="text-soft" style={{ fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>{formatWhen(n.createdAt)}</span>
-                </span>
-                <span className="text-soft" style={{ fontSize: "var(--text-sm)", display: "block", marginTop: 2 }}>{n.message}</span>
-              </span>
-              {!n.read && (
-                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-primary)", flexShrink: 0, marginTop: 6 }} />
-              )}
-            </button>
+          {visible.map((n) => (
+            <NotificationListItem key={n.id} notification={n} onOpen={handleOpen} />
           ))}
+        </div>
+      )}
+
+      {/* Only meaningful against "All"/"Unread" — a category tab filters
+          the already-loaded page client-side, and loading more of the
+          same underlying feed is what actually reveals older rows of
+          that category, so the action reads clearest off the full list. */}
+      {tab === "all" && canLoadMore && (
+        <div style={{ textAlign: "center", marginTop: "var(--space-md)" }}>
+          <button className="btn btn-outline" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
+            Load more
+          </button>
         </div>
       )}
     </div>

@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./useAuth";
-import { subscribeToNotifications } from "@/services/notificationService";
+import { subscribeToUnreadNotificationCount } from "@/services/notificationService";
 
 // Realtime unread count for the header bell badge — separate from
 // NotificationsPage's own subscription so the badge stays live no
-// matter which page the customer is on.
+// matter which page the customer is on. Uses a dedicated count-only
+// query (see subscribeToUnreadNotificationCount) rather than fetching
+// the whole notification list and counting client-side — that would
+// transfer every notification the account has ever received, on every
+// page, just to show a small badge number.
 export function useUnreadNotificationsCount(): number {
   // notifications.user_id is a Supabase uuid — never the Firebase
   // user.uid (see src/supabase/identity.ts).
@@ -16,11 +20,7 @@ export function useUnreadNotificationsCount(): number {
       setCount(0);
       return;
     }
-    const unsubscribe = subscribeToNotifications(
-      supabaseUserId,
-      (notifications) => setCount(notifications.filter((n) => !n.read).length),
-      () => setCount(0)
-    );
+    const unsubscribe = subscribeToUnreadNotificationCount(supabaseUserId, setCount, () => setCount(0));
     return unsubscribe;
   }, [supabaseUserId]);
 

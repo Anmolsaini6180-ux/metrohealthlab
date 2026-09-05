@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAuth } from "@/hooks/useAuth";
 import { CAN_MANAGE_CATALOG, CAN_MANAGE_TEAM, CAN_VIEW_ANALYTICS } from "@/types/team";
@@ -138,7 +138,9 @@ export default function AdminLayout() {
         >
           <span className="mi" aria-hidden="true">{drawerOpen ? "close" : "menu"}</span>
         </button>
-        <Logo variant="compact" height={28} />
+        <Link to="/admin" className="mh-admin-topbar__logo" aria-label="Go to admin dashboard">
+          <Logo variant="compact" height={28} />
+        </Link>
         <div className="mh-admin-topbar__spacer" />
         <NavLink to="/admin/notifications" className="mh-admin-topbar__icon" aria-label="Notifications">
           <span className="mi" aria-hidden="true">notifications</span>
@@ -164,7 +166,9 @@ export default function AdminLayout() {
             <div className="mh-admin-drawer__backdrop" onClick={() => setDrawerOpen(false)} />
             <div className="mh-admin-drawer__panel">
               <div className="mh-admin-drawer__head">
-                <Logo variant="compact" height={26} />
+                <Link to="/admin" className="mh-admin-topbar__logo" aria-label="Go to admin dashboard">
+                  <Logo variant="compact" height={26} />
+                </Link>
                 <button type="button" className="icon-btn" aria-label="Close menu" onClick={() => setDrawerOpen(false)}>
                   <span className="mi">close</span>
                 </button>

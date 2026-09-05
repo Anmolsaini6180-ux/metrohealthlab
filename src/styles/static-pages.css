@@ -4,6 +4,7 @@
 .mh-static-page {
   max-width: 640px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-lg);
 }
 
@@ -23,11 +24,13 @@
 
 .mh-static-page__contact {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-sm);
 }
 
 .mh-static-page__dl {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-sm);
 }
 

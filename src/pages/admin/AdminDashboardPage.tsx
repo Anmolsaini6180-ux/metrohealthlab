@@ -164,57 +164,84 @@ export default function AdminDashboardPage() {
         <FilterSelect label="Payment" value={filterPaymentStatus} onChange={setFilterPaymentStatus} options={["pending", "processing", "success", "failed", "refunded", "cash_pending"].map((s) => ({ value: s, label: s.replace(/_/g, " ") }))} />
       </div>
 
-      {/* Catalog counters read straight from Supabase and stay useful
-          even if the booking analytics below are still loading. */}
-      <div className="mh-stat-grid">
-        <Stat label="Active tests" value={activeTests.data?.length ?? (activeTests.loading ? "…" : 0)} />
-        <Stat label="Active packages" value={activePackages.data?.length ?? (activePackages.loading ? "…" : 0)} />
-        <Stat label="Categories" value={categories.data?.length ?? (categories.loading ? "…" : 0)} />
-        <Stat label="Labs" value={labs.data?.length ?? (labs.loading ? "…" : 0)} />
-        <Stat label="Service areas" value={serviceAreas.data?.length ?? (serviceAreas.loading ? "…" : 0)} />
-        <Stat label="Active coupons" value={coupons.data?.filter((c) => c.active).length ?? (coupons.loading ? "…" : 0)} />
-        <Stat label="Cash collected" value={bookings.data ? formatCurrencyInr(stats.cashCollected) : "…"} />
-        <Stat label="Cash pending" value={bookings.data ? formatCurrencyInr(stats.cashPending) : "…"} />
-        <Stat label="Reports filed" value={reports.data?.length ?? (reports.loading ? "…" : 0)} />
-      </div>
-
       {bookings.loading && <LoadingState label="Loading dashboard..." rows={3} />}
       {bookings.error && <ErrorState message={bookings.error} onRetry={bookings.retry} />}
 
       {bookings.data && (
         <>
-          <div className="mh-stat-grid">
-            <Stat label="Total bookings" value={stats.total} to={bookingsLink()} />
-            <Stat label="Completed" value={stats.completed} to={bookingsLink("completed")} />
-            <Stat label="Pending" value={stats.pending} to={bookingsLink("payment_pending,confirmed")} />
-            <Stat label="Cancelled" value={stats.cancelled} to={bookingsLink("cancelled,refunded")} />
-            <Stat label="Customers" value={stats.customers} />
-            <Stat label="Collections done" value={stats.collections} />
-            <Stat label="Reports ready" value={stats.reportsReady} to={bookingsLink("report_ready")} />
-            <Stat label="Active tests" value={activeTests.data?.length ?? (activeTests.loading ? "…" : 0)} to="/admin/tests" />
-            <Stat label="Active packages" value={activePackages.data?.length ?? (activePackages.loading ? "…" : 0)} to="/admin/packages" />
+          <div className="mh-dash-section">
+            <p className="mh-dash-section__title">Bookings — selected range</p>
+            <div className="mh-metric-grid">
+              <Metric icon="calendar_month" label="Total bookings" value={stats.total} to={bookingsLink()} />
+              <Metric icon="check_circle" label="Completed" value={stats.completed} to={bookingsLink("completed")} tone="success" />
+              <Metric icon="hourglass_top" label="Pending" value={stats.pending} to={bookingsLink("payment_pending,confirmed")} tone="warning" />
+              <Metric icon="cancel" label="Cancelled" value={stats.cancelled} to={bookingsLink("cancelled,refunded")} tone="danger" />
+              <Metric icon="group" label="Customers" value={stats.customers} />
+              <Metric icon="local_shipping" label="Collections done" value={stats.collections} />
+              <Metric icon="description" label="Reports ready" value={stats.reportsReady} to={bookingsLink("report_ready")} tone="accent" />
+            </div>
           </div>
 
-          <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-            <div className="card">
-              <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: "var(--space-sm)" }}>Bookings trend</h3>
-              <BarList items={bookingsByDay} />
+          <div className="mh-dash-section">
+            <p className="mh-dash-section__title">Cash on Home</p>
+            <div className="mh-metric-grid">
+              <Metric icon="payments" label="Cash collected" value={formatCurrencyInr(stats.cashCollected)} tone="success" />
+              <Metric icon="account_balance_wallet" label="Cash pending" value={formatCurrencyInr(stats.cashPending)} tone="warning" />
             </div>
-            <div className="card">
-              <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: "var(--space-sm)" }}>Status breakdown</h3>
-              <BarList items={statusBreakdown} />
-            </div>
-            <div className="card">
-              <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: "var(--space-sm)" }}>Top tests</h3>
-              <BarList items={topTests} />
-            </div>
-            <div className="card">
-              <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: "var(--space-sm)" }}>Top packages</h3>
-              <BarList items={topPackages} />
+          </div>
+
+          <div className="mh-dash-section">
+            <p className="mh-dash-section__title">Analytics</p>
+            <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+              <div className="card">
+                <div className="mh-chart-card__head">
+                  <span className="mi" aria-hidden="true">trending_up</span>
+                  <h3>Bookings trend</h3>
+                </div>
+                <BarList items={bookingsByDay} />
+              </div>
+              <div className="card">
+                <div className="mh-chart-card__head">
+                  <span className="mi" aria-hidden="true">donut_large</span>
+                  <h3>Status breakdown</h3>
+                </div>
+                <BarList items={statusBreakdown} />
+              </div>
+              <div className="card">
+                <div className="mh-chart-card__head">
+                  <span className="mi" aria-hidden="true">science</span>
+                  <h3>Top tests</h3>
+                </div>
+                <BarList items={topTests} />
+              </div>
+              <div className="card">
+                <div className="mh-chart-card__head">
+                  <span className="mi" aria-hidden="true">inventory_2</span>
+                  <h3>Top packages</h3>
+                </div>
+                <BarList items={topPackages} />
+              </div>
             </div>
           </div>
         </>
       )}
+
+      {/* Catalog counters read straight from Supabase and stay useful
+          even if the booking analytics above are still loading — kept
+          quiet/muted since they're reference counts, not today's
+          activity, so they don't compete with the numbers above. */}
+      <div className="mh-dash-section">
+        <p className="mh-dash-section__title">Catalog</p>
+        <div className="mh-metric-grid">
+          <Metric icon="science" label="Active tests" value={activeTests.data?.length ?? (activeTests.loading ? "…" : 0)} to="/admin/tests" muted />
+          <Metric icon="inventory_2" label="Active packages" value={activePackages.data?.length ?? (activePackages.loading ? "…" : 0)} to="/admin/packages" muted />
+          <Metric icon="category" label="Categories" value={categories.data?.length ?? (categories.loading ? "…" : 0)} to="/admin/categories" muted />
+          <Metric icon="storefront" label="Labs" value={labs.data?.length ?? (labs.loading ? "…" : 0)} to="/admin/labs" muted />
+          <Metric icon="location_on" label="Service areas" value={serviceAreas.data?.length ?? (serviceAreas.loading ? "…" : 0)} to="/admin/service-areas" muted />
+          <Metric icon="confirmation_number" label="Active coupons" value={coupons.data?.filter((c) => c.active).length ?? (coupons.loading ? "…" : 0)} to="/admin/marketing/coupons" muted />
+          <Metric icon="summarize" label="Reports filed" value={reports.data?.length ?? (reports.loading ? "…" : 0)} to="/admin/reports" muted />
+        </div>
+      </div>
     </div>
   );
 }
@@ -228,22 +255,45 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
   );
 }
 
-function Stat({ label, value, to }: { label: string; value: string | number; to?: string }) {
+type MetricTone = "success" | "warning" | "danger" | "accent";
+
+function Metric({
+  icon,
+  label,
+  value,
+  to,
+  tone,
+  muted,
+}: {
+  icon: string;
+  label: string;
+  value: string | number;
+  to?: string;
+  tone?: MetricTone;
+  muted?: boolean;
+}) {
+  const className = `mh-metric-card${tone ? ` mh-metric-card--${tone}` : ""}${muted ? " mh-metric-card--muted" : ""}`;
   const content = (
     <>
-      <div className="mh-stat-card__value" style={{ fontSize: "var(--text-xl)" }}>{value}</div>
-      <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{label}</p>
+      <span className="mh-metric-card__icon" aria-hidden="true">
+        <span className="mi">{icon}</span>
+      </span>
+      <span className="mh-metric-card__body">
+        <span className="mh-metric-card__value">{value}</span>
+        <span className="mh-metric-card__label">{label}</span>
+      </span>
     </>
   );
-  // Real data only: every `to` link points at Booking Management
-  // filtered to the SAME real booking_status value(s) this number was
-  // just counted from (see bookingsLink above) — never a local label
-  // swap that could drift from what's actually in Supabase.
+  // Real data only: every `to` link points at Booking Management (or
+  // the catalog page it's actually counting) filtered/scoped to the
+  // SAME real data this number was just counted from (see
+  // bookingsLink above) — never a local label swap that could drift
+  // from what's actually in Supabase.
   return to ? (
-    <Link to={to} className="mh-stat-card mh-stat-card--link">
+    <Link to={to} className={className}>
       {content}
     </Link>
   ) : (
-    <div className="mh-stat-card">{content}</div>
+    <div className={className}>{content}</div>
   );
 }

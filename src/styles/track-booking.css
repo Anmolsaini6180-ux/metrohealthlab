@@ -3,6 +3,11 @@
    ============================================================ */
 .mh-track {
   display: grid;
+  /* See .mh-booking in booking-flow.css for the full explanation: a
+     grid's implicit column with no explicit width sizes (and stretches
+     every row to match) the widest descendant's min-content, which can
+     silently push a whole page's content past the viewport edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-lg);
 }
 
@@ -89,6 +94,7 @@
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .mh-timeline__item {

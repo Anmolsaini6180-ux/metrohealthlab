@@ -34,6 +34,17 @@
   flex-shrink: 0;
 }
 
+.mh-admin-topbar__logo {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  transition: opacity 0.15s ease;
+}
+
+.mh-admin-topbar__logo:hover {
+  opacity: 0.8;
+}
+
 .mh-admin-topbar__spacer {
   flex: 1;
 }
@@ -158,6 +169,7 @@
 /* ---- Nav (shared by sidebar and drawer) ---- */
 .mh-admin-nav {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   padding: var(--space-sm);
 }
@@ -262,4 +274,153 @@
   .mh-admin-drawer {
     display: none;
   }
+}
+
+/* ---- Admin Dashboard: grouped metric cards ----
+   A new, purpose-built card for AdminDashboardPage rather than
+   restyling the shared .mh-stat-card (also used by the customer
+   dashboard and three other admin pages) — this keeps that redesign
+   scoped to the one screen it was actually about. An icon badge tinted
+   by real meaning (green = money in hand / done, amber = still
+   pending, red = cancelled) replaces a wall of identical neutral
+   boxes, and the --muted variant quietly de-emphasises catalog counts
+   so the eye lands on today's booking/revenue numbers first. */
+.mh-dash-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.mh-dash-section__title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mh-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: var(--space-sm);
+}
+
+.mh-metric-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  text-align: left;
+  min-width: 0;
+}
+
+a.mh-metric-card {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+a.mh-metric-card:hover,
+a.mh-metric-card:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+}
+
+.mh-metric-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+}
+
+.mh-metric-card__icon .mi {
+  font-size: 20px;
+}
+
+.mh-metric-card__body {
+  min-width: 0;
+}
+
+.mh-metric-card__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mh-metric-card__label {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  margin-top: 1px;
+}
+
+.mh-metric-card--success .mh-metric-card__icon {
+  background: rgba(26, 156, 107, 0.12);
+  color: var(--color-success);
+}
+
+.mh-metric-card--warning .mh-metric-card__icon {
+  background: rgba(245, 165, 36, 0.16);
+  color: var(--color-amber);
+}
+
+.mh-metric-card--danger .mh-metric-card__icon {
+  background: rgba(214, 69, 69, 0.12);
+  color: var(--color-danger);
+}
+
+.mh-metric-card--accent .mh-metric-card__icon {
+  background: rgba(242, 113, 28, 0.12);
+  color: var(--color-accent);
+}
+
+/* Quieter treatment for secondary/catalog counts: smaller icon badge,
+   no card background/border of its own, so it reads as a lighter row
+   beneath the real headline numbers rather than competing with them. */
+.mh-metric-card--muted {
+  background: transparent;
+  border-color: transparent;
+  padding: 8px 4px;
+}
+
+.mh-metric-card--muted .mh-metric-card__icon {
+  width: 32px;
+  height: 32px;
+}
+
+.mh-metric-card--muted .mh-metric-card__icon .mi {
+  font-size: 16px;
+}
+
+.mh-metric-card--muted .mh-metric-card__value {
+  font-size: var(--text-base);
+}
+
+.mh-chart-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+}
+
+.mh-chart-card__head .mi {
+  color: var(--color-primary);
+  font-size: 18px;
+}
+
+.mh-chart-card__head h3 {
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
