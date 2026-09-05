@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
-import { createPackage, getAllPackages, updatePackage } from "@/services/adminCatalogService";
+import { createPackage, getAllPackages, getAllTests, updatePackage } from "@/services/adminCatalogService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { computeMargin } from "@/utils/margin";
 import type { HealthPackage } from "@/types/package";
+import type { DiagnosticTest } from "@/types/test";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
@@ -15,7 +16,7 @@ const EMPTY_FORM = {
   slug: "",
   category: "",
   description: "",
-  testIds: "",
+  testIds: [] as string[],
   reportTat: "",
   mrp: 0,
   sellingPrice: 0,
@@ -95,7 +96,7 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
           slug: existing.slug,
           category: existing.category,
           description: existing.description,
-          testIds: existing.testIds.join(", "),
+          testIds: existing.testIds,
           reportTat: existing.reportTat,
           mrp: existing.mrp,
           sellingPrice: existing.sellingPrice,
@@ -116,14 +117,13 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
     setBusy(true);
     setError(null);
     try {
-      const testIds = form.testIds.split(",").map((s) => s.trim()).filter(Boolean);
       // Blank means "not entered" (null), never a real 0 — see
       // computeMargin's own comment on why that distinction matters.
       const tp = form.tp.trim() === "" ? null : Number(form.tp);
       if (existing) {
-        await updatePackage(actorUid, existing.id, { ...form, testIds, tp });
+        await updatePackage(actorUid, existing.id, { ...form, tp });
       } else {
-        await createPackage(actorUid, { ...form, testIds, tp, labIds: [], active: true });
+        await createPackage(actorUid, { ...form, tp, labIds: [], active: true });
       }
       onDone();
     } catch (err) {
@@ -139,11 +139,7 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
       <input placeholder="Slug" required value={form.slug} onChange={(e) => update("slug", e.target.value)} />
       <input placeholder="Category" required value={form.category} onChange={(e) => update("category", e.target.value)} />
       <textarea placeholder="Description" rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} />
-      <input
-        placeholder="Test IDs (comma-separated — must reference real tests)"
-        value={form.testIds}
-        onChange={(e) => update("testIds", e.target.value)}
-      />
+      <TestPicker selectedIds={form.testIds} onChange={(testIds) => update("testIds", testIds)} />
       <input placeholder="Report TAT" required value={form.reportTat} onChange={(e) => update("reportTat", e.target.value)} />
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
         <input type="number" placeholder="MRP" required value={form.mrp} onChange={(e) => update("mrp", Number(e.target.value))} style={{ flex: 1 }} />
@@ -172,5 +168,103 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
         {busy ? "Saving..." : existing ? "Save changes" : "Create package"}
       </button>
     </form>
+  );
+}
+
+/**
+ * Search-and-pick test selector — replaces what used to be a raw
+ * "type comma-separated test IDs" text box. An admin has no way to
+ * know a test's internal id by sight, so that field was unusable in
+ * practice: every package this session found had 0 linked tests
+ * because of it. Picks by real name instead, and persists through the
+ * exact same testIds: string[] path createPackage/updatePackage
+ * already had (see adminCatalogService.ts's replacePackageTests) —
+ * only the input UX changes here, not the data model.
+ */
+function TestPicker({ selectedIds, onChange }: { selectedIds: string[]; onChange: (ids: string[]) => void }) {
+  const allTests = useAsync(getAllTests, []);
+  const [search, setSearch] = useState("");
+
+  const byId = useMemo(() => new Map((allTests.data ?? []).map((t) => [t.id, t])), [allTests.data]);
+  const selectedTests = selectedIds.map((id) => byId.get(id)).filter((t): t is DiagnosticTest => !!t);
+
+  const results = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const pool = allTests.data ?? [];
+    const unselected = pool.filter((t) => !selectedIds.includes(t.id));
+    if (!q) return unselected.slice(0, 20);
+    return unselected.filter((t) => t.name.toLowerCase().includes(q)).slice(0, 20);
+  }, [allTests.data, search, selectedIds]);
+
+  function addTest(id: string) {
+    onChange([...selectedIds, id]);
+    setSearch("");
+  }
+
+  function removeTest(id: string) {
+    onChange(selectedIds.filter((x) => x !== id));
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <span style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>
+        Tests included {selectedIds.length > 0 && <span className="text-soft">({selectedIds.length})</span>}
+      </span>
+
+      {selectedTests.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {selectedTests.map((t) => (
+            <span key={t.id} className="mh-removable-chip">
+              {t.name}
+              <button type="button" aria-label={`Remove ${t.name}`} onClick={() => removeTest(t.id)}>
+                <span className="mi" aria-hidden="true">close</span>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* A test id in the package's own testIds that no longer resolves
+          to a real test row (deleted/renamed elsewhere) — surfaced
+          honestly instead of silently dropped, since saving the form
+          as-is would otherwise remove it from the package without the
+          admin ever having chosen to. */}
+      {selectedIds.length > selectedTests.length && (
+        <p style={{ color: "var(--color-danger)", fontSize: "var(--text-xs)" }}>
+          {selectedIds.length - selectedTests.length} linked test id(s) no longer match a real test and will be
+          dropped on save.
+        </p>
+      )}
+
+      {allTests.loading && <LoadingState rows={1} />}
+      {allTests.error && <ErrorState message={allTests.error} onRetry={allTests.retry} />}
+
+      {allTests.data && (
+        <>
+          <input
+            type="search"
+            placeholder="Search tests by name to add..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {(search.trim() || results.length > 0) && (
+            <div className="card" style={{ maxHeight: 200, overflowY: "auto", display: "grid", gap: 4 }}>
+              {results.length === 0 && <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>No tests match.</p>}
+              {results.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ justifyContent: "space-between" }}
+                  onClick={() => addTest(t.id)}
+                >
+                  <span>{t.name}</span>
+                  <span className="text-soft">{formatCurrencyInr(t.sellingPrice)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }

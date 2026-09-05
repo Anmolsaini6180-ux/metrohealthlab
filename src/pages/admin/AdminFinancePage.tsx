@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
 import { getFinanceSummary } from "@/services/adminFinanceService";
+import { createCampaign, getAllCampaigns, updateCampaign } from "@/services/adminMarketingService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
 import DateRangePicker from "@/components/admin/DateRangePicker";
@@ -10,6 +12,8 @@ import BarList from "@/components/admin/BarList";
 import Metric from "@/components/admin/MetricCard";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
+import { toUserMessage } from "@/utils/errors";
+import { useToast } from "@/hooks/useToast";
 
 // Real Supabase data only — see adminFinanceService.ts's own header
 // comment for exactly what is and isn't computed here, and why (no
@@ -32,6 +36,8 @@ export default function AdminFinancePage() {
 
       <DateRangePicker onChange={(r) => setRange(r)} />
 
+      <SpendEntry range={range} onSaved={summary.retry} />
+
       {summary.loading && <LoadingState label="Loading finance data..." rows={3} />}
       {summary.error && <ErrorState message={summary.error} onRetry={summary.retry} />}
 
@@ -49,6 +55,12 @@ export default function AdminFinancePage() {
             <div className="mh-metric-grid">
               <Metric icon="payments" label="Revenue (cash collected)" value={formatCurrencyInr(summary.data.revenue)} tone="success" />
               <Metric icon="campaign" label="Ad spend" value={formatCurrencyInr(summary.data.adSpend)} tone="warning" />
+              <Metric
+                icon="account_balance"
+                label="Net (revenue − ad spend)"
+                value={formatCurrencyInr(summary.data.revenue - summary.data.adSpend)}
+                tone={summary.data.revenue - summary.data.adSpend >= 0 ? "success" : "danger"}
+              />
               <Metric icon="calendar_month" label="Bookings" value={summary.data.bookingsCount} />
               <Metric icon="person_search" label="Leads" value={summary.data.leadsCount} />
               <Metric icon="how_to_reg" label="Converted" value={summary.data.convertedCount} tone="success" />
@@ -65,9 +77,14 @@ export default function AdminFinancePage() {
                 muted={summary.data.costPerConversion === null}
               />
             </div>
+            <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+              "Net" is total revenue minus total ad spend for this same period — a straight subtraction, not a claim
+              that this spend produced this revenue (this schema has no link from a booking back to the lead/ad that
+              produced it).
+            </p>
             {summary.data.adSpend === 0 && (
               <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
-                No ad spend recorded for this range yet — add it on a campaign in{" "}
+                No ad spend recorded for this range yet — log it above, or on a campaign in{" "}
                 <Link to="/admin/marketing/campaigns">Marketing → Campaigns</Link>.
               </p>
             )}
@@ -121,6 +138,122 @@ export default function AdminFinancePage() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The one thing this page was missing entirely: a way to actually
+ * enter the ad-spend figure everything above is computed from.
+ * campaigns.spend already existed as a real column — this is the first
+ * UI that writes to it directly on Finance itself, rather than only
+ * through Marketing -> Campaigns -> Edit, which most people looking at
+ * a Finance dashboard would never think to go find.
+ */
+function SpendEntry({ range, onSaved }: { range: DateRange; onSaved: () => void }) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const campaigns = useAsync(getAllCampaigns, []);
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [campaignId, setCampaignId] = useState("");
+  const [newName, setNewName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!user) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const parsed = Number.parseFloat(amount);
+      if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Enter a valid spend amount.");
+
+      if (mode === "existing") {
+        if (!campaignId) throw new Error("Choose a campaign first.");
+        await updateCampaign(user.uid, campaignId, { spend: parsed });
+      } else {
+        if (!newName.trim()) throw new Error("Name the campaign first.");
+        // A minimal real campaign, dated to the range currently being
+        // viewed so it immediately counts toward it — every other
+        // field (type, exact dates, linked offer/coupon) can be
+        // refined later in Marketing -> Campaigns; nothing here is a
+        // placeholder value pretending to be a real setting.
+        await createCampaign(user.uid, {
+          name: newName.trim(),
+          type: "general",
+          startAt: range.startDate,
+          endAt: range.endDate,
+          status: "RUNNING",
+          spend: parsed,
+        });
+      }
+      setAmount("");
+      setNewName("");
+      setCampaignId("");
+      showToast("Spend saved.");
+      campaigns.retry();
+      onSaved();
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ display: "grid", gap: "var(--space-sm)" }}>
+      <p style={{ fontWeight: 600 }}>Log ad spend</p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="button" className={mode === "existing" ? "btn btn-primary" : "btn btn-outline"} onClick={() => setMode("existing")}>
+          Existing campaign
+        </button>
+        <button type="button" className={mode === "new" ? "btn btn-primary" : "btn btn-outline"} onClick={() => setMode("new")}>
+          New campaign
+        </button>
+      </div>
+
+      {mode === "existing" ? (
+        campaigns.data && campaigns.data.length > 0 ? (
+          <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+            <option value="">Choose a campaign...</option>
+            {campaigns.data.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} — current: {formatCurrencyInr(c.spend)}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+            {campaigns.loading ? "Loading campaigns..." : "No campaigns yet — use “New campaign” instead."}
+          </p>
+        )
+      ) : (
+        <input placeholder="Campaign name (e.g. Instagram boost, Sept)" value={newName} onChange={(e) => setNewName(e.target.value)} />
+      )}
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Amount spent (₹)"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          style={{ flex: 1, minWidth: 160 }}
+        />
+        <button className="btn btn-primary" type="button" disabled={busy} onClick={handleSave}>
+          {busy ? "Saving..." : "Save spend"}
+        </button>
+      </div>
+      {mode === "new" && (
+        <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+          Creates a real campaign dated {range.startDate} to {range.endDate} (edit its type/dates/details anytime in
+          Marketing → Campaigns).
+        </p>
+      )}
+      {mode === "existing" && campaigns.error && <ErrorState message={campaigns.error} onRetry={campaigns.retry} />}
+      {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
     </div>
   );
 }

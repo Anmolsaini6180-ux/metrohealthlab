@@ -61,6 +61,36 @@ describe("TrendChart", () => {
     expect(html).toMatch(/\dL/);
   });
 
+  it("labels each bar with its real value for a small single-series chart", () => {
+    const data = [
+      { x: "1 Sep", y: 3 },
+      { x: "2 Sep", y: 5 },
+    ];
+    const html = renderToStaticMarkup(<TrendChart series={[{ label: "Bookings", color: "blue", data }]} />);
+    // One value label per non-zero bar, in addition to its hover title.
+    expect(html).toContain(">3<");
+    expect(html).toContain(">5<");
+  });
+
+  it("skips per-bar value labels once there are too many points or more than one series to stay readable", () => {
+    const dense = Array.from({ length: 20 }, (_, i) => ({ x: `Day ${i + 1}`, y: i + 1 }));
+    const denseHtml = renderToStaticMarkup(<TrendChart series={[{ label: "Bookings", color: "blue", data: dense }]} />);
+    // fontWeight={700} is unique to the value-label <text>, not the
+    // axis/x-axis label text — its absence here is the real signal.
+    expect(denseHtml).not.toContain("font-weight=\"700\"");
+
+    const twoSeries = [{ x: "1 Sep", y: 10 }];
+    const twoSeriesHtml = renderToStaticMarkup(
+      <TrendChart
+        series={[
+          { label: "Revenue", color: "green", data: twoSeries },
+          { label: "Spend", color: "red", data: [{ x: "1 Sep", y: 2 }] },
+        ]}
+      />
+    );
+    expect(twoSeriesHtml).not.toContain("font-weight=\"700\"");
+  });
+
   it("caps how many x-axis labels render so a long range doesn't overlap into an unreadable smear", () => {
     const data = Array.from({ length: 30 }, (_, i) => ({ x: `Day ${i + 1}`, y: i + 1 }));
     const html = renderToStaticMarkup(<TrendChart series={[{ label: "Leads", color: "blue", data }]} />);

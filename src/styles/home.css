@@ -73,7 +73,14 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
+  /* Dead-center cropping on this card's short/wide box (see the
+     1024px/1280px min-height rules below) cuts evenly from the top AND
+     bottom — but a person's face in typical banner photography sits in
+     the upper half, not the vertical middle, so a center crop was
+     cutting through faces/heads first. Biasing the visible window
+     upward keeps more of exactly that content for whatever photo an
+     admin uploads, without assuming one specific image's framing. */
+  object-position: center 20%;
   z-index: 0;
 }
 
@@ -796,7 +803,10 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
+  /* Same reasoning as .mh-hero__bg above: a person's face in typical
+     banner photography sits in the upper half, not the vertical
+     middle, so bias the crop upward rather than centering it. */
+  object-position: center 20%;
   z-index: 0;
 }
 

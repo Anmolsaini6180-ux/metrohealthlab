@@ -30,7 +30,7 @@ export default function TrendChart({
   height?: number;
   valueFormatter?: (v: number) => string;
 }) {
-  const gradientId = useId();
+  const chartId = useId();
   const labels = series[0]?.data.map((d) => d.x) ?? [];
   const hasData = labels.length > 0 && series.some((s) => s.data.some((d) => d.y > 0));
 
@@ -41,7 +41,10 @@ export default function TrendChart({
   const width = 720;
   const padLeft = 44;
   const padRight = 12;
-  const padTop = 12;
+  // Room above the tallest bar for its value label (single-series,
+  // low-density charts only — see valueLabelsFit below) so the label
+  // never collides with the top of the plot area.
+  const padTop = 24;
   const padBottom = 28;
   const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padTop - padBottom;
@@ -59,6 +62,12 @@ export default function TrendChart({
   // Dense ranges (a full month) would overlap every label — show at
   // most ~8, evenly spaced, always including the first and last.
   const labelStride = Math.max(1, Math.ceil(labels.length / 8));
+
+  // A value label above every bar only reads cleanly with one series
+  // and few enough points that each bar is wide enough to hold its own
+  // text — otherwise (a full month, or two series side by side) it's
+  // left to the per-bar hover tooltip instead, same as before.
+  const valueLabelsFit = series.length === 1 && labels.length <= 12;
 
   function yFor(value: number): number {
     return padTop + plotHeight - (value / niceMax) * plotHeight;
@@ -78,10 +87,14 @@ export default function TrendChart({
       )}
       <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} role="img" aria-label={series.map((s) => s.label).join(" and ") + " over time"}>
         <defs>
-          <linearGradient id={`${gradientId}-fade`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.55" />
-          </linearGradient>
+          {/* One gradient per series, faded top-to-bottom — a flat fill
+              read as a plain progress bar; this reads as a chart. */}
+          {series.map((s, si) => (
+            <linearGradient key={s.label} id={`${chartId}-${si}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity="1" />
+              <stop offset="100%" stopColor={s.color} stopOpacity="0.68" />
+            </linearGradient>
+          ))}
         </defs>
 
         {/* Gridlines + Y-axis value labels */}
@@ -115,9 +128,16 @@ export default function TrendChart({
                 // not just a style nit.
                 const tooltip = `${s.label} — ${label}: ${valueFormatter(value)}`;
                 return (
-                  <rect key={s.label} x={x} y={y} width={barWidth} height={Math.max(barHeight, value > 0 ? 1 : 0)} rx={2} fill={s.color}>
-                    <title>{tooltip}</title>
-                  </rect>
+                  <g key={s.label} className="mh-trend-bar">
+                    <rect x={x} y={y} width={barWidth} height={Math.max(barHeight, value > 0 ? 1 : 0)} rx={3} fill={`url(#${chartId}-${si})`}>
+                      <title>{tooltip}</title>
+                    </rect>
+                    {valueLabelsFit && value > 0 && (
+                      <text x={x + barWidth / 2} y={y - 5} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-ink)">
+                        {valueFormatter(value)}
+                      </text>
+                    )}
+                  </g>
                 );
               })}
               {i % labelStride === 0 && (

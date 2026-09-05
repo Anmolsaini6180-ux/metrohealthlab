@@ -424,3 +424,11 @@ a.mh-metric-card:focus-visible {
   font-size: var(--text-sm);
   font-weight: 700;
 }
+
+.mh-trend-bar rect {
+  transition: opacity 0.12s ease;
+}
+
+.mh-trend-bar:hover rect {
+  opacity: 0.82;
+}

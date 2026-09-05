@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
-import { createTest, getAllTests, updateTest } from "@/services/adminCatalogService";
+import { createTest, getAllTestCategories, getAllTests, updateTest } from "@/services/adminCatalogService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { computeMargin } from "@/utils/margin";
 import type { DiagnosticTest } from "@/types/test";
@@ -28,6 +28,8 @@ const EMPTY_FORM = {
 export default function AdminTestsPage() {
   const { user } = useAuth();
   const tests = useAsync(getAllTests, []);
+  const categories = useAsync(getAllTestCategories, []);
+  const categoryNameById = new Map((categories.data ?? []).map((c) => [c.id, c.name]));
   const [editing, setEditing] = useState<DiagnosticTest | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -78,7 +80,9 @@ export default function AdminTestsPage() {
                 <p style={{ fontWeight: 600 }}>
                   {t.name} {!t.active && <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>(inactive)</span>}
                 </p>
-                <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{formatCurrencyInr(t.sellingPrice)} • {t.sampleType}</p>
+                <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+                  {formatCurrencyInr(t.sellingPrice)} • {t.sampleType} • {categoryNameById.get(t.categoryId) ?? "Uncategorized"}
+                </p>
                 <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
                   {(() => {
                     const margin = computeMargin(t.sellingPrice, t.tp);
@@ -130,6 +134,7 @@ function TestForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const categories = useAsync(getAllTestCategories, []);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -160,7 +165,25 @@ function TestForm({
     <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
       <input placeholder="Name" required value={form.name} onChange={(e) => update("name", e.target.value)} />
       <input placeholder="Slug (url-friendly)" required value={form.slug} onChange={(e) => update("slug", e.target.value)} />
-      <input placeholder="Category ID" required value={form.categoryId} onChange={(e) => update("categoryId", e.target.value)} />
+      {/* An admin has no way to know a category's raw id by sight — was
+          a required free-text field, which meant creating a test
+          without one already open in another tab was effectively
+          blocked. Picks by real category name instead; same
+          categoryId: string this form always sent. */}
+      {categories.loading && <LoadingState rows={1} />}
+      {categories.error && <ErrorState message={categories.error} onRetry={categories.retry} />}
+      {categories.data && (
+        <select required value={form.categoryId} onChange={(e) => update("categoryId", e.target.value)}>
+          <option value="" disabled>
+            Choose a category...
+          </option>
+          {categories.data.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      )}
       <textarea placeholder="Description" rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} />
       <input placeholder="Sample type (e.g. Blood)" required value={form.sampleType} onChange={(e) => update("sampleType", e.target.value)} />
       <input placeholder="Report TAT (e.g. 24 hours)" required value={form.reportTat} onChange={(e) => update("reportTat", e.target.value)} />
