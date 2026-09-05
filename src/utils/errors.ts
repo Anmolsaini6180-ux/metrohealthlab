@@ -1,7 +1,7 @@
-// Normalizes Firestore/Functions errors into a message safe to show in
-// the UI's ErrorState component. We deliberately do not fall back to
-// mock data anywhere data fetching fails — callers should render an
-// ErrorState with a Retry action instead.
+// Normalizes Firestore/Functions AND Supabase/PostgREST errors into a
+// message safe to show in the UI's ErrorState component. We deliberately
+// do not fall back to mock data anywhere data fetching fails — callers
+// should render an ErrorState with a Retry action instead.
 //
 // Why this file is not a one-liner any more: a FirebaseError's
 // `.message` is often just its raw code. A callable Cloud Function that
@@ -10,6 +10,23 @@
 // that names no cause and suggests no action. Codes are mapped to
 // something a human can act on, and the technical detail goes to the
 // console via logOperationError().
+//
+// Supabase's PostgrestError ALSO extends Error and ALSO carries a
+// `.code` (a Postgres SQLSTATE like "23502"/"42501", or a PostgREST code
+// like "PGRST201"). Without explicit handling it falls through to the
+// "keep a real message" branch below and leaks Postgres's own engine
+// wording straight to the customer screen — e.g. an RLS denial reads as
+// `new row violates row-level security policy for table "bookings"`, a
+// missing-embed-hint as `Could not embed because more than one
+// relationship was found for 'staff_roles' and 'profiles'`. Both name
+// real table/column/policy names that mean nothing to a customer and
+// should never reach one. This file maps those codes the same way it
+// maps Firebase's, while still showing this app's OWN `raise exception
+// '<sentence>'` messages from its SECURITY DEFINER RPCs as-is (e.g. "You
+// cannot change your own role or access.") — those were hand-authored
+// specifically to be shown, and are told apart from raw engine text by
+// vocabulary (see RAW_ENGINE_MESSAGE below), not by code, since this
+// app's RPCs and Postgres itself both use ordinary SQLSTATEs like 42501.
 
 interface FirebaseLikeError {
   code?: unknown;
@@ -69,10 +86,53 @@ export function isCallableUnavailable(error: unknown): boolean {
   return bare === "internal" || bare === "not-found" || bare === "unavailable";
 }
 
+// Postgres SQLSTATEs are always exactly 5 characters (digits/uppercase,
+// e.g. "23502", "42501", "P0002"); PostgREST's own codes are "PGRST"
+// plus digits (e.g. "PGRST201"). Firebase codes are always lowercase
+// kebab-case ("permission-denied") or slash-namespaced
+// ("functions/internal"), so this never collides with MESSAGE_BY_CODE.
+function isPostgresShapedCode(code: string): boolean {
+  return /^PGRST\d+$/.test(code) || /^[0-9A-Z]{5}$/.test(code);
+}
+
+const POSTGRES_MESSAGE_BY_CODE: Record<string, string> = {
+  "23502": "Some required information is missing. Please check the form and try again.",
+  "23505": "That already exists.",
+  "23503": "That action could not be completed because related information is missing or was already removed.",
+  "23514": "Some of the submitted values are not valid. Please check the form and try again.",
+  "42501": "You do not have permission to do that.",
+  "42P01": "Something went wrong loading this. Please try again.",
+  "22P02": "One of the submitted values is not in the right format.",
+  P0002: "That record could not be found.",
+  PGRST116: "That record could not be found.",
+  PGRST301: "Your session has expired. Please sign in again.",
+};
+
+const POSTGRES_GENERIC_MESSAGE = "Something went wrong. Please try again.";
+
+// Postgres's own engine-generated wording — constraint violations, RLS
+// denials, PostgREST's relationship-embedding errors — reliably uses
+// this vocabulary and quotes real identifiers. A hand-written `raise
+// exception '...'` sentence from one of this app's own RPCs never does.
+const RAW_ENGINE_MESSAGE =
+  /relation "|column "|constraint "|violates |duplicate key|permission denied for|more than one relationship|schema cache|does not exist|invalid input syntax|operator does not exist|syntax error at or near/i;
+
 export function toUserMessage(error: unknown): string {
   if (isCallableUnavailable(error)) return CALLABLE_UNAVAILABLE_MESSAGE;
 
   const code = firebaseErrorCode(error);
+
+  if (code && isPostgresShapedCode(code)) {
+    const candidate = asFirebaseError(error);
+    const rawMessage = typeof candidate?.message === "string" ? candidate.message.trim() : "";
+    // A plain sentence with none of Postgres's own vocabulary is this
+    // app's own RPC talking (e.g. "You cannot change your own role or
+    // access.") — authored to be shown, so show it. Anything else is
+    // the database's own wording and must be replaced.
+    if (rawMessage && !RAW_ENGINE_MESSAGE.test(rawMessage)) return rawMessage;
+    return POSTGRES_MESSAGE_BY_CODE[code] ?? POSTGRES_GENERIC_MESSAGE;
+  }
+
   if (code) {
     const mapped = MESSAGE_BY_CODE[bareCode(code)];
     if (mapped) return mapped;

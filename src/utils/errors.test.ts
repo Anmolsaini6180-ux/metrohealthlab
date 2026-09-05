@@ -15,6 +15,19 @@ class FakeFirebaseError extends Error {
   }
 }
 
+// Mirrors @supabase/postgrest-js's real PostgrestError shape: an Error
+// subclass whose `.code` is a Postgres SQLSTATE or a "PGRSTnnn" code,
+// and whose `.message` is the database's own human-readable wording.
+class FakePostgrestError extends Error {
+  constructor(
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = "PostgrestError";
+  }
+}
+
 describe("firebaseErrorCode", () => {
   it("reads the code off a FirebaseError", () => {
     expect(firebaseErrorCode(new FakeFirebaseError("permission-denied"))).toBe("permission-denied");
@@ -86,5 +99,68 @@ describe("toUserMessage", () => {
 
   it("names an unmapped code so the operator can search for it", () => {
     expect(toUserMessage(new FakeFirebaseError("some-new-code"))).toContain("some-new-code");
+  });
+});
+
+describe("toUserMessage with Supabase/PostgREST errors", () => {
+  // The exact regression this covers: PostgrestError extends Error, so
+  // without dedicated handling it fell through to the "keep a real
+  // message" branch and leaked Postgres's own engine wording — table,
+  // column, and policy names — straight to the customer screen.
+  it("never surfaces a raw row-level-security denial", () => {
+    const message = toUserMessage(
+      new FakePostgrestError("42501", 'new row violates row-level security policy for table "bookings"')
+    );
+    expect(message).toBe("You do not have permission to do that.");
+    expect(message).not.toMatch(/relation|policy|"bookings"/);
+  });
+
+  it("never surfaces a raw not-null constraint violation", () => {
+    const message = toUserMessage(
+      new FakePostgrestError("23502", 'null value in column "phone" of relation "bookings" violates not-null constraint')
+    );
+    expect(message).toMatch(/required information is missing/i);
+    expect(message).not.toMatch(/column|relation|"phone"|"bookings"/);
+  });
+
+  it("never surfaces a raw PostgREST embedding-ambiguity error", () => {
+    const message = toUserMessage(
+      new FakePostgrestError(
+        "PGRST201",
+        "Could not embed because more than one relationship was found for 'staff_roles' and 'profiles'"
+      )
+    );
+    expect(message).not.toMatch(/embed|relationship|staff_roles/);
+  });
+
+  it("never surfaces a raw unique-constraint violation", () => {
+    const message = toUserMessage(
+      new FakePostgrestError("23505", 'duplicate key value violates unique constraint "media_assets_pkey"')
+    );
+    expect(message).toBe("That already exists.");
+  });
+
+  it("still shows this app's own hand-written RPC exception text", () => {
+    // A SECURITY DEFINER function's `raise exception '<sentence>' using
+    // errcode = '42501'` is authored specifically to be shown — it must
+    // not be swallowed just because it happens to share a code with a
+    // raw engine denial.
+    const message = toUserMessage(new FakePostgrestError("42501", "You cannot change your own role or access."));
+    expect(message).toBe("You cannot change your own role or access.");
+  });
+
+  it("still shows a custom P0002 exception from an RPC", () => {
+    const message = toUserMessage(
+      new FakePostgrestError(
+        "P0002",
+        "No account has signed in with that email address yet. Ask them to sign in once (Google or email/password), then grant the role."
+      )
+    );
+    expect(message).toMatch(/no account has signed in/i);
+  });
+
+  it("falls back to a generic message for an unmapped Postgres code with raw wording", () => {
+    const message = toUserMessage(new FakePostgrestError("42883", "operator does not exist: uuid = text"));
+    expect(message).toBe("Something went wrong. Please try again.");
   });
 });
