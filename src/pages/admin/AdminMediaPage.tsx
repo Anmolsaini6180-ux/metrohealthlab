@@ -130,6 +130,7 @@ export default function AdminMediaPage() {
                 {a.format?.toUpperCase()} • {Math.round(a.bytes / 1024)} KB
                 {a.width && a.height ? ` • ${a.width}×${a.height}` : ""}
                 {a.relatedId ? ` • assigned to ${a.relatedId}` : ""}
+                {a.sortOrder !== 0 ? ` • sort ${a.sortOrder}` : ""}
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button className="btn btn-outline" onClick={() => handleCopy(a.secureUrl, a.id)}>
@@ -167,6 +168,7 @@ export default function AdminMediaPage() {
 function EditMediaDialog({ asset, onClose, onSaved }: { asset: MediaAsset; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(asset.title ?? "");
   const [altText, setAltText] = useState(asset.altText ?? "");
+  const [sortOrder, setSortOrder] = useState(String(asset.sortOrder ?? 0));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -175,7 +177,8 @@ function EditMediaDialog({ asset, onClose, onSaved }: { asset: MediaAsset; onClo
     setBusy(true);
     setError(null);
     try {
-      await updateMediaMetadata(asset.id, { title, altText });
+      const parsedSortOrder = Number.parseInt(sortOrder, 10);
+      await updateMediaMetadata(asset.id, { title, altText, sortOrder: Number.isNaN(parsedSortOrder) ? 0 : parsedSortOrder });
       onSaved();
     } catch (err) {
       setError(toUserMessage(err));
@@ -201,6 +204,13 @@ function EditMediaDialog({ asset, onClose, onSaved }: { asset: MediaAsset; onClo
         <label style={{ display: "grid", gap: 4, fontSize: "var(--text-sm)" }}>
           Alt text <span className="text-soft">(read aloud by screen readers wherever this image is used)</span>
           <input placeholder="e.g. Phlebotomist holding a blood sample tube" value={altText} onChange={(e) => setAltText(e.target.value)} />
+        </label>
+        <label style={{ display: "grid", gap: 4, fontSize: "var(--text-sm)" }}>
+          Sort order{" "}
+          <span className="text-soft">
+            (when more than one active image is assigned to the same slot, the lowest number wins)
+          </span>
+          <input type="number" style={{ maxWidth: 120 }} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
         </label>
         {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
         <div style={{ display: "flex", gap: "var(--space-sm)" }}>
