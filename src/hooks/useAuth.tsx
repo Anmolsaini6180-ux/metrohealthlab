@@ -4,8 +4,10 @@ import type { User as FirebaseUser } from "firebase/auth";
 import { subscribeToAuthChanges as subscribeToFirebaseAuthChanges } from "@/firebase/auth";
 import { firebaseConfigured } from "@/firebase/config";
 import { subscribeToAuthChanges as subscribeToSupabaseAuthChanges } from "@/supabase/auth";
+import { getSupabaseClient } from "@/supabase/client";
 import { ensureUserProfile } from "@/services/userService";
 import { getMasterAdminUid, resolveStaffContext, subscribeToStaffRecord } from "@/supabase/roleService";
+import { bridgePhoneSession } from "@/supabase/phoneBridge";
 import { buildStaffContext } from "@/utils/roleAccess";
 import { fromFirebasePhoneUser, fromSupabaseUser, type AppUser } from "@/types/authUser";
 import type { StaffContext } from "@/types/team";
@@ -42,9 +44,20 @@ interface AuthContextValue {
   // Same as user.uid for a Supabase-authenticated account (email/
   // Google) — kept as its own field only so every existing customer-
   // data call site (bookings/patients/addresses/reports/notifications/
-  // support/profile) keeps working completely unchanged. Null for a
-  // phone-only session, which owns no Supabase row.
+  // support/profile) keeps working completely unchanged. Also set for
+  // a phone-only session once bridgePhoneSession() has resolved it to
+  // a real Supabase identity (see the firebaseUser branch below) —
+  // null only while that bridge is still in flight or has genuinely
+  // failed.
   supabaseUserId: string | null;
+  // Set only when a Firebase phone sign-in's bridge into a real
+  // Supabase identity has failed — never paired with a populated
+  // `user`/`profile` that would imply the account is actually usable.
+  // The UI must show this as a real, actionable error (retry / contact
+  // support), never silently render an empty patient/address list as
+  // if everything were fine.
+  phoneBridgeError: string | null;
+  retryPhoneBridge: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -54,6 +67,8 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   firebaseConfigured,
   supabaseUserId: null,
+  phoneBridgeError: null,
+  retryPhoneBridge: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -71,6 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<StaffContext | null>(null);
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [phoneBridgeError, setPhoneBridgeError] = useState<string | null>(null);
+  // Bumped by retryPhoneBridge() to force the effect below to run again
+  // for the SAME firebaseUser — none of the effect's other dependencies
+  // change on a retry, so without this a failed bridge would never be
+  // retried just by re-rendering.
+  const [bridgeRetryTick, setBridgeRetryTick] = useState(0);
 
   const staffUnsubscribe = useRef<(() => void) | null>(null);
 
@@ -144,6 +165,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSupabaseUserId(appUser.uid);
         setStaff(nextStaff);
         setProfile(nextProfile);
+        // A real Supabase session exists now — whether from a
+        // successful phone bridge or an unrelated email/Google sign-in
+        // — any earlier bridge failure no longer describes reality.
+        setPhoneBridgeError(null);
         setLoading(false);
 
         // Live: a revocation or role change takes effect within
@@ -163,24 +188,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (firebaseUser) {
-        // Phone-only: no Supabase session exists, so no staff
-        // authority (staff_roles has never had a phone-authenticated
-        // row) and no persisted profile — both handled by the null-
-        // supabaseUserId path ensureUserProfile already has.
-        const appUser = fromFirebasePhoneUser(firebaseUser);
-        let nextProfile: UserProfile | null = null;
+        // Bridge this verified Firebase phone sign-in into a real
+        // Supabase identity — see phoneBridge.ts's own comment for why
+        // there is no client-only shortcut (RLS requires a genuine
+        // Supabase session, which only the server side can mint after
+        // independently verifying the Firebase ID token).
         try {
-          nextProfile = await ensureUserProfile(null, appUser);
+          const idToken = await firebaseUser.getIdToken();
+          const { accessToken, refreshToken } = await bridgePhoneSession(idToken);
+          const { error: setSessionError } = await getSupabaseClient().auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (setSessionError) throw setSessionError;
+          if (cancelled) return;
+          // Deliberately do NOT set user/profile/staff here: setSession
+          // above triggers subscribeToSupabaseAuthChanges' own listener,
+          // which updates `supabaseSession` and re-runs this whole
+          // effect — landing in the `if (supabaseSession)` branch
+          // above, the single source of truth for a real Supabase
+          // identity. Loading stays true until that re-run completes.
+          setPhoneBridgeError(null);
+          return;
         } catch (err) {
-          console.error("Could not load the user profile:", err);
+          // A genuinely failed bridge — the account is NOT usable yet.
+          // Never fall back to a local-only fake profile: that used to
+          // silently show an always-empty patient/address list with no
+          // explanation. Surface the real error instead so the UI can
+          // show a clear retry state.
+          console.error("Could not bridge phone sign-in into a Supabase identity:", err);
+          if (cancelled) return;
+          setUser(fromFirebasePhoneUser(firebaseUser));
+          setSupabaseUserId(null);
+          setStaff(null);
+          setProfile(null);
+          setPhoneBridgeError(err instanceof Error ? err.message : "Could not verify your phone sign-in. Please try again.");
+          setLoading(false);
+          return;
         }
-        if (cancelled) return;
-        setUser(appUser);
-        setSupabaseUserId(null);
-        setStaff(null);
-        setProfile(nextProfile);
-        setLoading(false);
-        return;
       }
 
       // Signed out of both — clears every trace of the previous
@@ -190,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSupabaseUserId(null);
       setStaff(null);
       setProfile(null);
+      setPhoneBridgeError(null);
       setLoading(false);
     }
 
@@ -199,11 +245,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       stopStaffListener();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabaseResolved, firebaseResolved, supabaseSession, firebaseUser]);
+  }, [supabaseResolved, firebaseResolved, supabaseSession, firebaseUser, bridgeRetryTick]);
+
+  // Re-attempts the phone bridge for the SAME firebaseUser — none of
+  // the effect's other dependencies change on their own after a
+  // failure, so a "Retry" button needs this to force it to run again.
+  function retryPhoneBridge() {
+    setPhoneBridgeError(null);
+    setBridgeRetryTick((n) => n + 1);
+  }
 
   const value = useMemo(
-    () => ({ user, profile, staff, loading, firebaseConfigured, supabaseUserId }),
-    [user, profile, staff, loading, supabaseUserId]
+    () => ({ user, profile, staff, loading, firebaseConfigured, supabaseUserId, phoneBridgeError, retryPhoneBridge }),
+    [user, profile, staff, loading, supabaseUserId, phoneBridgeError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

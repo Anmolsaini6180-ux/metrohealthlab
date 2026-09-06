@@ -71,7 +71,7 @@ export default function BookingFlowPage() {
   // patients/addresses/bookings are keyed by the Supabase uuid, never
   // the Firebase user.uid (see src/supabase/identity.ts) — user itself
   // is still needed for display fields (displayName/phoneNumber).
-  const { user, profile, supabaseUserId } = useAuth();
+  const { user, profile, supabaseUserId, phoneBridgeError, retryPhoneBridge } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const routerSelection = location.state as BookingSelection | null;
@@ -257,43 +257,43 @@ export default function BookingFlowPage() {
       )
     : null;
 
-  // A Firebase phone-OTP sign-in has no bridge into Supabase yet (see
-  // src/supabase/phoneBridge.ts's own honest comment: attaching/
-  // creating a `profiles` row needs a privileged server-side step —
-  // verifying the Firebase ID token, then writing with the service-role
-  // key — that does not exist yet). Until it does, supabaseUserId stays
-  // null for the whole session, so getPatients/getAddresses always
-  // resolve empty and there is no way to add one — this used to be a
-  // silent, permanently-empty "Who is this test for?" list with no
-  // explanation. Route to the same human-assisted fallback the page
-  // already offers when automated booking is unavailable, rather than
-  // implying a real self-service block a phone-only customer could push
-  // past by retrying.
+  // A Firebase phone-OTP sign-in now bridges into a real Supabase
+  // identity via bridge-phone-session (see phoneBridge.ts) — on
+  // success supabaseUserId is populated exactly like any email/Google
+  // account, so this only renders when that bridge has genuinely
+  // failed (phoneBridgeError set by useAuth.tsx), never merely because
+  // the account happens to be phone-based. Never silently falls
+  // through to an empty, unexplained "Who is this test for?" list —
+  // an honest error with a real retry, plus the same human-assisted
+  // fallback the page offers when automated booking is unavailable.
   if (user && !supabaseUserId) {
     return (
       <div className="mh-booking">
         <div className="card" style={{ display: "grid", gap: "var(--space-sm)" }}>
-          <p style={{ fontWeight: 700 }}>Phone sign-in can't book online just yet</p>
-          <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-            Accounts signed in by phone number can't save a booking here directly yet. Sign in with
-            Google or email instead to book online, or reach out and our team will book{" "}
-            {sel.name} for you.
+          <p style={{ fontWeight: 700 }}>
+            {phoneBridgeError ? "Couldn't verify your sign-in" : "Setting up your account..."}
           </p>
-          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-            <button className="btn btn-primary" onClick={() => navigate("/login")}>
-              Sign in with Google or email
-            </button>
-            {contactPhone && (
-              <a className="btn btn-outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
-                Call {contactPhone}
-              </a>
-            )}
-            {whatsappLink && (
-              <a className="btn btn-outline" href={whatsappLink} target="_blank" rel="noreferrer">
-                Send details on WhatsApp
-              </a>
-            )}
-          </div>
+          <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+            {phoneBridgeError ??
+              "One moment — we're finishing setting up your account so you can book."}
+          </p>
+          {phoneBridgeError && (
+            <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+              <button className="btn btn-primary" onClick={retryPhoneBridge}>
+                Try again
+              </button>
+              {contactPhone && (
+                <a className="btn btn-outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
+                  Call {contactPhone}
+                </a>
+              )}
+              {whatsappLink && (
+                <a className="btn btn-outline" href={whatsappLink} target="_blank" rel="noreferrer">
+                  Send details on WhatsApp
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { resolvePhoneBridgeTarget, bridgePhoneSession } from "./phoneBridge";
 
 describe("resolvePhoneBridgeTarget (phone-auth bridge decision)", () => {
@@ -43,8 +43,51 @@ describe("resolvePhoneBridgeTarget (phone-auth bridge decision)", () => {
   });
 });
 
-describe("bridgePhoneSession (honest not-yet-implemented boundary)", () => {
-  it("throws a clear, specific error rather than silently no-op'ing or faking success", async () => {
-    await expect(bridgePhoneSession("some-firebase-id-token")).rejects.toThrow(/Edge Function/);
+const invokeMock = vi.hoisted(() => vi.fn());
+vi.mock("./client", () => ({
+  getSupabaseClient: () => ({ functions: { invoke: invokeMock } }),
+}));
+
+describe("bridgePhoneSession (real Edge Function exchange)", () => {
+  it("sends the raw id token and returns the session on success — never anything else from the response", async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: { accessToken: "real-access-token", refreshToken: "real-refresh-token" },
+      error: null,
+    });
+
+    const result = await bridgePhoneSession("a-real-firebase-id-token");
+
+    expect(invokeMock).toHaveBeenCalledWith("bridge-phone-session", { body: { firebaseIdToken: "a-real-firebase-id-token" } });
+    expect(result).toEqual({ accessToken: "real-access-token", refreshToken: "real-refresh-token" });
+  });
+
+  it("surfaces the Edge Function's own safe error message rather than supabase-js's generic wrapper text", async () => {
+    const response = new Response(JSON.stringify({ error: "We found more than one account matching this phone number." }), {
+      status: 409,
+    });
+    invokeMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "Edge Function returned a non-2xx status code", context: response },
+    });
+
+    await expect(bridgePhoneSession("some-token")).rejects.toThrow(/more than one account/);
+  });
+
+  it("falls back to a generic message when the error response has no parseable body", async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "network error" },
+    });
+
+    await expect(bridgePhoneSession("some-token")).rejects.toThrow(/Could not verify your phone sign-in/);
+  });
+
+  it("throws rather than returning a partial result if the response is missing a token", async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: { accessToken: "only-half-a-session" },
+      error: null,
+    });
+
+    await expect(bridgePhoneSession("some-token")).rejects.toThrow(/Could not verify your phone sign-in/);
   });
 });
