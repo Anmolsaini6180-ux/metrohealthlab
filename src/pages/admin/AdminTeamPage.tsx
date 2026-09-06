@@ -28,12 +28,12 @@ import { useToast } from "@/hooks/useToast";
 
 const ALL_ROLES: AdminRole[] = ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN", "COLLECTION_AGENT"];
 
-// Admin & Staff management. Every action on this screen is an ordinary
-// Firestore write to users/{uid}, gated by firestore.rules — the rules
-// re-read the caller's own record and re-derive the hierarchy for
-// themselves, so what this page shows or hides is convenience only and
-// never the boundary. There are no Cloud Functions involved, which is
-// what makes it work on the Spark plan.
+// Admin & Staff management. Every action on this screen goes through
+// the set_staff_role / grant_staff_role_by_email Supabase RPCs (see
+// adminTeamService.ts), which re-derive the caller's own role and
+// hierarchy authority server-side on every call — what this page shows
+// or hides (assignableRoles, canEditStaffMember) is convenience only
+// and never the real boundary.
 export default function AdminTeamPage() {
   const staffContext = useAdminRole();
   const { role, loading: roleLoading } = staffContext;
@@ -147,9 +147,9 @@ export default function AdminTeamPage() {
           className="card"
           style={{ fontSize: "var(--text-sm)", color: "var(--color-danger)", marginBottom: "var(--space-md)" }}
         >
-          This project has no master admin configured yet. Create the <code>system/config</code>{" "}
-          document with a <code>masterAdminUid</code> field in the Firebase Console — see
-          DEPLOYMENT.md.
+          This project has no master admin configured yet. In the Supabase project's{" "}
+          <code>app_config</code> table, set the row with <code>key = 'master_admin_uid'</code> to
+          that person's Supabase user id (Authentication → Users, after they've signed in once).
         </p>
       )}
 

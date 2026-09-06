@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
 import {
   getSentNotificationBatches,
@@ -8,6 +10,9 @@ import {
 } from "@/services/adminOpsService";
 import { getAdminCustomers, type AdminCustomerSummary } from "@/services/adminCustomerService";
 import { listMedia, uploadMedia } from "@/services/mediaService";
+import { markAllNotificationsRead, markNotificationRead, subscribeToNotifications } from "@/services/notificationService";
+import { NotificationListItem, resolveNotificationTarget } from "@/components/notifications/notificationDisplay";
+import type { AppNotification } from "@/types/notification";
 import type { MediaAsset } from "@/types/media";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import LoadingState from "@/components/common/LoadingState";
@@ -36,39 +41,141 @@ function formatWhen(value: unknown): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
 
+type Tab = "alerts" | "sent";
+
 export default function AdminNotificationsPage() {
-  const batches = useAsync(getSentNotificationBatches, []);
+  const [tab, setTab] = useState<Tab>("alerts");
   const [showSend, setShowSend] = useState(false);
+  const batches = useAsync(getSentNotificationBatches, []);
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-sm)" }}>
         <h1 style={{ fontSize: "var(--text-xl)" }}>Notifications</h1>
-        <button className="btn btn-primary" onClick={() => setShowSend((s) => !s)}>{showSend ? "Cancel" : "+ Send notification"}</button>
+        {tab === "sent" && (
+          <button className="btn btn-primary" onClick={() => setShowSend((s) => !s)}>{showSend ? "Cancel" : "+ Send notification"}</button>
+        )}
       </div>
-      <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginBottom: "var(--space-md)" }}>
-        This list shows notifications sent manually from here, grouped as one entry per send. Booking-lifecycle
-        notifications (confirmed, collector assigned, sample collected, report ready, etc.) are sent automatically
-        the moment a booking's status changes, and live in that booking's own history instead of here.
-      </p>
 
-      {showSend && (
-        <SendNotificationForm
-          onDone={() => {
-            setShowSend(false);
-            batches.retry();
-          }}
-        />
+      <div className="mh-filter-row" role="tablist" aria-label="Notification view" style={{ marginBottom: "var(--space-md)" }}>
+        <button
+          role="tab"
+          aria-selected={tab === "alerts"}
+          className={`btn ${tab === "alerts" ? "btn-primary" : "btn-outline"}`}
+          style={{ padding: "6px 14px", fontSize: "var(--text-sm)" }}
+          onClick={() => setTab("alerts")}
+        >
+          My Alerts
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "sent"}
+          className={`btn ${tab === "sent" ? "btn-primary" : "btn-outline"}`}
+          style={{ padding: "6px 14px", fontSize: "var(--text-sm)" }}
+          onClick={() => setTab("sent")}
+        >
+          Sent Broadcasts
+        </button>
+      </div>
+
+      {tab === "alerts" && <MyAlertsTab />}
+
+      {tab === "sent" && (
+        <>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginBottom: "var(--space-md)" }}>
+            This list shows notifications sent manually from here, grouped as one entry per send. Booking-lifecycle
+            notifications (confirmed, collector assigned, sample collected, report ready, etc.) are sent automatically
+            the moment a booking's status changes, and live in that booking's own history instead of here.
+          </p>
+
+          {showSend && (
+            <SendNotificationForm
+              onDone={() => {
+                setShowSend(false);
+                batches.retry();
+              }}
+            />
+          )}
+
+          {batches.loading && !batches.data && <LoadingState rows={4} />}
+          {batches.error && <ErrorState message={batches.error} onRetry={batches.retry} />}
+          {batches.data && batches.data.length === 0 && <EmptyState icon="notifications" title="No notifications sent yet" />}
+          {batches.data && batches.data.length > 0 && (
+            <div style={{ display: "grid", gap: "var(--space-sm)" }}>
+              {batches.data.map((n, i) => (
+                <NotificationBatchRow key={n.batchId ?? i} batch={n} />
+              ))}
+            </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
 
-      {batches.loading && !batches.data && <LoadingState rows={4} />}
-      {batches.error && <ErrorState message={batches.error} onRetry={batches.retry} />}
-      {batches.data && batches.data.length === 0 && <EmptyState icon="notifications" title="No notifications sent yet" />}
-      {batches.data && batches.data.length > 0 && (
+const ALERTS_PAGE_SIZE = 50;
+
+/**
+ * This admin/staff account's OWN received notification rows —
+ * booking_automation_alert (unassigned/overdue/starting-soon) and
+ * staff_status_update (a field agent changed something) — written by
+ * run_booking_automation() and set_booking_status() against THIS
+ * user's own id. Before this tab existed there was no way to see one
+ * again once its one-shot push toast had passed: no badge, no list,
+ * nothing. Exact same table, RLS and components the customer-facing
+ * NotificationsPage uses — never a parallel notification system.
+ */
+function MyAlertsTab() {
+  const { supabaseUserId } = useAuth();
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState<AppNotification[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [limit, setLimit] = useState(ALERTS_PAGE_SIZE);
+
+  useEffect(() => {
+    if (!supabaseUserId) return;
+    setNotifications(null);
+    setError(null);
+    const unsubscribe = subscribeToNotifications(supabaseUserId, setNotifications, (e) => setError(e.message), limit);
+    return unsubscribe;
+  }, [supabaseUserId, limit]);
+
+  if (error) return <ErrorState message={error} onRetry={() => setError(null)} />;
+
+  const hasUnread = !!notifications?.some((n) => !n.read);
+  const canLoadMore = (notifications?.length ?? 0) >= limit;
+
+  function handleOpen(n: AppNotification) {
+    if (!n.read) markNotificationRead(n.id).catch(() => {});
+    const target = resolveNotificationTarget(n);
+    if (target) navigate(target);
+  }
+
+  return (
+    <div>
+      {hasUnread && supabaseUserId && (
+        <div style={{ textAlign: "right", marginBottom: "var(--space-sm)" }}>
+          <button className="btn btn-outline" onClick={() => markAllNotificationsRead(supabaseUserId)}>
+            Mark all as read
+          </button>
+        </div>
+      )}
+      {notifications === null && <LoadingState rows={3} />}
+      {notifications && notifications.length === 0 && (
+        <EmptyState icon="notifications" title="No alerts yet" description="Booking alerts that need your attention will show up here." />
+      )}
+      {notifications && notifications.length > 0 && (
         <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-          {batches.data.map((n, i) => (
-            <NotificationBatchRow key={n.batchId ?? i} batch={n} />
+          {notifications.map((n) => (
+            <NotificationListItem key={n.id} notification={n} onOpen={handleOpen} />
           ))}
+        </div>
+      )}
+      {canLoadMore && (
+        <div style={{ textAlign: "center", marginTop: "var(--space-md)" }}>
+          <button className="btn btn-outline" onClick={() => setLimit((n) => n + ALERTS_PAGE_SIZE)}>
+            Load more
+          </button>
         </div>
       )}
     </div>
@@ -182,7 +289,7 @@ function SendNotificationForm({ onDone }: { onDone: () => void }) {
           )}
           <input
             type="search"
-            placeholder="Search customers by name or email..."
+            placeholder="Search customers by name, email or phone..."
             value={customerSearch}
             onChange={(e) => setCustomerSearch(e.target.value)}
           />

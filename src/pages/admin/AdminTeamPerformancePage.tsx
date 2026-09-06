@@ -147,8 +147,16 @@ function StaffBookingsList({ agentUid, range }: { agentUid: string; range: DateR
       {bookings.data && bookings.data.length > 0 && (
         <div style={{ display: "grid", gap: 6 }}>
           {bookings.data.map((b) => (
-            <Link key={b.id} to={`/admin/bookings?status=${b.bookingStatus}`} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", gap: 8, flexWrap: "wrap" }}>
-              <span>{b.id} — {b.items.map((i) => i.name).join(", ")}</span>
+            // search=<reference> lands directly on this one booking,
+            // not just every booking sharing its current status — see
+            // AdminBookingsPage's own search (already matches
+            // reference/name/phone/items).
+            <Link
+              key={b.id}
+              to={`/admin/bookings?search=${encodeURIComponent(b.reference)}`}
+              style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", gap: 8, flexWrap: "wrap" }}
+            >
+              <span>{b.reference} — {b.items.map((i) => i.name).join(", ")}</span>
               <span className="text-soft">{b.date} • {formatCurrencyInr(b.finalAmount)} • <StatusBadge status={b.bookingStatus} /></span>
             </Link>
           ))}

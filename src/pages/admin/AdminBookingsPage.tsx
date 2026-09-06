@@ -63,6 +63,10 @@ export default function AdminBookingsPage() {
     return start && end ? { startDate: start, endDate: end } : resolveDateRange("today");
   });
   const [statusFilter, setStatusFilterState] = useState<string>(searchParams.get("status") ?? "");
+  // Seeded from the URL too, e.g. Team Performance's own "jump to this
+  // exact booking" links (?search=<reference>) — previously those
+  // links could only filter by status, landing an admin on a whole
+  // list of same-status bookings instead of the one they clicked.
 
   function setStatusFilter(value: string) {
     setStatusFilterState(value);
@@ -90,7 +94,7 @@ export default function AdminBookingsPage() {
   // Client-side, over whatever the date/status filters above already
   // fetched — a real search over the same real data, not a second
   // query. Matches booking id, customer name, phone, or item name.
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
 
   const bookings = useAsync(
     () =>

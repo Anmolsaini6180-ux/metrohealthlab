@@ -257,16 +257,58 @@ export default function BookingFlowPage() {
       )
     : null;
 
+  // A Firebase phone-OTP sign-in has no bridge into Supabase yet (see
+  // src/supabase/phoneBridge.ts's own honest comment: attaching/
+  // creating a `profiles` row needs a privileged server-side step —
+  // verifying the Firebase ID token, then writing with the service-role
+  // key — that does not exist yet). Until it does, supabaseUserId stays
+  // null for the whole session, so getPatients/getAddresses always
+  // resolve empty and there is no way to add one — this used to be a
+  // silent, permanently-empty "Who is this test for?" list with no
+  // explanation. Route to the same human-assisted fallback the page
+  // already offers when automated booking is unavailable, rather than
+  // implying a real self-service block a phone-only customer could push
+  // past by retrying.
+  if (user && !supabaseUserId) {
+    return (
+      <div className="mh-booking">
+        <div className="card" style={{ display: "grid", gap: "var(--space-sm)" }}>
+          <p style={{ fontWeight: 700 }}>Phone sign-in can't book online just yet</p>
+          <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+            Accounts signed in by phone number can't save a booking here directly yet. Sign in with
+            Google or email instead to book online, or reach out and our team will book{" "}
+            {sel.name} for you.
+          </p>
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+            <button className="btn btn-primary" onClick={() => navigate("/login")}>
+              Sign in with Google or email
+            </button>
+            {contactPhone && (
+              <a className="btn btn-outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
+                Call {contactPhone}
+              </a>
+            )}
+            {whatsappLink && (
+              <a className="btn btn-outline" href={whatsappLink} target="_blank" rel="noreferrer">
+                Send details on WhatsApp
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // The price shown before confirming.
   //
-  // On this deployment there is no pricing Cloud Function, so the total
-  // is composed here from the two catalogue figures the customer has
+  // Composed here from the two catalogue figures the customer has
   // already been shown: the lab's price for this item, and the
   // collection fee stored on their serviced pincode. That is safe
-  // because it is not the authority — firestore.rules re-derives both
-  // from `pricingRefId` and `serviceAreaId` when the booking is written
-  // and rejects anything that disagrees. Coupons are absent by design:
-  // redeeming one needs atomic usage counters a browser cannot do.
+  // because it is not the authority — create_website_booking re-derives
+  // both from `pricingRefId` and `serviceAreaId` server-side when the
+  // booking is written and rejects anything that disagrees. Coupons are
+  // absent by design: redeeming one needs atomic usage counters a
+  // browser cannot do.
   function fetchQuote() {
     if (!patientId || !pincodeChecked?.available) return;
     setQuoteError(null);

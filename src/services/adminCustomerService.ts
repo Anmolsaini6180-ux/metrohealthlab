@@ -38,7 +38,7 @@ export async function getAdminCustomers(params: { searchName?: string; cursorUid
 }> {
   const LIMIT = 50;
   let query = getSupabaseClient().from("profiles").select("*").order("created_at", { ascending: false }).limit(LIMIT + 1);
-  if (params.searchName) query = query.or(`name.ilike.%${params.searchName}%,email.ilike.%${params.searchName}%`);
+  if (params.searchName) query = query.or(`name.ilike.%${params.searchName}%,email.ilike.%${params.searchName}%,phone.ilike.%${params.searchName}%`);
   if (params.cursorUid) query = query.lt("id", params.cursorUid);
 
   const { data, error } = await query;

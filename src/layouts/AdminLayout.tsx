@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationPush } from "@/hooks/useNotificationPush";
+import NotificationBell from "@/components/layout/NotificationBell";
 import { CAN_MANAGE_CATALOG, CAN_MANAGE_TEAM, CAN_VIEW_ANALYTICS } from "@/types/team";
 import Logo from "@/components/brand/Logo";
 import Breadcrumbs from "@/components/admin/Breadcrumbs";
@@ -151,9 +152,15 @@ export default function AdminLayout() {
           <Logo variant="compact" height={28} />
         </Link>
         <div className="mh-admin-topbar__spacer" />
-        <NavLink to="/admin/notifications" className="mh-admin-topbar__icon" aria-label="Notifications">
-          <span className="mi" aria-hidden="true">notifications</span>
-        </NavLink>
+        {/* Real inbox for THIS admin/staff account's own alert rows
+            (booking_automation_alert, staff_status_update) — before this
+            there was no way to see one again once its one-shot push
+            toast (useNotificationPush, above) had passed: no badge, no
+            list. Same table/RLS/components as the customer-facing bell,
+            not a parallel system — see the component's own comment. */}
+        <div className="mh-admin-topbar__icon" style={{ padding: 0, display: "flex" }}>
+          <NotificationBell seeAllHref="/admin/notifications" />
+        </div>
         <div className="mh-admin-topbar__account">
           <span className="mh-admin-topbar__avatar" aria-hidden="true">{initial}</span>
           <span className="mh-admin-topbar__who">

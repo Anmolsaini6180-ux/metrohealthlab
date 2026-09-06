@@ -18,7 +18,15 @@ const PANEL_LIMIT = 8;
 // two can't drift apart. Like ProfileMenu, it waits for auth to
 // resolve before deciding where to link — otherwise a signed-in user
 // tapping during the brief loading window gets sent to /login.
-export default function NotificationBell() {
+//
+// Also reused as-is in AdminLayout (see seeAllHref) — an admin/staff
+// account has its own real notification rows (booking_automation_alert,
+// staff_status_update) written by the same automation/status-change
+// paths as customer notifications, and before this there was genuinely
+// no way to see them again once the moment's push toast passed: no
+// badge, no list, nothing. Same table, same RLS (a staff member's own
+// user_id row), same components — not a parallel notification system.
+export default function NotificationBell({ seeAllHref = "/notifications" }: { seeAllHref?: string }) {
   const { user, loading, supabaseUserId } = useAuth();
   const navigate = useNavigate();
   const unreadCount = useUnreadNotificationsCount();
@@ -112,7 +120,7 @@ export default function NotificationBell() {
               notifications?.map((n) => <NotificationListItem key={n.id} notification={n} onOpen={handleOpenNotification} compact />)}
           </div>
           <div className="mh-notification-menu__foot">
-            <Link to="/notifications" onClick={() => setOpen(false)}>
+            <Link to={seeAllHref} onClick={() => setOpen(false)}>
               See all notifications
             </Link>
           </div>

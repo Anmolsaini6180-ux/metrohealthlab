@@ -9,7 +9,13 @@ export type NotificationType =
   | "cancelled"
   | "refund"
   | "offer"
-  | "system";
+  | "system"
+  /** Time-based reminder to a customer (24h/2h/1h/due-now/overdue) — fired by run_booking_automation(), never implies a real status change. */
+  | "booking_automation"
+  /** Operational alert to staff/admin (unassigned, starting soon, overdue) — same source as above, different audience. */
+  | "booking_automation_alert"
+  /** Sent to the office when a collection agent (not an admin) changes a booking's real status — set_booking_status()'s own "someone should know" alert. */
+  | "staff_status_update";
 
 export interface AppNotification {
   id: string;

@@ -17,6 +17,9 @@ export const TYPE_ICON: Record<NotificationType, string> = {
   refund: "currency_rupee",
   offer: "local_offer",
   system: "info",
+  booking_automation: "schedule",
+  booking_automation_alert: "campaign",
+  staff_status_update: "sync",
 };
 
 /** The tab groupings NotificationsPage offers (Section 10: All/Unread/
@@ -36,6 +39,9 @@ export const TYPE_GROUP: Record<NotificationType, NotificationGroup> = {
   report_ready: "reports",
   offer: "offers",
   system: "system",
+  booking_automation: "booking",
+  booking_automation_alert: "booking",
+  staff_status_update: "booking",
 };
 
 export function formatWhen(value: unknown): string {
@@ -53,12 +59,21 @@ export function formatWhen(value: unknown): string {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-/** Where a click should go: the booking's own tracker when one is
- * linked, an explicit action_url otherwise, or nowhere (just marks
- * read) — per this app's actual notification shape, never a guess. */
+/**
+ * Where a click should go. action_url wins when the backend set one —
+ * it is what actually distinguishes a customer's own notification
+ * (routed to their tracker) from a staff/admin alert about the SAME
+ * booking (routed to the admin dashboard); fire_booking_milestone() and
+ * set_booking_status() both set a genuinely different action_url per
+ * recipient even though every row for a booking also carries the same
+ * booking_id. Only falls back to the tracker when no action_url was
+ * given at all (older/simpler notification rows that only ever meant
+ * "this booking, go look at it"). Never a guess either way — both
+ * fields come straight from a real database column.
+ */
 export function resolveNotificationTarget(n: AppNotification): string | null {
-  if (n.bookingId) return `/track/${n.bookingId}`;
   if (n.actionUrl) return n.actionUrl;
+  if (n.bookingId) return `/track/${n.bookingId}`;
   return null;
 }
 
