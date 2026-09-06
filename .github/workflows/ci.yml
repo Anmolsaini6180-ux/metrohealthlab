@@ -18,6 +18,23 @@ jobs:
   frontend:
     name: Frontend — typecheck, build, test
     runs-on: ubuntu-latest
+    # VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY are safe,
+    # public-by-design values — see src/supabase/client.ts's own
+    # security-boundary comment: the boundary is RLS, not secrecy of
+    # these two, and Vite inlines them into the browser bundle in every
+    # real deployment anyway. Without them here, this job has no .env
+    # file to read them from (.env is gitignored on purpose, never
+    # checked out), so src/supabase/client.test.ts and every test that
+    # calls createTestSupabaseClient() (src/supabase/authTestUtils.ts,
+    # used by auth.test.ts / firebaseUidMapping.test.ts /
+    # roleService.test.ts) fail immediately with "supabaseUrl is
+    # required." Configure both as repository VARIABLES: Settings ->
+    # Secrets and variables -> Actions -> Variables tab -> New
+    # repository variable. Never put the service-role key here — see
+    # the "Unit tests" step below for that one.
+    env:
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +50,25 @@ jobs:
         run: npm run typecheck
 
       - name: Unit tests
+        # SUPABASE_SERVICE_ROLE_KEY is scoped to only this one step
+        # (not the job-level env above) to keep its exposure window as
+        # small as possible — no other step needs it. It's required
+        # only by scripts/migration/lib/testAdmin.mjs, used exclusively
+        # from auth.test.ts / firebaseUidMapping.test.ts /
+        # roleService.test.ts to create and delete throwaway
+        # (*.example.invalid) pre-confirmed test accounts via the
+        # Supabase Admin API — these are real integration tests against
+        # the live project, not mocks, by design (see each file's own
+        # header comment), so there is no way to run them without it.
+        # Configure it as an encrypted repository SECRET: Settings ->
+        # Secrets and variables -> Actions -> Secrets tab -> New
+        # repository secret. GitHub encrypts it at rest, masks it in
+        # every log line, and — because this workflow triggers on
+        # `pull_request`, never `pull_request_target` — never passes it
+        # to a run triggered by a fork's pull request.
         run: npm test
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Production build
         run: npm run build
