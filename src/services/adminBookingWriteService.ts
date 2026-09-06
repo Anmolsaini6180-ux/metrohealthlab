@@ -26,7 +26,8 @@ export interface StaffBookingInput {
   userId?: string;
   patientId?: string;
   item: BookingItem;
-  labId: string;
+  /** Omitted for a booking recorded for an external/affiliate-fulfilled test — both lab_id columns are nullable specifically for this case, never a fake local lab id. */
+  labId?: string;
   labName?: string;
   collectionType: CollectionType;
   pincode?: string;
@@ -53,7 +54,7 @@ export async function createStaffBooking(
   const { data, error } = await getSupabaseClient().rpc("create_staff_booking", {
     p_user_id: input.userId ?? null,
     p_patient_id: input.patientId ?? null,
-    p_lab_id: input.labId,
+    p_lab_id: input.labId || null,
     p_lab_name: input.labName ?? null,
     p_collection_type: input.collectionType,
     p_pincode: input.pincode ?? null,
@@ -67,7 +68,7 @@ export async function createStaffBooking(
     p_item_type: input.item.itemType,
     p_item_ref_id: input.item.refId,
     p_item_name: input.item.name,
-    p_item_lab_id: input.item.labId || input.labId,
+    p_item_lab_id: input.item.labId || input.labId || null,
     p_item_price: input.item.price,
   });
   if (error) throw error;

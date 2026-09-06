@@ -5,6 +5,7 @@ import Footer from "@/components/layout/Footer";
 import { firebaseConfigured } from "@/firebase/config";
 import FirebaseSetupNotice from "@/components/common/FirebaseSetupNotice";
 import InstallAppPrompt from "@/components/common/InstallAppPrompt";
+import RequestPhonePrompt from "@/components/common/RequestPhonePrompt";
 import CallToBookButton from "@/components/layout/CallToBookButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationPush } from "@/hooks/useNotificationPush";
@@ -13,7 +14,7 @@ export default function MainLayout() {
   // Mounted here (once per page), never inside NotificationBell (which
   // renders twice at once — mobile + desktop nav — and would fire a
   // duplicate OS notification per real one if it owned this instead).
-  const { supabaseUserId } = useAuth();
+  const { supabaseUserId, profile } = useAuth();
   useNotificationPush(supabaseUserId);
 
   return (
@@ -21,6 +22,7 @@ export default function MainLayout() {
       <Header />
       <main className="app-main">
         <div className="container" style={{ paddingBlock: "var(--space-md)" }}>
+          <RequestPhonePrompt supabaseUserId={supabaseUserId} profile={profile} />
           {firebaseConfigured ? <Outlet /> : <FirebaseSetupNotice />}
         </div>
       </main>

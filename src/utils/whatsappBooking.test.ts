@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildWhatsAppBookingMessage,
   buildWhatsAppLink,
+  extractAgeGender,
   parseAmount,
   parsePhone,
   parseWhatsAppBooking,
+  splitSlotDateTime,
 } from "@/utils/whatsappBooking";
 import type { Booking } from "@/types/booking";
 
@@ -31,11 +33,43 @@ describe("parseWhatsAppBooking", () => {
       bookingAmount: 1299,
       paidAmount: 0,
       slot: "2026-09-02 07:00-09:00",
+      slotDate: "2026-09-02",
+      slotTime: "07:00-09:00",
       customerPhone: "9876543210",
       customerAddress: "12 Nehru Road, Ghaziabad",
       customerName: "Asha Verma",
       testDetails: "Metro Full Body Health Check",
     });
+  });
+
+  // A real affiliate message, exactly as pasted — different label
+  // wording ("Customer phone no.", "Sample collection slot timings")
+  // and an age/gender tag baked into the name.
+  it("reads a real affiliate-format message end to end", () => {
+    const real = `Booking Confirmation:
+Please find the booking details below-
+Booking ID - 20114407147
+Affiliate Name: Metro health lab
+Booking status: sample collector assign
+Booking Amount: 1000.00
+Paid Amount: 0
+Sample collection slot timings: 2026-09-06 11:30:00
+Customer phone no.: 8448959517
+Customer Address: Vpo malikpur, najafgarh 110073, Ujwa
+Customer Name: Gaurav Dagar (27/M)
+Test Details: Urine Routine & Microscopy Extended,Swasthya Mitra PREMIUM`;
+
+    const { fields } = parseWhatsAppBooking(real);
+    expect(fields.bookingRef).toBe("20114407147");
+    expect(fields.bookingAmount).toBe(1000);
+    expect(fields.paidAmount).toBe(0);
+    expect(fields.slotDate).toBe("2026-09-06");
+    expect(fields.slotTime).toBe("11:30:00");
+    expect(fields.customerPhone).toBe("8448959517");
+    expect(fields.customerName).toBe("Gaurav Dagar");
+    expect(fields.customerAge).toBe(27);
+    expect(fields.customerGender).toBe("M");
+    expect(fields.testDetails).toBe("Urine Routine & Microscopy Extended,Swasthya Mitra PREMIUM");
   });
 
   it("does not treat the heading as data", () => {
@@ -90,6 +124,34 @@ describe("parseWhatsAppBooking", () => {
     const { fields } = parseWhatsAppBooking("Customer Name:\nBooking ID: MH3");
     expect(fields.customerName).toBeUndefined();
     expect(fields.bookingRef).toBe("MH3");
+  });
+});
+
+describe("extractAgeGender", () => {
+  it("pulls a (27/M) suffix off the name, leaving the rest untouched", () => {
+    expect(extractAgeGender("Gaurav Dagar (27/M)")).toEqual({ name: "Gaurav Dagar", age: 27, gender: "M" });
+  });
+
+  it("also accepts spelled-out gender and loose spacing", () => {
+    expect(extractAgeGender("Asha Verma (34 / Female)")).toEqual({ name: "Asha Verma", age: 34, gender: "F" });
+  });
+
+  it("returns the name completely unchanged when there is no age/gender tag", () => {
+    expect(extractAgeGender("Ravi Kumar")).toEqual({ name: "Ravi Kumar" });
+  });
+});
+
+describe("splitSlotDateTime", () => {
+  it("splits an ISO date + time-of-day", () => {
+    expect(splitSlotDateTime("2026-09-06 11:30:00")).toEqual({ date: "2026-09-06", time: "11:30:00" });
+  });
+
+  it("splits an ISO date + a time range", () => {
+    expect(splitSlotDateTime("2026-09-02 07:00-09:00")).toEqual({ date: "2026-09-02", time: "07:00-09:00" });
+  });
+
+  it("returns nothing for a slot with no leading ISO date, rather than guessing", () => {
+    expect(splitSlotDateTime("Tomorrow morning")).toEqual({});
   });
 });
 

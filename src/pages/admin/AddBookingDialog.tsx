@@ -9,7 +9,13 @@ import {
 } from "@/services/adminCatalogService";
 import { createStaffBooking } from "@/services/adminBookingWriteService";
 import { formatCurrencyInr } from "@/services/pricingService";
-import { parseWhatsAppBooking, type ParsedWhatsAppBooking } from "@/utils/whatsappBooking";
+import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import {
+  buildWhatsAppBookingMessage,
+  buildWhatsAppLink,
+  parseWhatsAppBooking,
+  type ParsedWhatsAppBooking,
+} from "@/utils/whatsappBooking";
 import { cashStateFor, clampReceived } from "@/utils/cashState";
 import { logOperationError, toUserMessage } from "@/utils/errors";
 import LoadingState from "@/components/common/LoadingState";
@@ -20,6 +26,8 @@ type Mode = "choose" | "admin" | "whatsapp";
 
 interface FormState {
   customerName: string;
+  customerAge: string;
+  customerGender: string;
   phone: string;
   email: string;
   address: string;
@@ -32,10 +40,16 @@ interface FormState {
   slot: string;
   notes: string;
   amountReceived: string;
+  /** True for a test/package fulfilled externally (an affiliate/aggregator booking) rather than priced from our own catalogue+lab pricing — see the "Custom item" section's own comment. */
+  useCustomItem: boolean;
+  customItemName: string;
+  customAmount: string;
 }
 
 const EMPTY_FORM: FormState = {
   customerName: "",
+  customerAge: "",
+  customerGender: "",
   phone: "",
   email: "",
   address: "",
@@ -48,6 +62,9 @@ const EMPTY_FORM: FormState = {
   slot: "",
   notes: "",
   amountReceived: "0",
+  useCustomItem: false,
+  customItemName: "",
+  customAmount: "",
 };
 
 // Staff-entered bookings: a phone call, a walk-in, or a pasted WhatsApp
@@ -67,8 +84,10 @@ export default function AddBookingDialog({
   onClose: () => void;
   onCreated: (reference: string) => void;
 }) {
+  const { settings } = useBrandingSettings();
   const [mode, setMode] = useState<Mode>("choose");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [created, setCreated] = useState<{ reference: string; finalAmount: number; amountReceived: number; itemName: string } | null>(null);
   const [pasted, setPasted] = useState("");
   const [parseReport, setParseReport] = useState<{
     matched: string[];
@@ -125,43 +144,83 @@ export default function AddBookingDialog({
       ? (packages.data ?? []).find((p) => p.id === form.itemId)?.name
       : (tests.data ?? []).find((t) => t.id === form.itemId)?.name;
 
-  const price = selectedPricing?.price ?? 0;
-  const collectionFee = selectedArea?.collectionFee ?? 0;
+  // A custom item's price IS the final amount directly — an
+  // affiliate's quoted "Booking Amount" is already the whole booking's
+  // value, not a per-item price our own collection-fee logic should
+  // add on top of.
+  const price = form.useCustomItem ? Number(form.customAmount) || 0 : (selectedPricing?.price ?? 0);
+  const collectionFee = form.useCustomItem ? 0 : (selectedArea?.collectionFee ?? 0);
   const finalAmount = price + collectionFee;
   const received = clampReceived(finalAmount, Number(form.amountReceived));
   const cash = cashStateFor(finalAmount, received);
 
   // Everything that must be present before a booking can be written.
+  // A custom item skips the catalogue/lab/service-area requirements —
+  // both lab_id columns are nullable specifically for this case (see
+  // StaffBookingInput's own comment), and create_staff_booking never
+  // validates pincode against service_areas at all.
   const missing: string[] = [];
   if (!form.customerName.trim()) missing.push("customer name");
   if (!form.phone.trim()) missing.push("phone");
-  if (!form.itemId) missing.push("package or test");
-  if (!form.pricingRefId) missing.push("lab");
-  if (!form.serviceAreaId) missing.push("service area");
   if (!form.date) missing.push("booking date");
+  if (form.useCustomItem) {
+    if (!form.customItemName.trim()) missing.push("test/package name");
+    if (!form.customAmount || Number(form.customAmount) <= 0) missing.push("booking amount");
+  } else {
+    if (!form.itemId) missing.push("package or test");
+    if (!form.pricingRefId) missing.push("lab");
+    if (!form.serviceAreaId) missing.push("service area");
+  }
   const canSubmit = missing.length === 0 && !busy;
 
   function handleParse() {
     const result = parseWhatsAppBooking(pasted);
     const f: ParsedWhatsAppBooking = result.fields;
 
-    // Only fields that map unambiguously onto the form are filled in.
-    // Package, lab and service area are deliberately NOT guessed from
-    // free text — they must be picked from the catalogue below, so the
-    // booking is priced from real data rather than from a message.
+    // A pincode buried in the address line, if any — service area
+    // matching is skipped entirely for a custom item (see the "Custom
+    // item" section's own comment), so this is only ever used to show
+    // it back for reference, never to look anything up.
+    const pincodeMatch = f.customerAddress?.match(/\b\d{6}\b/);
+
+    // Provenance from the affiliate's own message, since neither has a
+    // column of its own to live in — recorded, never silently dropped.
+    const provenance = [
+      f.bookingRef ? `Affiliate booking ref: ${f.bookingRef}` : null,
+      f.affiliateName ? `Affiliate: ${f.affiliateName}` : null,
+      f.bookingStatus ? `Affiliate status at booking time: ${f.bookingStatus}` : null,
+    ]
+      .filter((line): line is string => !!line)
+      .join("\n");
+
     setForm((prev) => ({
       ...prev,
       customerName: f.customerName ?? prev.customerName,
+      customerAge: f.customerAge !== undefined ? String(f.customerAge) : prev.customerAge,
+      customerGender: f.customerGender ?? prev.customerGender,
       phone: f.customerPhone ?? prev.phone,
       address: f.customerAddress ?? prev.address,
-      slot: f.slot ?? prev.slot,
+      pincode: pincodeMatch?.[0] ?? prev.pincode,
+      date: f.slotDate ?? prev.date,
+      slot: f.slotTime ?? f.slot ?? prev.slot,
       amountReceived: f.paidAmount !== undefined ? String(f.paidAmount) : prev.amountReceived,
+      // A test/package name from an affiliate's own message essentially
+      // never matches our catalogue's own naming exactly — default to
+      // the custom-item path so every field the message actually gave
+      // us fills in immediately. The toggle below still lets an admin
+      // switch back to a real catalogue item if they recognise one.
+      useCustomItem: f.testDetails !== undefined ? true : prev.useCustomItem,
+      customItemName: f.testDetails ?? prev.customItemName,
+      customAmount: f.bookingAmount !== undefined ? String(f.bookingAmount) : prev.customAmount,
+      notes: provenance ? [prev.notes, provenance].filter(Boolean).join("\n") : prev.notes,
     }));
 
     const stillNeeded: string[] = [];
     if (!f.customerName) stillNeeded.push("customer name");
     if (!f.customerPhone) stillNeeded.push("phone");
-    stillNeeded.push("package/test, lab and service area (always chosen from the catalogue)");
+    if (f.testDetails === undefined) stillNeeded.push("test/package name");
+    if (f.bookingAmount === undefined) stillNeeded.push("booking amount");
+    stillNeeded.push("cash actually received (never read from the message) and status");
 
     setParseReport({
       matched: result.matched,
@@ -171,24 +230,54 @@ export default function AddBookingDialog({
   }
 
   async function handleSubmit() {
-    if (!canSubmit || !selectedPricing || !selectedArea) return;
+    if (!canSubmit) return;
+    if (!form.useCustomItem && (!selectedPricing || !selectedArea)) return;
     setBusy(true);
     setError(null);
     try {
+      // form.slot is a free-text preferred time ("11:30:00",
+      // "07:00-09:00") — it is NOT a real slots.id, and
+      // create_staff_booking's p_slot_id genuinely looks one up
+      // (raising "That slot is no longer available" for anything
+      // else), so it is folded into notes as a note instead of ever
+      // being sent as slotId.
+      const notesWithSlot = [
+        form.slot.trim() ? `Preferred time: ${form.slot.trim()}` : null,
+        form.customerAge.trim() || form.customerGender.trim()
+          ? `Age/Gender: ${[form.customerAge.trim(), form.customerGender.trim()].filter(Boolean).join("/")}`
+          : null,
+        form.notes.trim() || null,
+      ]
+        .filter((line): line is string => !!line)
+        .join("\n");
+
       const { reference } = await createStaffBooking(actorUid, {
-        item: {
-          itemType: form.itemKind,
-          refId: form.itemId,
-          name: itemName ?? "",
-          labId: selectedPricing.labId,
-          price,
-        },
-        labId: selectedPricing.labId,
-        labName: labNameById.get(selectedPricing.labId),
+        item: form.useCustomItem
+          ? {
+              itemType: "test",
+              // Stable but synthetic — booking_items.ref_id has no
+              // foreign key (it holds either a real package or test id
+              // depending on item_type, application-enforced not DB-
+              // enforced), so create_staff_booking's own TP lookup by
+              // this id simply finds nothing for an external item —
+              // TP stays honestly null rather than a guessed value.
+              refId: `external-${crypto.randomUUID()}`,
+              name: form.customItemName.trim(),
+              labId: "",
+              price,
+            }
+          : {
+              itemType: form.itemKind,
+              refId: form.itemId,
+              name: itemName ?? "",
+              labId: selectedPricing!.labId,
+              price,
+            },
+        labId: form.useCustomItem ? undefined : selectedPricing!.labId,
+        labName: form.useCustomItem ? undefined : labNameById.get(selectedPricing!.labId),
         collectionType: "home",
-        pincode: selectedArea.pincode,
+        pincode: form.useCustomItem ? form.pincode.trim() || undefined : selectedArea!.pincode,
         date: form.date,
-        slotId: form.slot || undefined,
         finalAmount,
         amountReceived: received,
         source: mode === "whatsapp" ? "whatsapp" : "admin",
@@ -198,9 +287,13 @@ export default function AddBookingDialog({
           address: form.address.trim() || undefined,
           email: form.email.trim() || undefined,
         },
-        notes: form.notes.trim() || undefined,
+        notes: notesWithSlot || undefined,
       });
-      onCreated(reference);
+      // onCreated (closes the dialog + toasts) fires only once the
+      // admin dismisses the success panel below — not immediately —
+      // so there's a real chance to send the WhatsApp confirmation
+      // first, rather than the dialog vanishing out from under them.
+      setCreated({ reference, finalAmount, amountReceived: received, itemName: form.useCustomItem ? form.customItemName.trim() : itemName ?? "" });
     } catch (err) {
       logOperationError("createStaffBooking", err, { source: mode });
       setError(toUserMessage(err));
@@ -223,7 +316,57 @@ export default function AddBookingDialog({
           </button>
         </div>
 
-        {mode === "choose" && (
+        {created && (
+          <div style={{ display: "grid", gap: "var(--space-sm)" }}>
+            <div className="card" style={{ borderColor: "var(--color-success)" }}>
+              <p style={{ fontWeight: 700 }}>
+                <span className="mi" aria-hidden="true" style={{ verticalAlign: "middle", color: "var(--color-success)" }}>check_circle</span> Booking {created.reference} created
+              </p>
+              <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
+                {created.itemName} — {formatCurrencyInr(created.finalAmount)}
+              </p>
+            </div>
+            {(() => {
+              const link = buildWhatsAppLink(
+                form.phone,
+                buildWhatsAppBookingMessage(
+                  {
+                    id: created.reference,
+                    items: [{ itemType: form.useCustomItem ? "test" : form.itemKind, refId: "", name: created.itemName, labId: "", price: created.finalAmount }],
+                    finalAmount: created.finalAmount,
+                    amountReceived: created.amountReceived,
+                    bookingStatus: "confirmed",
+                    date: form.date,
+                    contact: {
+                      name: form.customerName.trim(),
+                      phone: form.phone.trim(),
+                      address: form.address.trim() || undefined,
+                    },
+                    labName: form.useCustomItem ? undefined : labNameById.get(selectedPricing?.labId ?? ""),
+                  },
+                  settings?.businessName ?? "Metro Health Lab"
+                )
+              );
+              return link ? (
+                <a className="btn btn-primary" href={link} target="_blank" rel="noreferrer">
+                  <span className="mi" aria-hidden="true">chat</span> Send confirmation on WhatsApp
+                </a>
+              ) : (
+                <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>No valid phone number to message.</p>
+              );
+            })()}
+            <button
+              className="btn btn-outline"
+              onClick={() => {
+                onCreated(created.reference);
+              }}
+            >
+              Done
+            </button>
+          </div>
+        )}
+
+        {!created && mode === "choose" && (
           <div style={{ display: "grid", gap: "var(--space-sm)" }}>
             <button className="card" style={{ textAlign: "left" }} onClick={() => setMode("admin")}>
               <p style={{ fontWeight: 700 }}>🛠️ Create Admin Booking</p>
@@ -240,7 +383,7 @@ export default function AddBookingDialog({
           </div>
         )}
 
-        {mode === "whatsapp" && (
+        {!created && mode === "whatsapp" && (
           <div style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
             <label style={{ display: "grid", gap: 4, fontSize: "var(--text-sm)" }}>
               Paste the WhatsApp booking message
@@ -276,7 +419,7 @@ export default function AddBookingDialog({
           </div>
         )}
 
-        {(mode === "admin" || mode === "whatsapp") && (
+        {!created && (mode === "admin" || mode === "whatsapp") && (
           <>
             {catalogueLoading && <LoadingState rows={3} label="Loading catalogue..." />}
             {packages.error && <ErrorState message={packages.error} onRetry={packages.retry} />}
@@ -293,6 +436,18 @@ export default function AddBookingDialog({
                   <input value={form.phone} onChange={(e) => update("phone", e.target.value)} />
                 </label>
                 <label>
+                  Age <span className="text-soft">(optional, kept as a note)</span>
+                  <input value={form.customerAge} onChange={(e) => update("customerAge", e.target.value)} style={{ maxWidth: 100 }} />
+                </label>
+                <label>
+                  Gender <span className="text-soft">(optional, kept as a note)</span>
+                  <select value={form.customerGender} onChange={(e) => update("customerGender", e.target.value)}>
+                    <option value="">—</option>
+                    <option value="M">Male</option>
+                    <option value="F">Female</option>
+                  </select>
+                </label>
+                <label>
                   Email <span className="text-soft">(optional)</span>
                   <input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} />
                 </label>
@@ -306,75 +461,101 @@ export default function AddBookingDialog({
                   <input value={form.address} onChange={(e) => update("address", e.target.value)} />
                 </label>
 
-                <label>
-                  Service area
-                  <select value={form.serviceAreaId} onChange={(e) => update("serviceAreaId", e.target.value)}>
-                    <option value="">Select an area</option>
-                    {(areas.data ?? []).map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.pincode} — {a.area ?? a.city} (fee {formatCurrencyInr(a.collectionFee ?? 0)})
-                      </option>
-                    ))}
-                  </select>
+                {!form.useCustomItem && (
+                  <label>
+                    Service area
+                    <select value={form.serviceAreaId} onChange={(e) => update("serviceAreaId", e.target.value)}>
+                      <option value="">Select an area</option>
+                      {(areas.data ?? []).map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.pincode} — {a.area ?? a.city} (fee {formatCurrencyInr(a.collectionFee ?? 0)})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                <label style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 6, flexDirection: "row" }}>
+                  <input type="checkbox" checked={form.useCustomItem} onChange={(e) => update("useCustomItem", e.target.checked)} style={{ width: "auto" }} />
+                  <span>This test/package is fulfilled externally — not in our catalogue (type its name and amount directly)</span>
                 </label>
+
+                {form.useCustomItem ? (
+                  <>
+                    <label style={{ gridColumn: "1 / -1" }}>
+                      Test/package name
+                      <input value={form.customItemName} onChange={(e) => update("customItemName", e.target.value)} placeholder="e.g. Urine Routine & Microscopy Extended" />
+                    </label>
+                    <label>
+                      Booking amount (₹)
+                      <input type="number" min="0" step="0.01" value={form.customAmount} onChange={(e) => update("customAmount", e.target.value)} />
+                    </label>
+                    <label>
+                      Pincode <span className="text-soft">(optional, reference only)</span>
+                      <input value={form.pincode} onChange={(e) => update("pincode", e.target.value)} />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <label>
+                      Booking for
+                      <select
+                        value={form.itemKind}
+                        onChange={(e) => {
+                          update("itemKind", e.target.value as "package" | "test");
+                          update("itemId", "");
+                          update("pricingRefId", "");
+                        }}
+                      >
+                        <option value="package">Package</option>
+                        <option value="test">Test</option>
+                      </select>
+                    </label>
+
+                    <label style={{ gridColumn: "1 / -1" }}>
+                      {form.itemKind === "package" ? "Package" : "Test"}
+                      <select
+                        value={form.itemId}
+                        onChange={(e) => {
+                          update("itemId", e.target.value);
+                          update("pricingRefId", "");
+                        }}
+                      >
+                        <option value="">Select {form.itemKind}</option>
+                        {(form.itemKind === "package" ? packages.data ?? [] : tests.data ?? []).map((i) => (
+                          <option key={i.id} value={i.id}>{i.name}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label style={{ gridColumn: "1 / -1" }}>
+                      Lab &amp; price
+                      <select
+                        value={form.pricingRefId}
+                        onChange={(e) => update("pricingRefId", e.target.value)}
+                        disabled={!form.itemId || pricingLoading}
+                      >
+                        <option value="">
+                          {!form.itemId
+                            ? "Select an item first"
+                            : pricingLoading
+                              ? "Loading lab prices..."
+                              : pricing.length === 0
+                                ? "No lab offers this item"
+                                : "Select a lab"}
+                        </option>
+                        {pricing.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {labNameById.get(p.labId) ?? "Partner lab"} — {formatCurrencyInr(p.price)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
 
                 <label>
-                  Booking for
-                  <select
-                    value={form.itemKind}
-                    onChange={(e) => {
-                      update("itemKind", e.target.value as "package" | "test");
-                      update("itemId", "");
-                      update("pricingRefId", "");
-                    }}
-                  >
-                    <option value="package">Package</option>
-                    <option value="test">Test</option>
-                  </select>
-                </label>
-
-                <label style={{ gridColumn: "1 / -1" }}>
-                  {form.itemKind === "package" ? "Package" : "Test"}
-                  <select
-                    value={form.itemId}
-                    onChange={(e) => {
-                      update("itemId", e.target.value);
-                      update("pricingRefId", "");
-                    }}
-                  >
-                    <option value="">Select {form.itemKind}</option>
-                    {(form.itemKind === "package" ? packages.data ?? [] : tests.data ?? []).map((i) => (
-                      <option key={i.id} value={i.id}>{i.name}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label style={{ gridColumn: "1 / -1" }}>
-                  Lab &amp; price
-                  <select
-                    value={form.pricingRefId}
-                    onChange={(e) => update("pricingRefId", e.target.value)}
-                    disabled={!form.itemId || pricingLoading}
-                  >
-                    <option value="">
-                      {!form.itemId
-                        ? "Select an item first"
-                        : pricingLoading
-                          ? "Loading lab prices..."
-                          : pricing.length === 0
-                            ? "No lab offers this item"
-                            : "Select a lab"}
-                    </option>
-                    {pricing.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {labNameById.get(p.labId) ?? "Partner lab"} — {formatCurrencyInr(p.price)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Preferred slot <span className="text-soft">(optional)</span>
+                  Preferred time <span className="text-soft">(optional — a note only, not a real slot booking)</span>
                   <input value={form.slot} onChange={(e) => update("slot", e.target.value)} placeholder="07:00-09:00" />
                 </label>
 

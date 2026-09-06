@@ -22,6 +22,7 @@ import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
+import { buildWhatsAppLink } from "@/utils/whatsappBooking";
 import { toUserMessage } from "@/utils/errors";
 
 export default function AdminLeadsPage() {
@@ -183,6 +184,9 @@ function LeadRow({
   onToggleSelect?: () => void;
 }) {
   const [linking, setLinking] = useState(false);
+  // No prefilled text — this is an admin reaching out to a lead, not a
+  // booking confirmation, so there's no fixed template to fill in.
+  const whatsappLink = buildWhatsAppLink(lead.phone, "");
 
   return (
     <div className="card">
@@ -197,6 +201,11 @@ function LeadRow({
             {lead.phone}{lead.email ? ` • ${lead.email}` : ""}{lead.source ? ` • ${lead.source}` : ""}
           </p>
           {campaignName && <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Campaign: {campaignName}</p>}
+          {whatsappLink && (
+            <a href={whatsappLink} target="_blank" rel="noreferrer" style={{ fontSize: "var(--text-xs)", color: "var(--color-primary)" }}>
+              <span className="mi" aria-hidden="true" style={{ fontSize: 13, verticalAlign: "middle" }}>chat</span> Message on WhatsApp
+            </a>
+          )}
           </div>
         </div>
         <select value={lead.status} onChange={(e) => onStatusChange(e.target.value as LeadStatus)} style={{ padding: 6, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>

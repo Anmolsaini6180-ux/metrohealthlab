@@ -15,9 +15,16 @@ export interface ParsedWhatsAppBooking {
   bookingAmount?: number;
   paidAmount?: number;
   slot?: string;
+  /** Just the YYYY-MM-DD portion of `slot`, when it starts with one — e.g. so a form's own date input can be filled directly. */
+  slotDate?: string;
+  /** Whatever follows the date in `slot` (a single time, or a range) — the part a date input can't hold. */
+  slotTime?: string;
   customerPhone?: string;
   customerAddress?: string;
   customerName?: string;
+  /** Parsed out of a "Name (27/M)"-style suffix on the customer name line, if present — customerName itself is the cleaned version with this suffix removed. */
+  customerAge?: number;
+  customerGender?: "M" | "F";
   testDetails?: string;
 }
 
@@ -39,8 +46,11 @@ const FIELD_LABELS: { field: keyof ParsedWhatsAppBooking; labels: string[] }[] =
   { field: "bookingStatus", labels: ["booking status", "status"] },
   { field: "paidAmount", labels: ["paid amount", "amount paid", "advance", "paid"] },
   { field: "bookingAmount", labels: ["booking amount", "total amount", "amount", "total", "price"] },
-  { field: "slot", labels: ["sample collection slot", "collection slot", "slot", "appointment", "date & time", "date and time"] },
-  { field: "customerPhone", labels: ["customer phone", "phone", "mobile", "contact", "phone number"] },
+  {
+    field: "slot",
+    labels: ["sample collection slot timings", "sample collection slot", "collection slot", "slot", "appointment", "date & time", "date and time"],
+  },
+  { field: "customerPhone", labels: ["customer phone no.", "customer phone no", "customer phone", "phone", "mobile", "contact", "phone number"] },
   { field: "customerAddress", labels: ["customer address", "address"] },
   { field: "customerName", labels: ["customer name", "patient name", "name"] },
   { field: "testDetails", labels: ["test details", "test/package details", "package details", "tests", "test", "package"] },
@@ -73,6 +83,34 @@ export function parsePhone(raw: string): string {
   if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
   if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
   return raw.trim();
+}
+
+// Matches a trailing "(27/M)", "(27/Male)" or "(27 / F)" age/gender tag
+// some affiliate systems append to the customer name itself. Returns
+// the name with that tag removed either way, so a name with no such
+// tag is returned completely unchanged.
+const AGE_GENDER_SUFFIX = /\s*\(\s*(\d{1,3})\s*\/\s*(m(?:ale)?|f(?:emale)?)\s*\)\s*$/i;
+
+export function extractAgeGender(name: string): { name: string; age?: number; gender?: "M" | "F" } {
+  const match = name.match(AGE_GENDER_SUFFIX);
+  if (!match) return { name };
+  const age = Number(match[1]);
+  const gender = match[2][0].toUpperCase() === "M" ? "M" : "F";
+  return { name: name.slice(0, match.index).trim(), age, gender: gender as "M" | "F" };
+}
+
+// Splits a slot value that starts with an ISO date ("2026-09-06
+// 11:30:00", "2026-09-02 07:00-09:00") into the date a <input
+// type="date"> can hold and whatever text describes the time — a
+// single time, a range, seconds or not. A slot with no leading ISO
+// date (a free-text "Tomorrow morning") returns neither, left for a
+// human to read off the raw `slot` field instead of guessing.
+const SLOT_DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})[\sT,]+(.+)$/;
+
+export function splitSlotDateTime(slot: string): { date?: string; time?: string } {
+  const match = slot.match(SLOT_DATE_PREFIX);
+  if (!match) return {};
+  return { date: match[1], time: match[2].trim() };
 }
 
 function matchLabel(line: string): { field: keyof ParsedWhatsAppBooking; value: string } | null {
@@ -111,8 +149,12 @@ export function parseWhatsAppBooking(text: string): ParseResult {
 
     const hit = matchLabel(trimmed);
     if (!hit) {
-      // A bare heading like "Booking Confirmation" is noise, not data.
-      if (!/^[*_~`\s]*booking confirmation[*_~`\s]*$/i.test(trimmed)) {
+      // Boilerplate greeting/heading lines are noise, not data — with
+      // or without the trailing colon/dash real messages vary on.
+      const isBoilerplate =
+        /^[*_~`\s]*booking confirmation[*_~`\s:]*$/i.test(trimmed) ||
+        /^please find the booking details below[\s\-–]*$/i.test(trimmed);
+      if (!isBoilerplate) {
         unrecognisedLines.push(trimmed);
       }
       continue;
@@ -128,6 +170,28 @@ export function parseWhatsAppBooking(text: string): ParseResult {
       fields[hit.field] = amount as never;
     } else if (hit.field === "customerPhone") {
       fields.customerPhone = parsePhone(hit.value);
+    } else if (hit.field === "customerName") {
+      const { name, age, gender } = extractAgeGender(hit.value);
+      fields.customerName = name;
+      if (age !== undefined) {
+        fields.customerAge = age;
+        matched.push("customerAge");
+      }
+      if (gender !== undefined) {
+        fields.customerGender = gender;
+        matched.push("customerGender");
+      }
+    } else if (hit.field === "slot") {
+      fields.slot = hit.value;
+      const { date, time } = splitSlotDateTime(hit.value);
+      if (date) {
+        fields.slotDate = date;
+        matched.push("slotDate");
+      }
+      if (time) {
+        fields.slotTime = time;
+        matched.push("slotTime");
+      }
     } else {
       fields[hit.field] = hit.value as never;
     }
