@@ -103,6 +103,11 @@ export default function AdminTeamPerformancePage() {
                     <span className="text-soft" style={{ fontSize: "var(--text-sm)" }}>Completed: {p.completed}</span>
                     <span className="text-soft" style={{ fontSize: "var(--text-sm)" }}>Pending: {p.pending}</span>
                     <span className="text-soft" style={{ fontSize: "var(--text-sm)" }}>Cancelled: {p.cancelled}</span>
+                    {p.cashCollected > 0 && (
+                      <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-success)" }}>
+                        Cash collected: {formatCurrencyInr(p.cashCollected)}
+                      </span>
+                    )}
                   </div>
                 </button>
                 {expandedUid === p.uid && <StaffBookingsList agentUid={p.uid} range={range} />}

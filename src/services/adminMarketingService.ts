@@ -7,6 +7,7 @@
 import { getSupabaseClient } from "@/supabase/client";
 import { rowToCampaign, rowToLead } from "@/supabase/mappers";
 import type { Campaign, CampaignStatus, Lead, LeadStatus } from "@/types/marketing";
+import type { CampaignPerformance } from "@/types/finance";
 
 // Segments are computed, not stored documents.
 export interface CustomerSegmentsResult {
@@ -55,6 +56,16 @@ export interface CampaignInput {
   targetSegment?: string | null;
   /** Real ad spend for this campaign (INR). Omit to leave the database default (0) on create, or leave unchanged on update. */
   spend?: number;
+  plannedBudget?: number | null;
+  dailyBudget?: number | null;
+  area?: string | null;
+  ageGroup?: string | null;
+  gender?: string | null;
+  targetOffering?: string | null;
+  whatsappMessage?: string | null;
+  ctaText?: string | null;
+  ctaLink?: string | null;
+  landingPage?: string | null;
 }
 
 export async function createCampaign(actorUid: string, input: CampaignInput): Promise<string> {
@@ -75,6 +86,16 @@ export async function createCampaign(actorUid: string, input: CampaignInput): Pr
       coupon_id: optional(input.couponId),
       target_segment: optional(input.targetSegment),
       ...(input.spend !== undefined ? { spend: input.spend } : {}),
+      planned_budget: optional(input.plannedBudget),
+      daily_budget: optional(input.dailyBudget),
+      area: optional(input.area),
+      age_group: optional(input.ageGroup),
+      gender: optional(input.gender),
+      target_offering: optional(input.targetOffering),
+      whatsapp_message: optional(input.whatsappMessage),
+      cta_text: optional(input.ctaText),
+      cta_link: optional(input.ctaLink),
+      landing_page: optional(input.landingPage),
       created_by: await currentSupabaseUserId(),
       updated_by_firebase_uid: actorUid,
     })
@@ -96,9 +117,53 @@ export async function updateCampaign(actorUid: string, campaignId: string, input
   if (input.couponId !== undefined) patch.coupon_id = optional(input.couponId);
   if (input.targetSegment !== undefined) patch.target_segment = optional(input.targetSegment);
   if (input.spend !== undefined) patch.spend = input.spend;
+  if (input.plannedBudget !== undefined) patch.planned_budget = optional(input.plannedBudget);
+  if (input.dailyBudget !== undefined) patch.daily_budget = optional(input.dailyBudget);
+  if (input.area !== undefined) patch.area = optional(input.area);
+  if (input.ageGroup !== undefined) patch.age_group = optional(input.ageGroup);
+  if (input.gender !== undefined) patch.gender = optional(input.gender);
+  if (input.targetOffering !== undefined) patch.target_offering = optional(input.targetOffering);
+  if (input.whatsappMessage !== undefined) patch.whatsapp_message = optional(input.whatsappMessage);
+  if (input.ctaText !== undefined) patch.cta_text = optional(input.ctaText);
+  if (input.ctaLink !== undefined) patch.cta_link = optional(input.ctaLink);
+  if (input.landingPage !== undefined) patch.landing_page = optional(input.landingPage);
 
   const { error } = await getSupabaseClient().from("campaigns").update(patch).eq("id", campaignId);
   if (error) throw error;
+}
+
+/**
+ * Per-campaign ROI (leads, conversion, bookings, revenue, TP, gross
+ * margin, profit, ROI, cost-per-lead/booking) — computed authoritatively
+ * by get_campaign_performance() (SECURITY DEFINER, can_manage_catalog()
+ * gated), never re-derived client-side. Pass no range for lifetime
+ * performance, or a date range to scope leads/attribution to it.
+ */
+export async function getCampaignPerformance(startDate?: string, endDate?: string): Promise<CampaignPerformance[]> {
+  const { data, error } = await getSupabaseClient().rpc("get_campaign_performance", {
+    p_start: startDate ?? null,
+    p_end: endDate ?? null,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    status: r.status as string,
+    spend: Number(r.spend ?? 0),
+    leads: Number(r.leads ?? 0),
+    converted: Number(r.converted ?? 0),
+    bookings: Number(r.bookings ?? 0),
+    revenue: Number(r.revenue ?? 0),
+    tp: Number(r.tp ?? 0),
+    tpUnknown: Number(r.tpUnknown ?? 0),
+    grossMargin: Number(r.grossMargin ?? 0),
+    profit: Number(r.profit ?? 0),
+    roi: r.roi != null ? Number(r.roi) : null,
+    conversionRate: r.conversionRate != null ? Number(r.conversionRate) : null,
+    costPerLead: r.costPerLead != null ? Number(r.costPerLead) : null,
+    costPerBooking: r.costPerBooking != null ? Number(r.costPerBooking) : null,
+  }));
 }
 
 // ---------- Leads ----------
@@ -137,6 +202,7 @@ export interface LeadInput {
   assignedAdminId?: string | null;
   assignedSubAdminId?: string | null;
   assignedCollectionAgentId?: string | null;
+  bookingId?: string | null;
 }
 
 export async function createLead(actorUid: string, input: LeadInput): Promise<string> {
@@ -153,6 +219,7 @@ export async function createLead(actorUid: string, input: LeadInput): Promise<st
       assigned_admin_id: optional(input.assignedAdminId),
       assigned_sub_admin_id: optional(input.assignedSubAdminId),
       assigned_collection_agent_id: optional(input.assignedCollectionAgentId),
+      booking_id: optional(input.bookingId),
       created_by: await currentSupabaseUserId(),
       updated_by_firebase_uid: actorUid,
     })
@@ -173,9 +240,49 @@ export async function updateLead(actorUid: string, leadId: string, input: Partia
   if (input.assignedAdminId !== undefined) patch.assigned_admin_id = optional(input.assignedAdminId);
   if (input.assignedSubAdminId !== undefined) patch.assigned_sub_admin_id = optional(input.assignedSubAdminId);
   if (input.assignedCollectionAgentId !== undefined) patch.assigned_collection_agent_id = optional(input.assignedCollectionAgentId);
+  if (input.bookingId !== undefined) patch.booking_id = optional(input.bookingId);
 
   const { error } = await getSupabaseClient().from("leads").update(patch).eq("id", leadId);
   if (error) throw error;
+}
+
+export interface BookingSearchResult {
+  id: string;
+  date: string;
+  finalAmount: number;
+  customerLabel: string;
+}
+
+/**
+ * Powers the Leads page's "Link to booking" picker — the real,
+ * admin-confirmed Campaign -> Lead -> Booking attribution link every
+ * campaign ROI figure depends on. Matches on the booking's own contact
+ * jsonb (name/phone captured at booking time), not profiles, so it
+ * also finds bookings placed by staff on a customer's behalf.
+ */
+export async function searchBookingsForLeadLink(query: string): Promise<BookingSearchResult[]> {
+  const q = query.trim();
+  if (q.length < 3) return [];
+  const client = getSupabaseClient();
+  const [byPhone, byName] = await Promise.all([
+    client.from("bookings").select("id, date, final_amount, contact").filter("contact->>phone", "ilike", `%${q}%`).order("date", { ascending: false }).limit(10),
+    client.from("bookings").select("id, date, final_amount, contact").filter("contact->>name", "ilike", `%${q}%`).order("date", { ascending: false }).limit(10),
+  ]);
+  if (byPhone.error) throw byPhone.error;
+  if (byName.error) throw byName.error;
+
+  const byId = new Map<string, BookingSearchResult>();
+  for (const b of [...(byPhone.data ?? []), ...(byName.data ?? [])]) {
+    if (byId.has(b.id as string)) continue;
+    const contact = (b.contact as { name?: string; phone?: string } | null) ?? {};
+    byId.set(b.id as string, {
+      id: b.id as string,
+      date: b.date as string,
+      finalAmount: Number(b.final_amount ?? 0),
+      customerLabel: `${contact.name ?? "Unknown"} • ${contact.phone ?? "—"}`,
+    });
+  }
+  return [...byId.values()];
 }
 
 export async function updateLeadStatus(actorUid: string, leadId: string, status: LeadStatus): Promise<void> {

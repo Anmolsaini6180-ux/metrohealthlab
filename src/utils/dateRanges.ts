@@ -73,6 +73,12 @@ export function resolveDateRange(preset: DateRangePreset, custom?: DateRange): D
  * data limit — the underlying totals still cover the full range
  * regardless of how many days this returns.
  */
+/** "5 Sep"-style label for a chart x-axis tick, from an ISO date string. */
+export function shortDayLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 export function enumerateDays(startDate: string, endDate: string, maxDays = 92): string[] {
   const start = new Date(`${startDate}T00:00:00Z`);
   const end = new Date(`${endDate}T00:00:00Z`);

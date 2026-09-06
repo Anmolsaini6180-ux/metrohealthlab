@@ -7,7 +7,7 @@ import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
 
-const TARGET_TYPES = ["booking", "test", "package", "lab", "labPricing", "offer", "banner", "coupon", "slot", "serviceArea", "campaign", "lead", "report", "article", "settings", "user", "notification", "payment"];
+const TARGET_TYPES = ["booking", "test", "package", "lab", "labPricing", "offer", "banner", "coupon", "slot", "serviceArea", "campaign", "lead", "report", "article", "settings", "user", "notification", "payment", "financialTransaction"];
 
 export default function AdminAuditLogsPage() {
   const [range, setRange] = useState<DateRange>(() => resolveDateRange("thisWeek"));

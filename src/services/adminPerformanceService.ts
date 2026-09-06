@@ -15,6 +15,8 @@ export interface AgentPerformance {
   pending: number;
   cancelled: number;
   completionRate: number;
+  /** Real cash collected (see cash_collections, written only by record_cash_received) for bookings dated in this range, credited to whoever actually recorded it — 0 rather than omitted when a staff member has collected nothing yet. */
+  cashCollected: number;
 }
 
 const PENDING_STATUSES = new Set(["payment_pending", "confirmed", "assigned", "on_the_way", "arrived", "sample_collected", "received_at_lab", "testing"]);
@@ -69,7 +71,29 @@ export async function getTeamPerformance(startDate: string, endDate: string): Pr
     }
   }
 
-  const staffIds = [...byStaff.keys()];
+  // Cash collected, credited to whoever actually recorded it
+  // (cash_collections.recorded_by) rather than whoever the booking is
+  // assigned to — an admin can record cash on a booking an agent
+  // collected the sample for, and crediting the wrong person would
+  // misstate both their numbers. new_amount - previous_amount per row
+  // (not new_amount alone, which is a running total) so multiple
+  // partial recordings on the same booking sum to the real total
+  // collected, not an inflated cumulative figure.
+  const { data: cashRows, error: cashError } = await client
+    .from("cash_collections")
+    .select("recorded_by, previous_amount, new_amount, bookings!inner(date)")
+    .gte("bookings.date", startDate)
+    .lte("bookings.date", endDate)
+    .limit(5000);
+  if (cashError) throw cashError;
+  const cashByStaff = new Map<string, number>();
+  for (const row of cashRows ?? []) {
+    const uid = row.recorded_by as string;
+    const delta = Number(row.new_amount ?? 0) - Number(row.previous_amount ?? 0);
+    cashByStaff.set(uid, (cashByStaff.get(uid) ?? 0) + delta);
+  }
+
+  const staffIds = [...new Set([...byStaff.keys(), ...cashByStaff.keys()])];
   const names = new Map<string, string>();
   if (staffIds.length > 0) {
     const { data: profileRows, error: profileError } = await client.from("profiles").select("id, name, email").in("id", staffIds);
@@ -78,7 +102,7 @@ export async function getTeamPerformance(startDate: string, endDate: string): Pr
   }
 
   const performance: AgentPerformance[] = staffIds.map((uid) => {
-    const e = byStaff.get(uid)!;
+    const e = byStaff.get(uid) ?? { assigned: 0, completed: 0, pending: 0, cancelled: 0 };
     return {
       uid,
       name: names.get(uid) ?? uid,
@@ -87,6 +111,7 @@ export async function getTeamPerformance(startDate: string, endDate: string): Pr
       pending: e.pending,
       cancelled: e.cancelled,
       completionRate: e.assigned > 0 ? Math.round((e.completed / e.assigned) * 100) : 0,
+      cashCollected: cashByStaff.get(uid) ?? 0,
     };
   });
 

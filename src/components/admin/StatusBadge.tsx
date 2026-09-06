@@ -17,11 +17,27 @@ const STATUS_COLORS: Record<string, string> = {
   arrived: "var(--color-primary)",
   sample_collected: "var(--color-primary)",
   testing: "var(--color-primary)",
+  partially_paid: "var(--color-amber)",
+  paid: "var(--color-success)",
   // support tickets
   open: "var(--color-amber)",
   in_progress: "var(--color-primary)",
   resolved: "var(--color-success)",
   closed: "var(--color-ink-soft)",
+  // campaigns
+  DRAFT: "var(--color-ink-soft)",
+  SCHEDULED: "var(--color-primary)",
+  RUNNING: "var(--color-success)",
+  PAUSED: "var(--color-amber)",
+  COMPLETED: "var(--color-primary)",
+  // leads
+  NEW: "var(--color-primary)",
+  CONTACTED: "var(--color-primary)",
+  INTERESTED: "var(--color-amber)",
+  FOLLOW_UP: "var(--color-amber)",
+  CONVERTED: "var(--color-success)",
+  NOT_INTERESTED: "var(--color-ink-soft)",
+  LOST: "var(--color-danger)",
 };
 
 // Consistent colored status pill — established here and used on the

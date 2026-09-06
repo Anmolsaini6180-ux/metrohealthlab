@@ -1,124 +1,169 @@
-// Supabase-backed. Every figure here is derived from real rows the
-// caller's own RLS visibility allows (bookings_select's hierarchy
-// scoping, campaigns/leads' can_view_analytics() read policy — see the
-// add_finance_ad_spend_and_analytics_read_access migration) — nothing
-// here is estimated, and no metric is computed unless the schema
-// genuinely supports it (no fabricated ROI figure that would imply
-// causal ad-attribution the data doesn't carry — see costPerLead's own
-// comment below).
-import { getAdminBookings } from "./adminBookingService";
+// Supabase-backed. Every important total (revenue, collected, TP,
+// margin, expenses) comes from get_finance_report() — a SECURITY
+// DEFINER RPC gated by can_manage_catalog() that computes real SQL
+// aggregates over bookings/booking_items/financial_transactions/
+// campaigns — never a React-side recomputation from a partial page of
+// rows. financeMath.ts then does only simple, denominator-free
+// arithmetic (subtraction/addition) on top of those authoritative
+// numbers to produce the derived dashboard cards.
 import { getSupabaseClient } from "@/supabase/client";
-import { enumerateDays } from "@/utils/dateRanges";
+import { computeFinanceReport } from "@/utils/financeMath";
+import type { FinanceReport, FinanceReportRaw, FinancialTransaction, PendingCollection, RecordTransactionInput } from "@/types/finance";
 
-export interface FinanceRankedItem {
-  label: string;
-  value: number;
+function toRaw(json: unknown): FinanceReportRaw {
+  const r = (json ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => Number(v ?? 0);
+  return {
+    totalRevenue: num(r.totalRevenue),
+    totalCollected: num(r.totalCollected),
+    bookingsCount: num(r.bookingsCount),
+    totalTp: num(r.totalTp),
+    tpKnownCount: num(r.tpKnownCount),
+    tpUnknownCount: num(r.tpUnknownCount),
+    otherIncome: num(r.otherIncome),
+    expenses: num(r.expenses),
+    campaignSpend: num(r.campaignSpend),
+    adjustmentsNet: num(r.adjustmentsNet),
+    refundedAmount: num(r.refundedAmount),
+    refundedCount: num(r.refundedCount),
+    daily: ((r.daily as unknown[]) ?? []).map((d) => {
+      const row = d as Record<string, unknown>;
+      return { day: row.day as string, revenue: num(row.revenue), collected: num(row.collected) };
+    }),
+    byPackage: ((r.byPackage as unknown[]) ?? []).map((p) => {
+      const row = p as Record<string, unknown>;
+      return { refId: row.refId as string, name: row.name as string, bookings: num(row.bookings), revenue: num(row.revenue), tp: num(row.tp), tpUnknown: num(row.tpUnknown) };
+    }),
+    byTest: ((r.byTest as unknown[]) ?? []).map((t) => {
+      const row = t as Record<string, unknown>;
+      return { refId: row.refId as string, name: row.name as string, bookings: num(row.bookings), revenue: num(row.revenue), tp: num(row.tp), tpUnknown: num(row.tpUnknown) };
+    }),
+    cashByStaff: ((r.cashByStaff as unknown[]) ?? []).map((s) => {
+      const row = s as Record<string, unknown>;
+      return { uid: row.uid as string, name: row.name as string, collected: num(row.collected) };
+    }),
+  };
 }
 
-export interface FinanceSummary {
-  startDate: string;
-  endDate: string;
-  /** Cash actually collected on bookings in range (Cash on Home only — same figure AdminDashboardPage's own "Cash collected" stat uses). */
-  revenue: number;
-  /** True if the range has more bookings than getAdminBookings' own cap — revenue is a real sum of what was fetched, not a guess, but may undercount a very large range. */
-  revenueMayBeIncomplete: boolean;
-  bookingsCount: number;
-  /** Sum of campaigns.spend for every campaign whose own date range overlaps the selected range. Real admin-entered figures — 0 until an admin sets one. */
-  adSpend: number;
-  leadsCount: number;
-  convertedCount: number;
-  /**
-   * adSpend / leadsCount. Deliberately NOT a "ROI" or "revenue per rupee
-   * spent" figure — this schema has no link from a booking back to the
-   * lead/campaign that produced it, so treating `revenue` as ad-
-   * attributed would overstate what the data actually shows. Cost per
-   * lead and cost per conversion are the honest metrics this data
-   * genuinely supports.
-   */
-  costPerLead: number | null;
-  costPerConversion: number | null;
-  revenueByDay: { x: string; y: number }[];
-  leadsByDay: { x: string; y: number }[];
-  spendByCampaign: FinanceRankedItem[];
-  leadsByCampaign: FinanceRankedItem[];
-  leadsBySource: FinanceRankedItem[];
+export async function getFinanceReport(startDate: string, endDate: string): Promise<FinanceReport> {
+  const { data, error } = await getSupabaseClient().rpc("get_finance_report", { p_start: startDate, p_end: endDate });
+  if (error) throw error;
+  return computeFinanceReport(toRaw(data));
 }
 
-function shortDayLabel(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+function rowToTransaction(r: Record<string, unknown>): FinancialTransaction {
+  return {
+    id: r.id as string,
+    type: r.type as FinancialTransaction["type"],
+    category: r.category as string,
+    amount: Number(r.amount ?? 0),
+    occurredOn: r.occurred_on as string,
+    description: (r.description as string) ?? undefined,
+    reference: (r.reference as string) ?? undefined,
+    paymentMethod: (r.payment_method as string) ?? undefined,
+    attachmentUrl: (r.attachment_url as string) ?? undefined,
+    notes: (r.notes as string) ?? undefined,
+    createdBy: r.created_by as string,
+    createdAt: r.created_at,
+  };
 }
 
-export async function getFinanceSummary(startDate: string, endDate: string): Promise<FinanceSummary> {
+/**
+ * The only way to write a financial_transactions row (see the table's
+ * own RLS comment — there is no INSERT policy at all). Always lands an
+ * audit_logs entry in the same transaction, server-side, so "who/when/
+ * what/reason" is never something the client could omit or falsify.
+ */
+export async function recordFinancialTransaction(input: RecordTransactionInput): Promise<FinancialTransaction> {
+  const { data, error } = await getSupabaseClient().rpc("record_financial_transaction", {
+    p_type: input.type,
+    p_category: input.category,
+    p_amount: input.amount,
+    p_occurred_on: input.occurredOn,
+    p_description: input.description ?? null,
+    p_reference: input.reference ?? null,
+    p_payment_method: input.paymentMethod ?? null,
+    p_attachment_url: input.attachmentUrl ?? null,
+    p_notes: input.notes ?? null,
+  });
+  if (error) throw error;
+  return rowToTransaction(data as Record<string, unknown>);
+}
+
+const TRANSACTION_LIMIT = 1000;
+
+/**
+ * Every manually-entered income/expense/adjustment row in range, most
+ * recent first — a plain RLS-scoped read (financial_transactions_
+ * select_admin = can_manage_catalog()), not a new RPC, since a filtered
+ * SELECT needs no server-side aggregation. Powers both the on-page
+ * transaction list and the CSV export.
+ */
+export async function getFinancialTransactions(startDate: string, endDate: string): Promise<{ rows: FinancialTransaction[]; truncated: boolean }> {
+  const { data, error } = await getSupabaseClient()
+    .from("financial_transactions")
+    .select("*")
+    .gte("occurred_on", startDate)
+    .lte("occurred_on", endDate)
+    .order("occurred_on", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(TRANSACTION_LIMIT + 1);
+  if (error) throw error;
+  const rows = data ?? [];
+  const truncated = rows.length > TRANSACTION_LIMIT;
+  return { rows: (truncated ? rows.slice(0, TRANSACTION_LIMIT) : rows).map(rowToTransaction), truncated };
+}
+
+const OUTSTANDING_LIMIT = 500;
+
+/**
+ * Collection Management's "who still owes money" view. A plain
+ * RLS-scoped query, not a new RPC — bookings_select already lets
+ * SUPER_ADMIN see every booking and every other can_manage_catalog()
+ * role see their own assigned/confirmed slice, exactly the same
+ * visibility Team Performance and Booking Management already work
+ * within, so this reuses that boundary rather than adding a second one.
+ */
+export async function getPendingCollections(): Promise<{ rows: PendingCollection[]; truncated: boolean }> {
   const client = getSupabaseClient();
+  const { data, error } = await client
+    .from("bookings")
+    .select("id, date, final_amount, amount_received, payment_status, booking_status, contact, assigned_agent_id")
+    .neq("payment_status", "paid")
+    .not("booking_status", "in", "(cancelled,refunded)")
+    .order("date", { ascending: true })
+    .limit(OUTSTANDING_LIMIT + 1);
+  if (error) throw error;
+  const rows = data ?? [];
+  const truncated = rows.length > OUTSTANDING_LIMIT;
+  const scoped = truncated ? rows.slice(0, OUTSTANDING_LIMIT) : rows;
 
-  const [bookingsResult, leadsResult, campaignsResult] = await Promise.all([
-    getAdminBookings({ startDate, endDate }),
-    client
-      .from("leads")
-      .select("created_at, status, campaign_id, source")
-      .gte("created_at", startDate)
-      .lte("created_at", `${endDate}T23:59:59.999Z`),
-    client.from("campaigns").select("id, name, spend").lte("start_at", endDate).gte("end_at", startDate),
-  ]);
-
-  if (leadsResult.error) throw leadsResult.error;
-  if (campaignsResult.error) throw campaignsResult.error;
-
-  const days = enumerateDays(startDate, endDate);
-  const revenueByDayMap = new Map<string, number>();
-  let revenue = 0;
-  for (const b of bookingsResult.bookings) {
-    const amount = b.amountReceived ?? 0;
-    revenue += amount;
-    revenueByDayMap.set(b.date, (revenueByDayMap.get(b.date) ?? 0) + amount);
+  const agentIds = [...new Set(scoped.map((b) => b.assigned_agent_id as string | null).filter((id): id is string => !!id))];
+  const agentNames = new Map<string, string>();
+  if (agentIds.length > 0) {
+    const { data: profiles, error: profileError } = await client.from("profiles").select("id, name, email").in("id", agentIds);
+    if (profileError) throw profileError;
+    for (const p of profiles ?? []) agentNames.set(p.id, p.name || p.email || p.id);
   }
-
-  const leadRows = leadsResult.data ?? [];
-  const leadsByDayMap = new Map<string, number>();
-  const leadsByCampaignMap = new Map<string, number>();
-  const leadsBySourceMap = new Map<string, number>();
-  let convertedCount = 0;
-  for (const l of leadRows) {
-    const day = String(l.created_at).slice(0, 10);
-    leadsByDayMap.set(day, (leadsByDayMap.get(day) ?? 0) + 1);
-    if (l.campaign_id) leadsByCampaignMap.set(l.campaign_id as string, (leadsByCampaignMap.get(l.campaign_id as string) ?? 0) + 1);
-    const source = (l.source as string | null)?.trim() || "Unknown";
-    leadsBySourceMap.set(source, (leadsBySourceMap.get(source) ?? 0) + 1);
-    if (l.status === "CONVERTED") convertedCount += 1;
-  }
-
-  const campaignRows = campaignsResult.data ?? [];
-  let adSpend = 0;
-  const spendByCampaign: FinanceRankedItem[] = [];
-  const campaignNameById = new Map<string, string>();
-  for (const c of campaignRows) {
-    const spend = Number(c.spend ?? 0);
-    adSpend += spend;
-    campaignNameById.set(c.id as string, c.name as string);
-    if (spend > 0) spendByCampaign.push({ label: c.name as string, value: spend });
-  }
-
-  const leadsByCampaign: FinanceRankedItem[] = [...leadsByCampaignMap.entries()].map(([id, count]) => ({
-    label: campaignNameById.get(id) ?? "Unlinked campaign",
-    value: count,
-  }));
 
   return {
-    startDate,
-    endDate,
-    revenue,
-    revenueMayBeIncomplete: bookingsResult.truncated,
-    bookingsCount: bookingsResult.bookings.length,
-    adSpend,
-    leadsCount: leadRows.length,
-    convertedCount,
-    costPerLead: leadRows.length > 0 ? adSpend / leadRows.length : null,
-    costPerConversion: convertedCount > 0 ? adSpend / convertedCount : null,
-    revenueByDay: days.map((d) => ({ x: shortDayLabel(d), y: revenueByDayMap.get(d) ?? 0 })),
-    leadsByDay: days.map((d) => ({ x: shortDayLabel(d), y: leadsByDayMap.get(d) ?? 0 })),
-    spendByCampaign: spendByCampaign.sort((a, b) => b.value - a.value),
-    leadsByCampaign: leadsByCampaign.sort((a, b) => b.value - a.value),
-    leadsBySource: [...leadsBySourceMap.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value),
+    truncated,
+    rows: scoped.map((b) => {
+      const contact = (b.contact as { name?: string } | null) ?? {};
+      const finalAmount = Number(b.final_amount ?? 0);
+      const amountReceived = Number(b.amount_received ?? 0);
+      return {
+        bookingId: b.id as string,
+        date: b.date as string,
+        customerName: contact.name ?? "Unknown",
+        finalAmount,
+        amountReceived,
+        outstanding: Math.max(finalAmount - amountReceived, 0),
+        paymentStatus: b.payment_status as string,
+        bookingStatus: b.booking_status as string,
+        assignedAgentId: (b.assigned_agent_id as string) ?? undefined,
+        assignedAgentName: b.assigned_agent_id ? agentNames.get(b.assigned_agent_id as string) ?? (b.assigned_agent_id as string) : undefined,
+      };
+    }),
   };
 }

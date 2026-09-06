@@ -10,27 +10,63 @@ const state = vi.hoisted(() => ({
   inserts: [] as Record<string, unknown>[],
   updates: [] as Record<string, unknown>[],
   supabaseUserId: "11111111-1111-1111-1111-111111111111",
+  rpcResult: null as unknown,
+  rpcError: null as unknown,
+  lastRpc: null as { name: string; args: Record<string, unknown> } | null,
+  filters: [] as { column: string; op: string; value: unknown }[],
 }));
+
+function bookingsQuery() {
+  const rows = [
+    { id: "bk-1", date: "2026-09-01", final_amount: 1999, contact: { name: "Asha Rao", phone: "9990001111" } },
+  ];
+  const builder = {
+    filter: (column: string, op: string, value: unknown) => {
+      state.filters.push({ column, op, value });
+      return builder;
+    },
+    order: () => builder,
+    limit: async () => ({ data: column_matches() ? rows : [], error: null }),
+  };
+  function column_matches() {
+    const last = state.filters[state.filters.length - 1];
+    if (!last) return false;
+    const needle = String(last.value).replace(/%/g, "").toLowerCase();
+    if (last.column === "contact->>phone") return rows[0].contact.phone.includes(needle);
+    if (last.column === "contact->>name") return rows[0].contact.name.toLowerCase().includes(needle);
+    return false;
+  }
+  return builder;
+}
 
 vi.mock("@/supabase/client", () => ({
   getSupabaseClient: () => ({
     auth: {
       getUser: async () => ({ data: { user: { id: state.supabaseUserId } } }),
     },
-    from: () => ({
-      insert: (row: Record<string, unknown>) => {
-        state.inserts.push(row);
-        return { select: () => ({ single: async () => ({ data: { id: "generated-id" }, error: null }) }) };
-      },
-      update: (row: Record<string, unknown>) => {
-        state.updates.push(row);
-        return { eq: async () => ({ error: null }) };
-      },
-    }),
+    from: (table: string) => {
+      if (table === "bookings") return { select: () => bookingsQuery() };
+      return {
+        insert: (row: Record<string, unknown>) => {
+          state.inserts.push(row);
+          return { select: () => ({ single: async () => ({ data: { id: "generated-id" }, error: null }) }) };
+        },
+        update: (row: Record<string, unknown>) => {
+          state.updates.push(row);
+          return { eq: async () => ({ error: null }) };
+        },
+      };
+    },
+    rpc: (name: string, args: Record<string, unknown>) => {
+      state.lastRpc = { name, args };
+      return Promise.resolve({ data: state.rpcResult, error: state.rpcError });
+    },
   }),
 }));
 
-const { createCampaign, createLead, updateCampaign, updateLead } = await import("@/services/adminMarketingService");
+const { createCampaign, createLead, updateCampaign, updateLead, getCampaignPerformance, searchBookingsForLeadLink } = await import(
+  "@/services/adminMarketingService"
+);
 
 const ACTOR = "admin-firebase-uid-1";
 
@@ -40,6 +76,10 @@ const lastUpdate = () => state.updates[state.updates.length - 1];
 beforeEach(() => {
   state.inserts.length = 0;
   state.updates.length = 0;
+  state.filters.length = 0;
+  state.rpcResult = null;
+  state.rpcError = null;
+  state.lastRpc = null;
 });
 
 describe("createCampaign", () => {
@@ -63,9 +103,47 @@ describe("createCampaign", () => {
       offer_id: null,
       coupon_id: null,
       target_segment: null,
+      planned_budget: null,
+      daily_budget: null,
+      area: null,
+      age_group: null,
+      gender: null,
+      target_offering: null,
+      whatsapp_message: null,
+      cta_text: null,
+      cta_link: null,
+      landing_page: null,
       created_by: state.supabaseUserId,
       updated_by_firebase_uid: ACTOR,
     });
+  });
+
+  it("writes the targeting, budget and creative fields when provided", async () => {
+    await createCampaign(ACTOR, {
+      ...base,
+      plannedBudget: 20000,
+      dailyBudget: 500,
+      area: "Andheri West",
+      ageGroup: "25-40",
+      gender: "All",
+      targetOffering: "Full Body Checkup package",
+      whatsappMessage: "Flat 20% off this Diwali!",
+      ctaText: "Book Now",
+      ctaLink: "/packages/full-body-checkup",
+      landingPage: "/offers/diwali",
+    });
+
+    const row = lastInsert();
+    expect(row.planned_budget).toBe(20000);
+    expect(row.daily_budget).toBe(500);
+    expect(row.area).toBe("Andheri West");
+    expect(row.age_group).toBe("25-40");
+    expect(row.gender).toBe("All");
+    expect(row.target_offering).toBe("Full Body Checkup package");
+    expect(row.whatsapp_message).toBe("Flat 20% off this Diwali!");
+    expect(row.cta_text).toBe("Book Now");
+    expect(row.cta_link).toBe("/packages/full-body-checkup");
+    expect(row.landing_page).toBe("/offers/diwali");
   });
 
   it("writes the optional fields that were filled in", async () => {
@@ -150,6 +228,7 @@ describe("createLead", () => {
       assigned_admin_id: null,
       assigned_sub_admin_id: null,
       assigned_collection_agent_id: null,
+      booking_id: null,
       created_by: state.supabaseUserId,
       updated_by_firebase_uid: ACTOR,
     });
@@ -198,5 +277,74 @@ describe("updateLead", () => {
     expect(row.updated_by_firebase_uid).toBe(ACTOR);
     expect("name" in row).toBe(false);
     expect("phone" in row).toBe(false);
+  });
+
+  it("links a lead to the real booking it converted into", async () => {
+    await updateLead(ACTOR, "lead-1", { bookingId: "bk-1", status: "CONVERTED" });
+    const row = lastUpdate();
+    expect(row.booking_id).toBe("bk-1");
+    expect(row.status).toBe("CONVERTED");
+  });
+
+  it("unlinks a booking by writing null", async () => {
+    await updateLead(ACTOR, "lead-1", { bookingId: "" });
+    expect(lastUpdate().booking_id).toBeNull();
+  });
+});
+
+describe("searchBookingsForLeadLink", () => {
+  it("returns nothing for a query shorter than 3 characters, without querying at all", async () => {
+    const results = await searchBookingsForLeadLink("99");
+    expect(results).toEqual([]);
+    expect(state.filters.length).toBe(0);
+  });
+
+  it("finds a booking by phone and shapes a human-readable customer label", async () => {
+    const results = await searchBookingsForLeadLink("9990001111");
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({ id: "bk-1", date: "2026-09-01", finalAmount: 1999, customerLabel: "Asha Rao • 9990001111" });
+  });
+
+  it("finds the same booking by name without double-counting it", async () => {
+    const results = await searchBookingsForLeadLink("Asha");
+    expect(results).toHaveLength(1);
+  });
+});
+
+describe("getCampaignPerformance", () => {
+  it("maps a real campaign row, including its ROI figures", async () => {
+    state.rpcResult = [
+      {
+        id: "camp-1", name: "Diwali", status: "RUNNING", spend: 8000,
+        leads: 40, converted: 10, bookings: 10, revenue: 45000, tp: 21000, tpUnknown: 0,
+        grossMargin: 24000, profit: 16000, roi: 200, conversionRate: 25, costPerLead: 200, costPerBooking: 800,
+      },
+    ];
+    const rows = await getCampaignPerformance("2026-09-01", "2026-09-30");
+    expect(state.lastRpc).toEqual({ name: "get_campaign_performance", args: { p_start: "2026-09-01", p_end: "2026-09-30" } });
+    expect(rows).toEqual([
+      {
+        id: "camp-1", name: "Diwali", status: "RUNNING", spend: 8000,
+        leads: 40, converted: 10, bookings: 10, revenue: 45000, tp: 21000, tpUnknown: 0,
+        grossMargin: 24000, profit: 16000, roi: 200, conversionRate: 25, costPerLead: 200, costPerBooking: 800,
+      },
+    ]);
+  });
+
+  it("keeps ROI/conversion/cost figures as null rather than inventing a 0 or Infinity when a campaign has zero spend or zero leads", async () => {
+    state.rpcResult = [
+      { id: "camp-2", name: "Organic", status: "DRAFT", spend: 0, leads: 0, converted: 0, bookings: 0, revenue: 0, tp: 0, tpUnknown: 0, grossMargin: 0, profit: 0, roi: null, conversionRate: null, costPerLead: null, costPerBooking: null },
+    ];
+    const [row] = await getCampaignPerformance();
+    expect(row.roi).toBeNull();
+    expect(row.conversionRate).toBeNull();
+    expect(row.costPerLead).toBeNull();
+    expect(row.costPerBooking).toBeNull();
+  });
+
+  it("passes null for an omitted date range (lifetime performance)", async () => {
+    state.rpcResult = [];
+    await getCampaignPerformance();
+    expect(state.lastRpc).toEqual({ name: "get_campaign_performance", args: { p_start: null, p_end: null } });
   });
 });

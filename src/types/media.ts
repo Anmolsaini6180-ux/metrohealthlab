@@ -10,6 +10,7 @@ export type MediaCategory =
   | "tests"
   | "packages"
   | "labs"
+  | "campaigns"
   | "site_sections"
   // General-purpose stock-photo themes — not tied to one catalogue
   // row (nothing to set relatedId to), just licensed photography an
@@ -47,6 +48,7 @@ export const MEDIA_CATEGORY_LABELS: Record<MediaCategory, string> = {
   tests: "Tests",
   packages: "Packages",
   labs: "Labs",
+  campaigns: "Campaigns",
   site_sections: "Site Sections",
   healthcare_professionals: "Healthcare Professionals",
   families: "Families",

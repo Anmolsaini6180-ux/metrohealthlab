@@ -72,7 +72,11 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { to: "/admin/settings/branding", label: "Branding", icon: "storefront", roles: CAN_MANAGE_CATALOG },
       { to: "/admin/settings/staff", label: "Admin & Staff", icon: "admin_panel_settings", roles: CAN_MANAGE_TEAM },
       { to: "/admin/team/performance", label: "Team Performance", icon: "insights", roles: CAN_VIEW_ANALYTICS },
-      { to: "/admin/finance", label: "Finance", icon: "payments", roles: CAN_VIEW_ANALYTICS },
+      // Tightened from CAN_VIEW_ANALYTICS (which includes SUB_ADMIN):
+      // Finance now surfaces TP, gross margin and expense/salary
+      // categories, none of which are general analytics — see
+      // get_finance_report()'s own can_manage_catalog() gate.
+      { to: "/admin/finance", label: "Finance", icon: "payments", roles: CAN_MANAGE_CATALOG },
     ],
   },
 ];
