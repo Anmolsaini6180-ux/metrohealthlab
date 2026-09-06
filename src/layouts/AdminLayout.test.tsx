@@ -77,6 +77,17 @@ describe("AdminLayout", () => {
     expect(html).toContain(">ADMIN<");
   });
 
+  it("sends the logo to the public website home page, not back into the admin area", () => {
+    const html = render("SUPER_ADMIN");
+    const logoTags = html.match(/<a\s+[^>]*aria-label="Go to the website home page"[^>]*>/g) ?? [];
+    // Desktop topbar + mobile drawer both render the logo link.
+    expect(logoTags.length).toBeGreaterThanOrEqual(1);
+    for (const tag of logoTags) {
+      expect(tag).toContain('href="/"');
+      expect(tag).not.toContain('href="/admin"');
+    }
+  });
+
   it("renders exactly one visible logout control on the desktop shell", () => {
     // Two "Log out" buttons exist in the markup (topbar + drawer), but
     // only the topbar one is meant to show before 1024px CSS kicks in

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import CategoryIcon from "@/components/common/CategoryIcon";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { useAsync } from "@/hooks/useAsync";
+import { useDominantEdgeColor } from "@/hooks/useDominantEdgeColor";
 import { getAssignedMedia } from "@/services/mediaService";
 import { getSiteContent } from "@/services/siteContentService";
 import type { SiteSectionSlot } from "@/types/media";
@@ -270,6 +271,11 @@ function StorySection({
   icon: string;
 }) {
   const image = useAsync(() => getAssignedMedia("site_sections", slot), [slot]);
+  // See useDominantEdgeColor's own comment: once the photo's own edge
+  // colour is sampled, it replaces the blurred copy as the full-bleed
+  // fill, so a plain-studio-background photo reads as intentional
+  // rather than a blurry smear.
+  const dominantColor = useDominantEdgeColor(image.data?.secureUrl);
   return (
     <section className="mh-story">
       {/* Full-bleed background layer, photo or fallback — either way
@@ -284,7 +290,11 @@ function StorySection({
           .mh-story__bg's own comment in home.css for why. */}
       {image.data ? (
         <>
-          <div className="mh-story__bg-fill" aria-hidden="true" style={{ backgroundImage: `url(${image.data.secureUrl})` }} />
+          <div
+            className="mh-story__bg-fill"
+            aria-hidden="true"
+            style={dominantColor ? { backgroundColor: dominantColor, backgroundImage: "none" } : { backgroundImage: `url(${image.data.secureUrl})` }}
+          />
           <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
         </>
       ) : (
@@ -368,6 +378,7 @@ export function SeniorHealthStory({ categories }: { categories: TestCategory[] }
 export function FinalCta() {
   const content = useAsync(() => getSiteContent("homepage_final_cta"), []);
   const image = useAsync(() => getAssignedMedia("site_sections", "homepage_final_cta"), []);
+  const dominantColor = useDominantEdgeColor(image.data?.secureUrl);
 
   if (!content.data?.active || !content.data.title?.trim()) return null;
   const c = content.data;
@@ -376,7 +387,11 @@ export function FinalCta() {
     <section className="mh-story mh-final-cta">
       {image.data ? (
         <>
-          <div className="mh-story__bg-fill" aria-hidden="true" style={{ backgroundImage: `url(${image.data.secureUrl})` }} />
+          <div
+            className="mh-story__bg-fill"
+            aria-hidden="true"
+            style={dominantColor ? { backgroundColor: dominantColor, backgroundImage: "none" } : { backgroundImage: `url(${image.data.secureUrl})` }}
+          />
           <img className="mh-story__bg" src={image.data.secureUrl} alt="" loading="lazy" />
         </>
       ) : (

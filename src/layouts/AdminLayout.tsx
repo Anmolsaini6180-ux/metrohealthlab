@@ -143,7 +143,7 @@ export default function AdminLayout() {
         >
           <span className="mi" aria-hidden="true">{drawerOpen ? "close" : "menu"}</span>
         </button>
-        <Link to="/admin" className="mh-admin-topbar__logo" aria-label="Go to admin dashboard">
+        <Link to="/" className="mh-admin-topbar__logo" aria-label="Go to the website home page">
           <Logo variant="compact" height={28} />
         </Link>
         <div className="mh-admin-topbar__spacer" />
@@ -171,7 +171,7 @@ export default function AdminLayout() {
             <div className="mh-admin-drawer__backdrop" onClick={() => setDrawerOpen(false)} />
             <div className="mh-admin-drawer__panel">
               <div className="mh-admin-drawer__head">
-                <Link to="/admin" className="mh-admin-topbar__logo" aria-label="Go to admin dashboard">
+                <Link to="/" className="mh-admin-topbar__logo" aria-label="Go to the website home page">
                   <Logo variant="compact" height={26} />
                 </Link>
                 <button type="button" className="icon-btn" aria-label="Close menu" onClick={() => setDrawerOpen(false)}>

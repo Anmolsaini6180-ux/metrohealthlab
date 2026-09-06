@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useDominantEdgeColor } from "@/hooks/useDominantEdgeColor";
 import type { Banner } from "@/types/content";
 
 interface Props {
@@ -75,66 +76,7 @@ export default function HeroBanner({ banners, labCount }: Props) {
     <section className="mh-hero-section" aria-label="Featured">
       <div className="mh-hero-track" ref={trackRef}>
         {banners.map((b) => (
-          <article key={b.id} className="mh-hero">
-            {/* Full-bleed backdrop: the SAME photo, blurred and
-                darkened, cropped to fill the whole card edge to edge —
-                this is what makes the banner read as a full-background
-                image regardless of the photo's own aspect ratio.
-                Purely decorative filler, never the actual picture being
-                judged for framing, so aria-hidden. */}
-            <div
-              className="mh-hero__bg-fill"
-              aria-hidden="true"
-              style={{ backgroundImage: `url(${b.imageUrl || FALLBACK_HERO_IMAGE})` }}
-            />
-            {/* The real photo on top, shown WHOLE (object-fit: contain)
-                — no cropping, whatever the source image's own aspect
-                ratio is. Purely decorative (the title/subtitle carry
-                the meaning), so alt stays empty rather than describing
-                generic stock photography as if it depicted this
-                business's own staff or facility. */}
-            <img className="mh-hero__bg" src={b.imageUrl || FALLBACK_HERO_IMAGE} alt="" loading="lazy" />
-            <div className="mh-hero__overlay" aria-hidden="true" />
-
-            <div className="mh-hero__body">
-              <h2 className="mh-hero__title">{b.title}</h2>
-              {b.subtitle && <p className="mh-hero__subtitle">{b.subtitle}</p>}
-              {b.ctaLabel && b.ctaLink && (
-                <Link className="mh-hero__cta" to={b.ctaLink}>
-                  {b.ctaLabel}
-                  <span className="mi" aria-hidden="true">arrow_forward</span>
-                </Link>
-              )}
-            </div>
-
-            <div className="mh-hero__aside">
-              <ul className="mh-hero__features">
-                <li>
-                  <span className="mi" aria-hidden="true">home_health</span>
-                  <span>
-                    <strong>Home Collection</strong>
-                    <em>At your doorstep</em>
-                  </span>
-                </li>
-                <li>
-                  <span className="mi" aria-hidden="true">description</span>
-                  <span>
-                    <strong>Digital Reports</strong>
-                    <em>Fast &amp; secure</em>
-                  </span>
-                </li>
-                {labCount > 0 && (
-                  <li>
-                    <span className="mi" aria-hidden="true">verified</span>
-                    <span>
-                      <strong>{labCount} Trusted Labs</strong>
-                      <em>Compare &amp; choose</em>
-                    </span>
-                  </li>
-                )}
-              </ul>
-            </div>
-          </article>
+          <HeroSlide key={b.id} banner={b} labCount={labCount} />
         ))}
       </div>
 
@@ -153,5 +95,77 @@ export default function HeroBanner({ banners, labCount }: Props) {
         </div>
       )}
     </section>
+  );
+}
+
+// One slide, its own component so useDominantEdgeColor (a hook) can be
+// called once per real image rather than inside the parent's .map().
+function HeroSlide({ banner: b, labCount }: { banner: Banner; labCount: number }) {
+  const imageUrl = b.imageUrl || FALLBACK_HERO_IMAGE;
+  const dominantColor = useDominantEdgeColor(imageUrl);
+
+  return (
+    <article className="mh-hero">
+      {/* Full-bleed backdrop behind the whole card. Once the photo's own
+          edge colour has been sampled (see the hook's own comment for
+          why edges, not the whole image), that flat colour replaces the
+          blurred copy — a photo with a plain studio background then
+          reads as if it were shot in front of this card's own
+          background, rather than as a blurry smear. Until then (or if
+          sampling fails) the blurred copy is what's shown, so there is
+          never a moment with nothing behind the photo. */}
+      <div
+        className="mh-hero__bg-fill"
+        aria-hidden="true"
+        style={dominantColor ? { backgroundColor: dominantColor, backgroundImage: "none" } : { backgroundImage: `url(${imageUrl})` }}
+      />
+      {/* The real photo on top, shown WHOLE (object-fit: contain)
+          — no cropping, whatever the source image's own aspect
+          ratio is. Purely decorative (the title/subtitle carry
+          the meaning), so alt stays empty rather than describing
+          generic stock photography as if it depicted this
+          business's own staff or facility. */}
+      <img className="mh-hero__bg" src={imageUrl} alt="" loading="lazy" />
+      <div className="mh-hero__overlay" aria-hidden="true" />
+
+      <div className="mh-hero__body">
+        <h2 className="mh-hero__title">{b.title}</h2>
+        {b.subtitle && <p className="mh-hero__subtitle">{b.subtitle}</p>}
+        {b.ctaLabel && b.ctaLink && (
+          <Link className="mh-hero__cta" to={b.ctaLink}>
+            {b.ctaLabel}
+            <span className="mi" aria-hidden="true">arrow_forward</span>
+          </Link>
+        )}
+      </div>
+
+      <div className="mh-hero__aside">
+        <ul className="mh-hero__features">
+          <li>
+            <span className="mi" aria-hidden="true">home_health</span>
+            <span>
+              <strong>Home Collection</strong>
+              <em>At your doorstep</em>
+            </span>
+          </li>
+          <li>
+            <span className="mi" aria-hidden="true">description</span>
+            <span>
+              <strong>Digital Reports</strong>
+              <em>Fast &amp; secure</em>
+            </span>
+          </li>
+          {labCount > 0 && (
+            <li>
+              <span className="mi" aria-hidden="true">verified</span>
+              <span>
+                <strong>{labCount} Trusted Labs</strong>
+                <em>Compare &amp; choose</em>
+              </span>
+            </li>
+          )}
+        </ul>
+      </div>
+    </article>
   );
 }
