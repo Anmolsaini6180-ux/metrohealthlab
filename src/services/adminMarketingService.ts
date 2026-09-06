@@ -6,6 +6,8 @@
 // deployed.
 import { getSupabaseClient } from "@/supabase/client";
 import { rowToCampaign, rowToLead } from "@/supabase/mappers";
+import { sendBroadcastNotification } from "@/services/adminOpsService";
+import { buildPhoneMatchMap, normalizePhone } from "@/utils/phoneMatch";
 import type { Campaign, CampaignStatus, Lead, LeadStatus } from "@/types/marketing";
 import type { CampaignPerformance } from "@/types/finance";
 
@@ -244,6 +246,83 @@ export async function updateLead(actorUid: string, leadId: string, input: Partia
 
   const { error } = await getSupabaseClient().from("leads").update(patch).eq("id", leadId);
   if (error) throw error;
+}
+
+export interface BulkLeadNotificationInput {
+  type: "offer" | "system";
+  title: string;
+  message: string;
+  imageUrl?: string;
+  actionUrl?: string;
+}
+
+export interface BulkLeadNotificationResult {
+  totalLeads: number;
+  /** Leads with a phone that matched a registered customer profile, and so actually received the notification (via send_broadcast_notification). */
+  matched: number;
+  /** Leads with no registered account found for their phone — nowhere to deliver an in-app notification, so they were skipped, not silently "sent". */
+  unmatched: number;
+  recipientCount: number;
+}
+
+/**
+ * A lead is often just a name + phone number — there is no in-app
+ * notification inbox to write to unless that phone belongs to a real
+ * registered account. This matches each lead's phone against
+ * profiles.phone (see phoneMatch.ts for the matching rule) and sends
+ * only to the ones that resolve to a real customer, via the same
+ * send_broadcast_notification RPC every other admin notification goes
+ * through — never a second delivery path, and never a fabricated
+ * "sent" for a lead that has nowhere to receive it.
+ *
+ * KNOWN LIMITATION, disclosed rather than hidden: this app signs
+ * customers in by phone-OTP through Firebase, and that phone number is
+ * not currently copied into profiles.phone on sign-in — as of writing,
+ * zero profiles have a phone on file, so this will honestly report 0
+ * matches until that sync gap is fixed separately.
+ */
+export async function sendBulkNotificationToLeads(leadIds: string[], input: BulkLeadNotificationInput): Promise<BulkLeadNotificationResult> {
+  if (leadIds.length === 0) return { totalLeads: 0, matched: 0, unmatched: 0, recipientCount: 0 };
+  const client = getSupabaseClient();
+
+  const { data: leadRows, error: leadError } = await client.from("leads").select("id, phone").in("id", leadIds);
+  if (leadError) throw leadError;
+  const leadPhones = (leadRows ?? []).map((l) => l.phone as string);
+
+  const { data: profileRows, error: profileError } = await client.from("profiles").select("id, phone").not("phone", "is", null).limit(5000);
+  if (profileError) throw profileError;
+  const phoneMap = buildPhoneMatchMap((profileRows ?? []).map((p) => ({ id: p.id as string, phone: p.phone as string | null })));
+
+  const matchedUids = new Set<string>();
+  let matched = 0;
+  for (const phone of leadPhones) {
+    const key = normalizePhone(phone);
+    const uid = key ? phoneMap.get(key) : undefined;
+    if (uid) {
+      matched++;
+      matchedUids.add(uid);
+    }
+  }
+
+  const result =
+    matchedUids.size > 0
+      ? await sendBroadcastNotification({
+          audience: "selected",
+          customerUids: [...matchedUids],
+          type: input.type,
+          title: input.title,
+          message: input.message,
+          imageUrl: input.imageUrl,
+          actionUrl: input.actionUrl,
+        })
+      : { recipientCount: 0 };
+
+  return {
+    totalLeads: leadPhones.length,
+    matched,
+    unmatched: leadPhones.length - matched,
+    recipientCount: result.recipientCount,
+  };
 }
 
 export interface BookingSearchResult {

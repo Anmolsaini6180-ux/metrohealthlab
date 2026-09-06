@@ -101,7 +101,7 @@ export default function BookingsPage() {
               </span>
               <span className="mh-booking-card__body">
                 <span className="mh-booking-card__row">
-                  <span className="mh-booking-card__id">{b.id}</span>
+                  <span className="mh-booking-card__id">{b.reference}</span>
                   <span className={`mh-status-badge ${TONE_CLASS[statusTone(b.bookingStatus)]}`}>
                     {STATUS_LABELS[b.bookingStatus] ?? b.bookingStatus}
                   </span>

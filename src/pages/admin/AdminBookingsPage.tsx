@@ -85,7 +85,7 @@ export default function AdminBookingsPage() {
   // earlier while this only handled the two terminal statuses: it
   // would have been silently wrong the moment a third status flowed
   // through the same dialog).
-  const [pendingStatusChange, setPendingStatusChange] = useState<{ id: string; from: BookingStatus; to: BookingStatus } | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ id: string; reference: string; from: BookingStatus; to: BookingStatus } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Client-side, over whatever the date/status filters above already
   // fetched — a real search over the same real data, not a second
@@ -152,6 +152,7 @@ export default function AdminBookingsPage() {
     return all.filter(
       (b) =>
         b.id.toLowerCase().includes(q) ||
+        b.reference.toLowerCase().includes(q) ||
         (b.contact?.name ?? "").toLowerCase().includes(q) ||
         (b.contact?.phone ?? "").includes(q) ||
         b.items.some((i) => i.name.toLowerCase().includes(q))
@@ -205,7 +206,7 @@ export default function AdminBookingsPage() {
               <div key={b.id} className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <p style={{ fontWeight: 600 }}>{b.id}</p>
+                    <p style={{ fontWeight: 600 }}>{b.reference}</p>
                     <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{b.items.map((i) => i.name).join(", ")}</p>
                     <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{b.date} • {b.collectionType}</p>
                   </div>
@@ -242,7 +243,7 @@ export default function AdminBookingsPage() {
                         onChange={(e) => {
                           const value = e.target.value as BookingStatus;
                           if (value === b.bookingStatus) return;
-                          setPendingStatusChange({ id: b.id, from: b.bookingStatus, to: value });
+                          setPendingStatusChange({ id: b.id, reference: b.reference, from: b.bookingStatus, to: value });
                         }}
                         style={{ padding: 6, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
                       >
@@ -274,7 +275,7 @@ export default function AdminBookingsPage() {
       )}
       {pendingStatusChange && (
         <ConfirmDialog
-          title={`Change booking ${pendingStatusChange.id} from ${STATUS_LABELS[pendingStatusChange.from] ?? pendingStatusChange.from} to ${STATUS_LABELS[pendingStatusChange.to] ?? pendingStatusChange.to}?`}
+          title={`Change booking ${pendingStatusChange.reference} from ${STATUS_LABELS[pendingStatusChange.from] ?? pendingStatusChange.from} to ${STATUS_LABELS[pendingStatusChange.to] ?? pendingStatusChange.to}?`}
           message={
             ["cancelled", "refunded"].includes(pendingStatusChange.to)
               ? "This can't be undone from here — the customer will be notified."

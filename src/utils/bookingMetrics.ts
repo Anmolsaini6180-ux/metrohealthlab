@@ -111,9 +111,11 @@ export const EMPTY_FILTERS: BookingFilters = {
 };
 
 /**
- * Applies the dashboard's search and filters. Search matches booking
- * id, customer name, phone and item names — the things an operator
- * actually has to hand when someone rings up.
+ * Applies the dashboard's search and filters. Search matches the
+ * booking's real id, its human-facing reference (MH-260906-A1B2C —
+ * what a customer would actually read out over a call), customer
+ * name, phone and item names — the things an operator actually has to
+ * hand when someone rings up.
  */
 export function filterBookings(bookings: Booking[], filters: BookingFilters): Booking[] {
   const needle = filters.search.trim().toLowerCase();
@@ -127,6 +129,7 @@ export function filterBookings(bookings: Booking[], filters: BookingFilters): Bo
 
     const haystack = [
       b.id,
+      b.reference,
       b.contact?.name ?? "",
       b.contact?.phone ?? "",
       b.labName ?? "",

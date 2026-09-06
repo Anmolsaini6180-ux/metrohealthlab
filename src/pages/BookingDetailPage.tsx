@@ -33,7 +33,7 @@ export default function BookingDetailPage() {
   return (
     <div style={{ display: "grid", gap: "var(--space-md)" }}>
       <div>
-        <h1 style={{ fontSize: "var(--text-2xl)" }}>{b.id}</h1>
+        <h1 style={{ fontSize: "var(--text-2xl)" }}>{b.reference}</h1>
         <p className="text-soft">{b.date} • {b.collectionType === "home" ? "Home collection" : "Center visit"}</p>
       </div>
 

@@ -65,7 +65,7 @@ export default function AddBookingDialog({
 }: {
   actorUid: string;
   onClose: () => void;
-  onCreated: (bookingId: string) => void;
+  onCreated: (reference: string) => void;
 }) {
   const [mode, setMode] = useState<Mode>("choose");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -175,7 +175,7 @@ export default function AddBookingDialog({
     setBusy(true);
     setError(null);
     try {
-      const { bookingId } = await createStaffBooking(actorUid, {
+      const { reference } = await createStaffBooking(actorUid, {
         item: {
           itemType: form.itemKind,
           refId: form.itemId,
@@ -200,7 +200,7 @@ export default function AddBookingDialog({
         },
         notes: form.notes.trim() || undefined,
       });
-      onCreated(bookingId);
+      onCreated(reference);
     } catch (err) {
       logOperationError("createStaffBooking", err, { source: mode });
       setError(toUserMessage(err));

@@ -14,6 +14,17 @@ const state = vi.hoisted(() => ({
   rpcError: null as unknown,
   lastRpc: null as { name: string; args: Record<string, unknown> } | null,
   filters: [] as { column: string; op: string; value: unknown }[],
+  leadRows: [] as { id: string; phone: string }[],
+  profileRows: [] as { id: string; phone: string | null }[],
+  lastBroadcast: null as Record<string, unknown> | null,
+  broadcastResult: { recipientCount: 0 },
+}));
+
+vi.mock("@/services/adminOpsService", () => ({
+  sendBroadcastNotification: async (payload: Record<string, unknown>) => {
+    state.lastBroadcast = payload;
+    return state.broadcastResult;
+  },
 }));
 
 function bookingsQuery() {
@@ -46,7 +57,13 @@ vi.mock("@/supabase/client", () => ({
     },
     from: (table: string) => {
       if (table === "bookings") return { select: () => bookingsQuery() };
+      if (table === "profiles") return { select: () => ({ not: () => ({ limit: async () => ({ data: state.profileRows, error: null }) }) }) };
       return {
+        // sendBulkNotificationToLeads' own lookup (leads.select().in())
+        // — every other caller here (createLead/updateLead/campaigns)
+        // uses insert/update below instead, never select, so this can
+        // safely live on the same shared fallback branch.
+        select: () => ({ in: async () => ({ data: state.leadRows, error: null }) }),
         insert: (row: Record<string, unknown>) => {
           state.inserts.push(row);
           return { select: () => ({ single: async () => ({ data: { id: "generated-id" }, error: null }) }) };
@@ -64,9 +81,15 @@ vi.mock("@/supabase/client", () => ({
   }),
 }));
 
-const { createCampaign, createLead, updateCampaign, updateLead, getCampaignPerformance, searchBookingsForLeadLink } = await import(
-  "@/services/adminMarketingService"
-);
+const {
+  createCampaign,
+  createLead,
+  updateCampaign,
+  updateLead,
+  getCampaignPerformance,
+  searchBookingsForLeadLink,
+  sendBulkNotificationToLeads,
+} = await import("@/services/adminMarketingService");
 
 const ACTOR = "admin-firebase-uid-1";
 
@@ -80,6 +103,10 @@ beforeEach(() => {
   state.rpcResult = null;
   state.rpcError = null;
   state.lastRpc = null;
+  state.leadRows = [];
+  state.profileRows = [];
+  state.lastBroadcast = null;
+  state.broadcastResult = { recipientCount: 0 };
 });
 
 describe("createCampaign", () => {
@@ -346,5 +373,60 @@ describe("getCampaignPerformance", () => {
     state.rpcResult = [];
     await getCampaignPerformance();
     expect(state.lastRpc).toEqual({ name: "get_campaign_performance", args: { p_start: null, p_end: null } });
+  });
+});
+
+describe("sendBulkNotificationToLeads", () => {
+  const NOTIFICATION = { type: "offer" as const, title: "Diwali offer", message: "Flat 20% off this week." };
+
+  it("returns all-zero without querying anything when given no lead ids", async () => {
+    const result = await sendBulkNotificationToLeads([], NOTIFICATION);
+    expect(result).toEqual({ totalLeads: 0, matched: 0, unmatched: 0, recipientCount: 0 });
+    expect(state.lastBroadcast).toBeNull();
+  });
+
+  it("matches leads to registered customers by phone (ignoring formatting) and sends only to those", async () => {
+    state.leadRows = [
+      { id: "lead-1", phone: "+91 99900 01111" },
+      { id: "lead-2", phone: "9990002222" },
+    ];
+    state.profileRows = [{ id: "user-1", phone: "9990001111" }];
+    state.broadcastResult = { recipientCount: 1 };
+
+    const result = await sendBulkNotificationToLeads(["lead-1", "lead-2"], NOTIFICATION);
+
+    expect(result).toEqual({ totalLeads: 2, matched: 1, unmatched: 1, recipientCount: 1 });
+    expect(state.lastBroadcast).toEqual({
+      audience: "selected",
+      customerUids: ["user-1"],
+      type: "offer",
+      title: "Diwali offer",
+      message: "Flat 20% off this week.",
+      imageUrl: undefined,
+      actionUrl: undefined,
+    });
+  });
+
+  it("never calls the broadcast RPC at all when not one lead matches a real account", async () => {
+    state.leadRows = [{ id: "lead-1", phone: "9990001111" }];
+    state.profileRows = [];
+
+    const result = await sendBulkNotificationToLeads(["lead-1"], NOTIFICATION);
+
+    expect(result).toEqual({ totalLeads: 1, matched: 0, unmatched: 1, recipientCount: 0 });
+    expect(state.lastBroadcast).toBeNull();
+  });
+
+  it("dedupes when two matched leads share the same underlying customer account", async () => {
+    state.leadRows = [
+      { id: "lead-1", phone: "9990001111" },
+      { id: "lead-2", phone: "9990001111" },
+    ];
+    state.profileRows = [{ id: "user-1", phone: "9990001111" }];
+    state.broadcastResult = { recipientCount: 1 };
+
+    const result = await sendBulkNotificationToLeads(["lead-1", "lead-2"], NOTIFICATION);
+    expect(result.matched).toBe(2);
+    expect((state.lastBroadcast!.customerUids as string[]).length).toBe(1);
   });
 });

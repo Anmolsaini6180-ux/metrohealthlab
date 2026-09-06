@@ -85,7 +85,7 @@ export default function TrackBookingPage() {
             <span className="mi">check_circle</span>
           </span>
           <h1 className="mh-track__success-title">Booking Confirmed!</h1>
-          <p className="mh-track__success-id">Booking ID: {booking.id}</p>
+          <p className="mh-track__success-id">Booking ID: {booking.reference}</p>
 
           <div className="mh-track__summary">
             {booking.items.map((it, i) => (
@@ -131,7 +131,7 @@ export default function TrackBookingPage() {
       )}
 
       <div>
-        <h1 style={{ fontSize: "var(--text-xl)" }}>{justBooked ? "Live Status" : `Tracking ${booking.id}`}</h1>
+        <h1 style={{ fontSize: "var(--text-xl)" }}>{justBooked ? "Live Status" : `Tracking ${booking.reference}`}</h1>
         <p className="text-soft">{STEP_LABELS[booking.bookingStatus]}</p>
       </div>
 

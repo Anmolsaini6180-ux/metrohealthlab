@@ -56,7 +56,10 @@ export interface BookingContactSnapshot {
 }
 
 export interface Booking {
-  id: string; // e.g. MH26082000001, generated server-side
+  /** The real Postgres uuid primary key — used for routing/lookups, never shown to a customer or staff member (see `reference` for that). */
+  id: string;
+  /** The human-facing booking number (e.g. MH-260906-A1B2C), generated server-side by whichever booking-creation RPC ran. Always set — every booking-creation path writes one, and it is NOT NULL in the database. */
+  reference: string;
   userId: string;
   patientId: string;
   items: BookingItem[];

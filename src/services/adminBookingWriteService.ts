@@ -49,7 +49,7 @@ export interface StaffBookingInput {
 export async function createStaffBooking(
   _actorUid: string,
   input: StaffBookingInput
-): Promise<{ bookingId: string }> {
+): Promise<{ bookingId: string; reference: string }> {
   const { data, error } = await getSupabaseClient().rpc("create_staff_booking", {
     p_user_id: input.userId ?? null,
     p_patient_id: input.patientId ?? null,
@@ -71,7 +71,8 @@ export async function createStaffBooking(
     p_item_price: input.item.price,
   });
   if (error) throw error;
-  return { bookingId: (data as unknown as { id: string }).id };
+  const row = data as unknown as { id: string; reference: string };
+  return { bookingId: row.id, reference: row.reference };
 }
 
 /**

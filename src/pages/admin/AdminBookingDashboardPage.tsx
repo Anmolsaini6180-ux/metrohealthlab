@@ -197,7 +197,7 @@ export default function AdminBookingDashboardPage() {
                 <tbody>
                   {visible.map((b) => (
                     <tr key={b.id}>
-                      <td style={{ fontWeight: 600 }}>{b.id}</td>
+                      <td style={{ fontWeight: 600 }}>{b.reference}</td>
                       <td>{b.date}</td>
                       <td>
                         {b.contact?.name ?? "—"}
@@ -228,11 +228,11 @@ export default function AdminBookingDashboardPage() {
         <AddBookingDialog
           actorUid={user?.uid ?? ""}
           onClose={() => setAdding(false)}
-          onCreated={(bookingId) => {
+          onCreated={(reference) => {
             setAdding(false);
             // The listener delivers the new row on its own; this is just
             // confirmation that the write landed.
-            showToast(`Booking ${bookingId} created`);
+            showToast(`Booking ${reference} created`);
           }}
         />
       )}
@@ -290,10 +290,10 @@ function BookingDetail({
   }
 
   return (
-    <div className="mh-icon-picker" role="dialog" aria-modal="true" aria-label={`Booking ${booking.id}`} onClick={onClose}>
+    <div className="mh-icon-picker" role="dialog" aria-modal="true" aria-label={`Booking ${booking.reference}`} onClick={onClose}>
       <div className="mh-icon-picker__panel card mh-dialog-scroll" onClick={(e) => e.stopPropagation()}>
         <div className="mh-icon-picker__head">
-          <p style={{ fontWeight: 700 }}>Booking {booking.id}</p>
+          <p style={{ fontWeight: 700 }}>Booking {booking.reference}</p>
           <button type="button" className="icon-btn" aria-label="Close booking" onClick={onClose}>
             <span className="mi">close</span>
           </button>

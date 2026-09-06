@@ -4,7 +4,8 @@ import type { Booking } from "@/types/booking";
 
 function booking(partial: Partial<Booking>): Booking {
   return {
-    id: "MH1",
+    id: "b1-uuid",
+    reference: "MH-260902-00001",
     userId: "u1",
     patientId: "p1",
     items: [{ itemType: "package", refId: "pk1", name: "Full Body", labId: "l1", price: 1000 }],
@@ -126,6 +127,15 @@ describe("filterBookings", () => {
     expect(filterBookings(rows, { ...EMPTY_FILTERS, search: "MH2" }).map((b) => b.id)).toEqual(["MH2"]);
     expect(filterBookings(rows, { ...EMPTY_FILTERS, search: "asha" }).map((b) => b.id)).toEqual(["MH1"]);
     expect(filterBookings(rows, { ...EMPTY_FILTERS, search: "9000000000" }).map((b) => b.id)).toEqual(["MH2"]);
+  });
+
+  it("also searches the human-facing reference, not just the raw uuid id — what a customer actually reads out over a call", () => {
+    const withRefs = [
+      booking({ id: "uuid-1", reference: "MH-260902-A1B2C", contact: { name: "Asha Verma", phone: "9990001111" } }),
+      booking({ id: "uuid-2", reference: "MH-260902-D4E5F", contact: { name: "Ravi Kumar", phone: "9990002222" } }),
+    ];
+    expect(filterBookings(withRefs, { ...EMPTY_FILTERS, search: "d4e5f" }).map((b) => b.id)).toEqual(["uuid-2"]);
+    expect(filterBookings(withRefs, { ...EMPTY_FILTERS, search: "MH-260902" }).map((b) => b.id)).toEqual(["uuid-1", "uuid-2"]);
   });
 
   it("searches the package name", () => {

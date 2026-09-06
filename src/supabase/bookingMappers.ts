@@ -6,6 +6,7 @@ export function rowToBooking(r: Record<string, unknown>): Booking {
   const items = (r.booking_items as Record<string, unknown>[] | undefined) ?? [];
   return {
     id: r.id as string,
+    reference: (r.reference as string) ?? "",
     userId: (r.user_id as string) ?? "",
     patientId: (r.patient_id as string) ?? "",
     items: items.map(
