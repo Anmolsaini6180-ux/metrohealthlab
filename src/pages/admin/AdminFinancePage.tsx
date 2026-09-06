@@ -263,7 +263,7 @@ export default function AdminFinancePage() {
                     <td>{r.customerName}</td>
                     <td>{formatCurrencyInr(r.finalAmount)}</td>
                     <td>{formatCurrencyInr(r.amountReceived)}</td>
-                    <td style={{ fontWeight: 700, color: "var(--color-warning)" }}>{formatCurrencyInr(r.outstanding)}</td>
+                    <td style={{ fontWeight: 700, color: "var(--color-amber)" }}>{formatCurrencyInr(r.outstanding)}</td>
                     <td>{r.assignedAgentName ?? "Unassigned"}</td>
                     <td><StatusBadge status={r.bookingStatus} /></td>
                   </tr>

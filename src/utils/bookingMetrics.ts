@@ -45,10 +45,12 @@ const IN_PROGRESS_STATUSES = new Set([
 // Mirrors run_booking_automation()'s own v_not_progressed definition —
 // kept as one named set here so the dashboard's "Overdue" card count
 // and the database's own overdue alerts can never silently drift into
-// disagreeing about what "not progressed" means.
-const PROGRESSED_STATUSES = new Set(["on_the_way", "arrived", "sample_collected", "received_at_lab", "testing", "report_ready"]);
+// disagreeing about what "not progressed" means. Exported so
+// automationState.ts (the customer tracker's equivalent display) shares
+// this exact same definition instead of keeping its own copy.
+export const PROGRESSED_STATUSES = new Set(["on_the_way", "arrived", "sample_collected", "received_at_lab", "testing", "report_ready"]);
 
-function isUnassigned(b: Booking): boolean {
+export function isUnassigned(b: Booking): boolean {
   return !b.assignedAgentId && !b.assignedAdminId && !b.assignedSubAdminId;
 }
 

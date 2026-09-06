@@ -7,7 +7,7 @@ import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
-import Countdown from "@/components/common/Countdown";
+import { automationStateTone, computeAutomationState, formatAutomationState } from "@/utils/automationState";
 
 const TIMELINE: BookingStatus[] = [
   "confirmed",
@@ -60,6 +60,16 @@ export default function TrackBookingPage() {
   // are live subscriptions (no promise to just retry) rather than a
   // one-shot fetch.
   const [retryKey, setRetryKey] = useState(0);
+  // Drives ONLY the automation-state line's live countdown text below —
+  // a display tick, never a source of truth. Real status changes still
+  // arrive purely through the realtime subscriptions above; this just
+  // keeps "starts in 30m" counting down without waiting on an event.
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -77,6 +87,14 @@ export default function TrackBookingPage() {
   if (booking === null) return <EmptyState icon="search_off" title="Booking not found" />;
 
   const currentIndex = TIMELINE.indexOf(booking.bookingStatus);
+  const automation = computeAutomationState(booking, now);
+  const automationText = formatAutomationState(automation);
+  const toneColor: Record<ReturnType<typeof automationStateTone>, string> = {
+    neutral: "var(--color-ink-soft)",
+    info: "var(--color-primary)",
+    warning: "var(--color-amber)",
+    danger: "var(--color-danger)",
+  };
 
   return (
     <div className="mh-track">
@@ -133,10 +151,31 @@ export default function TrackBookingPage() {
 
       <div>
         <h1 style={{ fontSize: "var(--text-xl)" }}>{justBooked ? "Live Status" : `Tracking ${booking.reference}`}</h1>
-        <p className="text-soft">{STEP_LABELS[booking.bookingStatus]}</p>
-        {booking.bookingStatus !== "cancelled" && booking.bookingStatus !== "refunded" && booking.bookingStatus !== "completed" && (
-          <p style={{ fontSize: "var(--text-sm)", marginTop: 2 }}>
-            <Countdown startAt={booking.startAt} />
+        {/* Real status: only ever changes when staff/admin genuinely
+            changes it via set_booking_status. */}
+        <p className="text-soft" style={{ fontWeight: 600, fontSize: "var(--text-md)" }}>
+          {STEP_LABELS[booking.bookingStatus]}
+        </p>
+        {/* Automation state: a SEPARATE, purely time/staffing-driven line
+            — never implies a real action ("on the way") that hasn't
+            actually happened. Renders nothing once there's nothing left
+            to honestly say (see computeAutomationState's "none" case). */}
+        {automationText && (
+          <p
+            style={{
+              fontSize: "var(--text-sm)",
+              marginTop: 4,
+              color: toneColor[automationStateTone(automation)],
+              fontWeight: automation.kind === "overdue" ? 700 : 500,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <span className="mi" aria-hidden="true" style={{ fontSize: "1em" }}>
+              schedule
+            </span>
+            {automationText}
           </p>
         )}
       </div>

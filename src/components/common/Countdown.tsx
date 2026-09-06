@@ -20,7 +20,7 @@ export default function Countdown({ startAt, className }: { startAt: string | nu
   const state = computeCountdown(startAt, now);
   if (state.kind === "no-time") return null;
 
-  const tone = state.kind === "overdue" ? "var(--color-danger)" : state.kind === "starting-now" ? "var(--color-warning)" : "var(--color-ink-soft)";
+  const tone = state.kind === "overdue" ? "var(--color-danger)" : state.kind === "starting-now" ? "var(--color-amber)" : "var(--color-ink-soft)";
   return (
     <span className={className} style={{ color: tone, fontWeight: state.kind === "overdue" ? 700 : 500 }}>
       {formatCountdown(state)}

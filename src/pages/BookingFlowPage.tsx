@@ -9,16 +9,38 @@ import { checkServiceability } from "@/services/serviceabilityService";
 import { subscribeToSlots } from "@/services/slotService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { createCashBooking, type GetBookingQuoteResponse } from "@/services/bookingService";
+import { updateUserProfile } from "@/services/userService";
 import type { CollectionType } from "@/types/booking";
 import type { Slot } from "@/types/slot";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import BookingStepper from "@/components/common/BookingStepper";
+import PhoneNumberModal from "@/components/common/PhoneNumberModal";
 import { isCallableUnavailable, logOperationError, toUserMessage } from "@/utils/errors";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { buildWhatsAppLink } from "@/utils/whatsappBooking";
 import { isValidIndianMobile, normalizeIndianMobile } from "@/utils/phone";
+
+// ProtectedRoute already sends a logged-out visitor to /login (state:
+// {from: location}) before this page can ever mount — but LoginPage's
+// own redirect-back only ever carried the pathname, not the original
+// location.state, so the test/package the customer picked before being
+// sent to log in was silently lost, landing them on "Nothing selected
+// yet" right after signing in. Persisting it here (and re-reading it
+// below when router state is empty) survives that whole detour,
+// including a real Google OAuth redirect, which cannot carry React
+// Router state through it at all.
+const PENDING_SELECTION_KEY = "mh_pending_booking_selection";
+
+function readStoredSelection(): BookingSelection | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SELECTION_KEY);
+    return raw ? (JSON.parse(raw) as BookingSelection) : null;
+  } catch {
+    return null;
+  }
+}
 
 interface BookingSelection {
   itemType: "test" | "package";
@@ -52,7 +74,21 @@ export default function BookingFlowPage() {
   const { user, profile, supabaseUserId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const selection = location.state as BookingSelection | null;
+  const routerSelection = location.state as BookingSelection | null;
+  const selection = routerSelection ?? readStoredSelection();
+
+  // A real selection just arrived via navigation — keep it around in
+  // case a login/signup detour is about to unmount this page.
+  useEffect(() => {
+    if (routerSelection) {
+      try {
+        sessionStorage.setItem(PENDING_SELECTION_KEY, JSON.stringify(routerSelection));
+      } catch {
+        // best-effort only — worst case is the pre-login-redirect bug
+        // this exists to fix, not a broken booking.
+      }
+    }
+  }, [routerSelection]);
 
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex];
@@ -67,9 +103,14 @@ export default function BookingFlowPage() {
   // account may have no phone at all (user.phoneNumber only exists for
   // the Firebase-phone-OTP auth path — see src/types/authUser.ts).
   const [phone, setPhone] = useState(() => profile?.phone ?? user?.phoneNumber ?? "");
-  const [editingPhone, setEditingPhone] = useState(() => !isValidIndianMobile(profile?.phone ?? user?.phoneNumber ?? ""));
+  // Opens PhoneNumberModal — the ONLY place this number is entered or
+  // changed. There is deliberately no permanent expanded input on the
+  // page itself: a customer with a valid number on file sees a small
+  // confirmation chip, one who doesn't sees a compact prompt, and both
+  // lead to the same modal rather than an ever-present form section.
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   // useAuth() resolves asynchronously — on first render `profile` is
-  // often still null, so the useState initializers above can seed an
+  // often still null, so the useState initializer above can seed an
   // empty phone even for a customer who genuinely has one on file.
   // Fills it in once the real value arrives, but only while the field
   // is still untouched (empty) — never overwrites something the
@@ -78,10 +119,21 @@ export default function BookingFlowPage() {
     const known = profile?.phone ?? user?.phoneNumber ?? "";
     if (known && !phone) {
       setPhone(known);
-      setEditingPhone(!isValidIndianMobile(known));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.phone, user?.phoneNumber]);
+
+  function handlePhoneConfirmed(nextPhone: string) {
+    setPhone(nextPhone);
+    setPhoneModalOpen(false);
+    // Best-effort only: the booking's own contact.phone snapshot (sent
+    // from this same `phone` state in handleConfirm below) is what
+    // actually matters for THIS booking and never depends on this
+    // write succeeding — this just saves a re-ask next time.
+    if (supabaseUserId) {
+      void updateUserProfile(supabaseUserId, { phone: nextPhone }).catch(() => {});
+    }
+  }
   // Optional landmark/gate/collection note — never sent anywhere
   // internal (no tp, no margin), just a note for whoever collects the
   // sample. Deliberately free-text, deliberately optional.
@@ -297,6 +349,11 @@ export default function BookingFlowPage() {
         notes: instructions.trim() || undefined,
       });
       setCreatedBooking(result);
+      try {
+        sessionStorage.removeItem(PENDING_SELECTION_KEY);
+      } catch {
+        // non-fatal — the booking itself already succeeded
+      }
       // justBooked only lives in router state for this one navigation,
       // so TrackBookingPage can show a one-time success banner right
       // after a fresh booking without showing it again on every later
@@ -400,48 +457,45 @@ export default function BookingFlowPage() {
           )}
 
           <div className="mh-contact-phone" style={{ marginTop: "var(--space-md)" }}>
-            <h2 className="mh-booking__section-title">Booking contact number</h2>
-            <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginBottom: 8 }}>
-              Our team will call this number about your booking.
-            </p>
-            {!editingPhone ? (
+            {isValidIndianMobile(phone) ? (
+              // Case C (Section 12): already have a good number — a
+              // small confirmation chip, not a permanent form section.
               <div className="mh-select-card is-selected" style={{ cursor: "default" }}>
                 <span className="mh-select-card__icon" aria-hidden="true">
                   <span className="mi">call</span>
                 </span>
                 <span className="mh-select-card__body">
-                  <span className="mh-select-card__title">+91 {normalizeIndianMobile(phone)}</span>
+                  <span className="mh-select-card__title">Contact number +91 {normalizeIndianMobile(phone)}</span>
                 </span>
-                <button type="button" className="btn btn-outline" onClick={() => setEditingPhone(true)}>
+                <button type="button" className="btn btn-outline" onClick={() => setPhoneModalOpen(true)}>
                   Change
                 </button>
               </div>
             ) : (
-              <div className="mh-pincode-row">
-                <span className="mh-pincode-row__prefix">+91</span>
-                <input
-                  className="mh-pincode-row__input"
-                  type="tel"
-                  inputMode="numeric"
-                  placeholder="10-digit mobile number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  maxLength={10}
-                />
-                {isValidIndianMobile(phone) && (
-                  <button type="button" className="btn btn-outline" onClick={() => setEditingPhone(false)}>
-                    Done
-                  </button>
-                )}
-              </div>
-            )}
-            {phone.trim() !== "" && !isValidIndianMobile(phone) && (
-              <p style={{ color: "var(--color-danger)", fontSize: "var(--text-xs)", marginTop: 4 }}>
-                Enter a valid 10-digit Indian mobile number.
-              </p>
+              // Case B: logged in but nothing valid on file yet — a
+              // compact prompt that opens the explanatory modal, never
+              // a bare input dropped straight into the page.
+              <button type="button" className="mh-add-row" onClick={() => setPhoneModalOpen(true)}>
+                <span className="mi" aria-hidden="true">call</span>
+                Add your phone number
+              </button>
             )}
           </div>
         </section>
+      )}
+
+      {phoneModalOpen && (
+        <PhoneNumberModal
+          initialPhone={phone}
+          title={isValidIndianMobile(phone) ? "Change contact number" : "Add your phone number"}
+          description={
+            isValidIndianMobile(phone)
+              ? undefined
+              : "We need a working number to confirm this booking and send updates as your sample is collected — our team will only call about this booking."
+          }
+          onCancel={() => setPhoneModalOpen(false)}
+          onConfirm={handlePhoneConfirmed}
+        />
       )}
 
       {step === "collection" && (

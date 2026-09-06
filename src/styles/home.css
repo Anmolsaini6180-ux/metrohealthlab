@@ -228,19 +228,46 @@
   background: var(--color-primary);
 }
 
-/* Narrow phones: stack the feature chips under the copy so neither
-   column gets squeezed into an unreadable width. */
+/* Narrow phones: the old approach put body+chips in a single stacked
+   grid column, so the CARD's height was whatever that stacked content
+   needed (title + subtitle + button + three full-width chips easily
+   totalled 500-700px) with the photo's own object-fit: contain box
+   sized to that same inflated height — a lot of it blurred letterbox
+   "empty space" around a comparatively small sharp photo.
+   Below, the card's height instead comes ONLY from aspect-ratio,
+   matching the actual photo's own rough proportions (the real hero
+   images are close to 3:2) — title/button and the feature chips are
+   layered OVER the full image (bottom and top respectively) rather
+   than pushing the box taller. object-fit stays "contain" (unchanged
+   above) — nothing about the photo itself is cropped, only how much
+   dead space surrounds it is bounded. */
 @media (max-width: 420px) {
   .mh-hero {
-    grid-template-columns: minmax(0, 1fr);
-    /* Full-bleed background photo needs a real height to show, even
-       stacked — collapsing to content height (the old min-height: 0)
-       would crush the image down to almost nothing. */
-    min-height: 280px;
+    display: block;
+    aspect-ratio: 4 / 3;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .mh-hero__overlay {
+    /* The side-by-side desktop gradient (dark left, fading right) does
+       nothing for bottom-anchored text over a full-width photo — this
+       darkens the bottom, where the title/button now sit, instead. */
+    background: linear-gradient(to top, rgba(8, 20, 48, 0.78) 0%, rgba(8, 20, 48, 0.4) 38%, rgba(8, 20, 48, 0) 68%);
+  }
+
+  .mh-hero__body {
+    position: absolute;
+    inset: auto 16px 16px 16px;
+    z-index: 3;
   }
 
   .mh-hero__aside {
-    width: 100%;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
   }
 
   .mh-hero__features {
@@ -253,19 +280,20 @@
     align-items: flex-start;
     justify-content: flex-start;
     gap: 2px;
-    padding: 8px 7px;
+    padding: 6px 7px;
+    background: rgba(255, 255, 255, 0.94);
   }
 
   /* Titles differ in length ("Digital Reports" vs "5 Trusted Labs"), so
      let them wrap to two lines but keep every chip the same height —
      otherwise the row reads as three misaligned boxes. */
   .mh-hero__features strong {
-    font-size: 10.5px;
+    font-size: 10px;
     letter-spacing: -0.2px;
   }
 
   .mh-hero__features em {
-    font-size: 9.5px;
+    font-size: 9px;
   }
 }
 

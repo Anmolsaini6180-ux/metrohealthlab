@@ -19,7 +19,15 @@ const RECAPTCHA_CONTAINER_ID = "recaptcha-container";
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: Location })?.from?.pathname ?? "/dashboard";
+  // ProtectedRoute redirects here with state: {from: location} — the
+  // FULL location, including whatever router state the original page
+  // was carrying (e.g. BookingFlowPage's selected test/package). Only
+  // reading `.pathname` and dropping `.state` here used to lose that
+  // selection the moment a logged-out visitor tried to book something,
+  // landing them on "Nothing selected yet" right after signing in.
+  const from = (location.state as { from?: { pathname: string; state?: unknown } })?.from;
+  const fromPath = from?.pathname ?? "/dashboard";
+  const fromState = from?.state;
 
   const [mode, setMode] = useState<Mode>("email");
 
@@ -46,11 +54,15 @@ export default function LoginPage() {
     setGoogleBusy(true);
     setGoogleError(null);
     try {
-      // Redirects the whole browser to Google and back to `from`
+      // Redirects the whole browser to Google and back to `fromPath`
       // directly — there is no signed-in user to navigate with here
       // the way email/password has; a successful call never reaches
       // the line after it because the page has already navigated away.
-      await loginWithGoogle(`${window.location.origin}${from}`);
+      // A real cross-domain redirect cannot carry React Router state,
+      // so fromState can't ride along here — BookingFlowPage's own
+      // sessionStorage fallback (see PENDING_SELECTION_KEY) is what
+      // recovers a lost selection specifically for this path.
+      await loginWithGoogle(`${window.location.origin}${fromPath}`);
     } catch (err) {
       setGoogleError(toUserMessage(err));
       setGoogleBusy(false);
@@ -63,7 +75,7 @@ export default function LoginPage() {
     setEmailError(null);
     try {
       await loginWithEmail(email, password);
-      navigate(from, { replace: true });
+      navigate(fromPath, { replace: true, state: fromState });
     } catch (err) {
       setEmailError(toUserMessage(err));
     } finally {
@@ -117,7 +129,7 @@ export default function LoginPage() {
     setPhoneError(null);
     try {
       await loginWithOtpConfirmation(confirmation, otp);
-      navigate(from, { replace: true });
+      navigate(fromPath, { replace: true, state: fromState });
     } catch (err) {
       setPhoneError(toUserMessage(err));
     } finally {
@@ -296,7 +308,10 @@ export default function LoginPage() {
         )}
 
         <p className="text-soft" style={{ textAlign: "center", marginTop: "var(--space-md)", fontSize: "var(--text-sm)" }}>
-          Don't have an account? <Link to="/signup" style={{ color: "var(--color-primary)", fontWeight: 600 }}>Create account</Link>
+          Don't have an account?{" "}
+          <Link to="/signup" state={from ? { from } : undefined} style={{ color: "var(--color-primary)", fontWeight: 600 }}>
+            Create account
+          </Link>
         </p>
       </div>
 

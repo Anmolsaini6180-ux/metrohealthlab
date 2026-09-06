@@ -1,11 +1,20 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/brand/Logo";
 import { loginWithGoogle, registerAndLoginWithEmail } from "@/services/authService";
 import { toUserMessage } from "@/utils/errors";
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Forwarded from LoginPage's own "Create account" link when this
+  // signup was reached via a booking (or any other) login redirect —
+  // same shape as LoginPage's own `from`, so a customer who chooses to
+  // sign up instead of logging in still lands back where they started
+  // rather than on a generic dashboard.
+  const from = (location.state as { from?: { pathname: string; state?: unknown } })?.from;
+  const fromPath = from?.pathname ?? "/dashboard";
+  const fromState = from?.state;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,10 +37,12 @@ export default function SignupPage() {
     setGoogleBusy(true);
     setGoogleError(null);
     try {
-      // Redirects the whole browser to Google and back to /dashboard
+      // Redirects the whole browser to Google and back to `fromPath`
       // directly — see LoginPage.tsx's own handleGoogle for why there
-      // is no navigate() call after a successful one.
-      await loginWithGoogle(`${window.location.origin}/dashboard`);
+      // is no navigate() call after a successful one, and why fromState
+      // can't ride along a real cross-domain redirect (BookingFlowPage's
+      // sessionStorage fallback covers that case instead).
+      await loginWithGoogle(`${window.location.origin}${fromPath}`);
     } catch (err) {
       setGoogleError(toUserMessage(err));
       setGoogleBusy(false);
@@ -60,7 +71,7 @@ export default function SignupPage() {
         setConfirmSent(true);
         return;
       }
-      navigate("/dashboard", { replace: true });
+      navigate(fromPath, { replace: true, state: fromState });
     } catch (err) {
       setError(toUserMessage(err));
     } finally {

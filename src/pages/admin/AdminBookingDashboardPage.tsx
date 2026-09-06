@@ -194,7 +194,7 @@ export default function AdminBookingDashboardPage() {
                   value === "overdue" && metrics.overdue > 0
                     ? { borderColor: "var(--color-danger)", color: filters.quickFilter === value ? undefined : "var(--color-danger)" }
                     : value === "unassigned" && metrics.unassigned > 0
-                      ? { borderColor: "var(--color-warning)", color: filters.quickFilter === value ? undefined : "var(--color-warning)" }
+                      ? { borderColor: "var(--color-amber)", color: filters.quickFilter === value ? undefined : "var(--color-amber)" }
                       : undefined
                 }
               >

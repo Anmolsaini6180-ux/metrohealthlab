@@ -25,6 +25,13 @@ import { resolveDateRange, type DateRange } from "@/utils/dateRanges";
 import { buildWhatsAppLink } from "@/utils/whatsappBooking";
 import { toUserMessage } from "@/utils/errors";
 
+/** `Lead.createdAt` is whatever Supabase returns for a timestamptz column — an ISO string in practice, but typed `unknown` at the source, so this tolerates anything that isn't one rather than throwing. */
+function formatLeadCreatedAt(createdAt: unknown): string {
+  const date = new Date(createdAt as string);
+  if (Number.isNaN(date.getTime())) return "";
+  return `Created ${date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
+}
+
 export default function AdminLeadsPage() {
   const { user } = useAuth();
   const { role } = useAdminRole();
@@ -32,6 +39,13 @@ export default function AdminLeadsPage() {
   const campaignId = searchParams.get("campaignId") ?? "";
   const [range, setRange] = useState<DateRange>(() => resolveDateRange("thisMonth"));
   const [statusFilter, setStatusFilter] = useState("");
+  // "source" is free text (LeadForm lets an admin type anything), so
+  // these match loosely rather than assuming a fixed enum; "campaign"
+  // means "has a campaignId set" rather than a literal source string —
+  // a WhatsApp/website lead can independently carry campaign
+  // attribution too.
+  const [sourceFilter, setSourceFilter] = useState<"" | "whatsapp" | "website" | "campaign">("");
+  const [convertedFilter, setConvertedFilter] = useState<"" | "converted" | "unconverted">("");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -45,10 +59,22 @@ export default function AdminLeadsPage() {
   const visible = useMemo(() => {
     let rows = leads.data ?? [];
     if (campaignId) rows = rows.filter((l) => l.campaignId === campaignId);
+    if (sourceFilter === "campaign") rows = rows.filter((l) => !!l.campaignId);
+    else if (sourceFilter) rows = rows.filter((l) => (l.source ?? "").toLowerCase() === sourceFilter);
+    if (convertedFilter === "converted") rows = rows.filter((l) => l.status === "CONVERTED");
+    else if (convertedFilter === "unconverted") rows = rows.filter((l) => l.status !== "CONVERTED");
     const q = search.trim().toLowerCase();
-    if (q) rows = rows.filter((l) => l.name.toLowerCase().includes(q) || l.phone.includes(q));
+    if (q) {
+      rows = rows.filter(
+        (l) =>
+          l.name.toLowerCase().includes(q) ||
+          l.phone.includes(q) ||
+          (l.email ?? "").toLowerCase().includes(q) ||
+          (l.bookingId ?? "").toLowerCase().includes(q)
+      );
+    }
     return rows;
-  }, [leads.data, campaignId, search]);
+  }, [leads.data, campaignId, sourceFilter, convertedFilter, search]);
 
   async function handleStatusChange(lead: Lead, status: LeadStatus) {
     if (!user) return;
@@ -116,11 +142,36 @@ export default function AdminLeadsPage() {
 
       <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap", marginBottom: "var(--space-md)", alignItems: "center" }}>
         <DateRangePicker onChange={(r) => setRange(r)} />
+        <select
+          value={sourceFilter}
+          onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
+          style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+        >
+          <option value="">All sources</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="website">Website</option>
+          <option value="campaign">Campaign</option>
+        </select>
+        <select
+          value={convertedFilter}
+          onChange={(e) => setConvertedFilter(e.target.value as typeof convertedFilter)}
+          style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+        >
+          <option value="">Converted &amp; unconverted</option>
+          <option value="converted">Converted only</option>
+          <option value="unconverted">Unconverted only</option>
+        </select>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>
           <option value="">All statuses</option>
           {LEAD_STATUSES.map((s) => <option key={s} value={s}>{LEAD_STATUS_LABELS[s]}</option>)}
         </select>
-        <input type="search" placeholder="Search name or phone..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }} />
+        <input
+          type="search"
+          placeholder="Search name, phone, email or booking ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+        />
       </div>
 
       {leads.loading && <LoadingState rows={3} />}
@@ -199,6 +250,9 @@ function LeadRow({
           <p style={{ fontWeight: 600 }}>{lead.name}</p>
           <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
             {lead.phone}{lead.email ? ` • ${lead.email}` : ""}{lead.source ? ` • ${lead.source}` : ""}
+          </p>
+          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+            {formatLeadCreatedAt(lead.createdAt)}
           </p>
           {campaignName && <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Campaign: {campaignName}</p>}
           {whatsappLink && (
