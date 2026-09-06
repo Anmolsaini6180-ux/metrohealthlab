@@ -70,6 +70,8 @@ export interface Booking {
   collectionType: CollectionType;
   addressId?: string; // required if collectionType === "home"
   date: string; // ISO date
+  /** The real, server-computed instant this booking's slot starts (date + slots.start_time, resolved in Asia/Kolkata) — set by a database trigger, not the browser. Undefined when there is no real slot to compute it from (never a guessed/default time). */
+  startAt?: string;
   slotId: string;
   couponId?: string;
   subtotal: number;

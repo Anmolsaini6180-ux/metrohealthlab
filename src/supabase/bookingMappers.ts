@@ -7,6 +7,7 @@ export function rowToBooking(r: Record<string, unknown>): Booking {
   return {
     id: r.id as string,
     reference: (r.reference as string) ?? "",
+    startAt: (r.start_at as string) ?? undefined,
     userId: (r.user_id as string) ?? "",
     patientId: (r.patient_id as string) ?? "",
     items: items.map(

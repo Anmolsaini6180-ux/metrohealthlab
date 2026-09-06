@@ -7,6 +7,7 @@ import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import Countdown from "@/components/common/Countdown";
 
 const TIMELINE: BookingStatus[] = [
   "confirmed",
@@ -133,6 +134,11 @@ export default function TrackBookingPage() {
       <div>
         <h1 style={{ fontSize: "var(--text-xl)" }}>{justBooked ? "Live Status" : `Tracking ${booking.reference}`}</h1>
         <p className="text-soft">{STEP_LABELS[booking.bookingStatus]}</p>
+        {booking.bookingStatus !== "cancelled" && booking.bookingStatus !== "refunded" && booking.bookingStatus !== "completed" && (
+          <p style={{ fontSize: "var(--text-sm)", marginTop: 2 }}>
+            <Countdown startAt={booking.startAt} />
+          </p>
+        )}
       </div>
 
       {booking.bookingStatus === "payment_pending" ? (

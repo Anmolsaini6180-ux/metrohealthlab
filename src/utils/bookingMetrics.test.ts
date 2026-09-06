@@ -92,6 +92,68 @@ describe("computeBookingMetrics", () => {
     expect(m.inProgress).toBe(2);
     expect(m.completed).toBe(1);
   });
+
+  it("counts unassigned vs assigned among non-terminal bookings only", () => {
+    const m = computeBookingMetrics(
+      [
+        booking({ bookingStatus: "confirmed" }), // unassigned
+        booking({ id: "MH2", bookingStatus: "assigned", assignedAgentId: "agent-1" }),
+        booking({ id: "MH3", bookingStatus: "cancelled" }), // terminal — excluded from both
+      ],
+      TODAY
+    );
+    expect(m.unassigned).toBe(1);
+    expect(m.assigned).toBe(1);
+  });
+
+  it("counts a booking as assigned if ANY of the three assignment columns is set", () => {
+    const m = computeBookingMetrics([booking({ assignedSubAdminId: "sub-1" })], TODAY);
+    expect(m.assigned).toBe(1);
+    expect(m.unassigned).toBe(0);
+  });
+
+  it("counts onTheWay directly from booking_status", () => {
+    const m = computeBookingMetrics([booking({ bookingStatus: "on_the_way" })], TODAY);
+    expect(m.onTheWay).toBe(1);
+  });
+
+  it("counts startingSoon for a real start_at within the next 2 hours, not in the past", () => {
+    const now = new Date("2026-09-06T04:00:00.000Z");
+    const soon = new Date(now.getTime() + 90 * 60000).toISOString();
+    const tooFar = new Date(now.getTime() + 3 * 60 * 60000).toISOString();
+    const past = new Date(now.getTime() - 10 * 60000).toISOString();
+    const m = computeBookingMetrics(
+      [
+        booking({ startAt: soon }),
+        booking({ id: "MH2", startAt: tooFar }),
+        booking({ id: "MH3", startAt: past, bookingStatus: "confirmed" }),
+      ],
+      TODAY,
+      now
+    );
+    expect(m.startingSoon).toBe(1);
+  });
+
+  it("counts overdue only when start_at has passed AND the real status hasn't progressed", () => {
+    const now = new Date("2026-09-06T04:00:00.000Z");
+    const past = new Date(now.getTime() - 20 * 60000).toISOString();
+    const m = computeBookingMetrics(
+      [
+        booking({ startAt: past, bookingStatus: "confirmed" }), // overdue
+        booking({ id: "MH2", startAt: past, bookingStatus: "on_the_way" }), // progressed — not overdue
+        booking({ id: "MH3", startAt: past, bookingStatus: "completed" }), // terminal — not overdue
+      ],
+      TODAY,
+      now
+    );
+    expect(m.overdue).toBe(1);
+  });
+
+  it("never counts a booking with no real start_at as starting soon or overdue", () => {
+    const m = computeBookingMetrics([booking({ startAt: undefined })], TODAY);
+    expect(m.startingSoon).toBe(0);
+    expect(m.overdue).toBe(0);
+  });
 });
 
 describe("pendingFor", () => {
@@ -166,5 +228,42 @@ describe("filterBookings", () => {
   it("treats a booking with no source as a website booking", () => {
     const legacy = [booking({ id: "MH9", source: undefined })];
     expect(filterBookings(legacy, { ...EMPTY_FILTERS, source: "website" })).toHaveLength(1);
+  });
+
+  describe("quickFilter", () => {
+    const now = new Date("2026-09-06T04:00:00.000Z");
+    const soon = new Date(now.getTime() + 90 * 60000).toISOString();
+    const past = new Date(now.getTime() - 20 * 60000).toISOString();
+
+    it("unassigned / assigned", () => {
+      const set = [
+        booking({ id: "u1", bookingStatus: "confirmed" }),
+        booking({ id: "a1", bookingStatus: "assigned", assignedAgentId: "agent-1" }),
+        booking({ id: "done", bookingStatus: "completed" }), // terminal — excluded from both
+      ];
+      expect(filterBookings(set, { ...EMPTY_FILTERS, quickFilter: "unassigned" }, now).map((b) => b.id)).toEqual(["u1"]);
+      expect(filterBookings(set, { ...EMPTY_FILTERS, quickFilter: "assigned" }, now).map((b) => b.id)).toEqual(["a1"]);
+    });
+
+    it("startingSoon / overdue", () => {
+      const set = [
+        booking({ id: "soon", startAt: soon, bookingStatus: "confirmed" }),
+        booking({ id: "late", startAt: past, bookingStatus: "confirmed" }),
+        booking({ id: "handled", startAt: past, bookingStatus: "on_the_way" }), // progressed — not overdue
+      ];
+      expect(filterBookings(set, { ...EMPTY_FILTERS, quickFilter: "startingSoon" }, now).map((b) => b.id)).toEqual(["soon"]);
+      expect(filterBookings(set, { ...EMPTY_FILTERS, quickFilter: "overdue" }, now).map((b) => b.id)).toEqual(["late"]);
+    });
+
+    it("today / tomorrow use the real calendar date, not a fixed offset", () => {
+      const set = [booking({ id: "t", date: "2026-09-06" }), booking({ id: "tm", date: "2026-09-07" })];
+      expect(filterBookings(set, { ...EMPTY_FILTERS, quickFilter: "today" }, now).map((b) => b.id)).toEqual(["t"]);
+      expect(filterBookings(set, { ...EMPTY_FILTERS, quickFilter: "tomorrow" }, now).map((b) => b.id)).toEqual(["tm"]);
+    });
+
+    it("completed", () => {
+      const set = [booking({ id: "c", bookingStatus: "completed" }), booking({ id: "nc", bookingStatus: "confirmed" })];
+      expect(filterBookings(set, { ...EMPTY_FILTERS, quickFilter: "completed" }, now).map((b) => b.id)).toEqual(["c"]);
+    });
   });
 });

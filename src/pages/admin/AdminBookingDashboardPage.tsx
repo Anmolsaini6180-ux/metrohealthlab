@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { subscribeToAdminBookings } from "@/services/bookingService";
 import { recordCashReceived, setBookingStatus } from "@/services/adminBookingWriteService";
-import { getBookingStatusHistory } from "@/services/adminBookingService";
+import { getBookingStatusHistory, assignBooking } from "@/services/adminBookingService";
+import { getTeamMembers } from "@/services/adminTeamService";
 import { useAsync } from "@/hooks/useAsync";
 import { formatCurrencyInr } from "@/services/pricingService";
 import {
@@ -14,6 +16,7 @@ import {
   toDateKey,
   EMPTY_FILTERS,
   type BookingFilters,
+  type QuickFilter,
 } from "@/utils/bookingMetrics";
 import { buildWhatsAppBookingMessage, buildWhatsAppLink } from "@/utils/whatsappBooking";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
@@ -23,6 +26,7 @@ import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import StatusBadge from "@/components/admin/StatusBadge";
+import Countdown from "@/components/common/Countdown";
 import AddBookingDialog from "@/pages/admin/AddBookingDialog";
 import { useToast } from "@/hooks/useToast";
 import type { Booking } from "@/types/booking";
@@ -58,9 +62,17 @@ function sourceLabel(source: string | undefined): string {
 // Operational view over the booking book. Every figure comes from the
 // bookings themselves — there is no separate analytics store to drift
 // out of step, and no seeded or sample rows anywhere in this file.
+const PRIVILEGED = ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN"];
+
 export default function AdminBookingDashboardPage() {
   const { settings } = useBrandingSettings();
   const { user } = useAuth();
+  const staff = useAdminRole();
+  const isPrivileged = !!staff.role && PRIVILEGED.includes(staff.role);
+  const agents = useAsync(
+    () => (isPrivileged ? getTeamMembers(staff, "COLLECTION_AGENT") : Promise.resolve([])),
+    [isPrivileged, staff.uid]
+  );
   const today = toDateKey(new Date());
 
   // Live listener straight onto the bookings table. RLS's
@@ -74,11 +86,40 @@ export default function AdminBookingDashboardPage() {
   const [filters, setFilters] = useState<BookingFilters>(EMPTY_FILTERS);
   const [selected, setSelected] = useState<Booking | null>(null);
   const [adding, setAdding] = useState(false);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const { showToast } = useToast();
 
+  async function handleAssign(bookingId: string, agentUid: string) {
+    if (!agentUid) return;
+    setAssigningId(bookingId);
+    try {
+      await assignBooking(bookingId, agentUid);
+      showToast("Collector assigned.");
+    } catch (err) {
+      logOperationError("assignBooking", err, { bookingId });
+      showToast(toUserMessage(err), "error");
+    } finally {
+      setAssigningId(null);
+    }
+  }
+
+  // The database (booking_status/assignment/start_at, and ultimately
+  // run_booking_automation()) stays the sole authority on what's
+  // "starting soon"/"overdue" — this just re-evaluates that same real
+  // data against a fresher clock every minute, so the Starting
+  // Soon/Overdue cards and countdown column don't sit frozen at
+  // whatever "now" happened to be at the last realtime event.
+  const [clockTick, setClockTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setClockTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const rows = bookings.data ?? [];
-  const metrics = useMemo(() => computeBookingMetrics(rows), [rows]);
-  const visible = useMemo(() => filterBookings(rows, filters), [rows, filters]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const metrics = useMemo(() => computeBookingMetrics(rows), [rows, clockTick]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const visible = useMemo(() => filterBookings(rows, filters), [rows, filters, clockTick]);
 
   // The dialog reads from the live rows rather than the row captured on
   // click, so an edit made here (or by anyone else) is reflected
@@ -127,6 +168,39 @@ export default function AdminBookingDashboardPage() {
             <Kpi label="Payment pending" value={String(metrics.paymentPending)} />
             <Kpi label="Part paid" value={String(metrics.partiallyPaid)} />
             <Kpi label="Fully paid" value={String(metrics.paid)} />
+          </div>
+
+          <p className="mh-dash-section__title" style={{ marginBottom: 6 }}>Upcoming &amp; attention required</p>
+          <div className="mh-filter-row" style={{ marginBottom: "var(--space-sm)" }}>
+            {(
+              [
+                ["", "All"],
+                ["today", "Today"],
+                ["tomorrow", "Tomorrow"],
+                ["next24h", "Next 24h"],
+                ["startingSoon", `Starting Soon${metrics.startingSoon > 0 ? ` (${metrics.startingSoon})` : ""}`],
+                ["unassigned", `Unassigned${metrics.unassigned > 0 ? ` (${metrics.unassigned})` : ""}`],
+                ["assigned", `Assigned (${metrics.assigned})`],
+                ["overdue", `Overdue${metrics.overdue > 0 ? ` (${metrics.overdue})` : ""}`],
+                ["completed", `Completed (${metrics.completed})`],
+              ] as [QuickFilter, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value || "all"}
+                type="button"
+                className={filters.quickFilter === value ? "btn btn-primary" : "btn btn-outline"}
+                onClick={() => update("quickFilter", value)}
+                style={
+                  value === "overdue" && metrics.overdue > 0
+                    ? { borderColor: "var(--color-danger)", color: filters.quickFilter === value ? undefined : "var(--color-danger)" }
+                    : value === "unassigned" && metrics.unassigned > 0
+                      ? { borderColor: "var(--color-warning)", color: filters.quickFilter === value ? undefined : "var(--color-warning)" }
+                      : undefined
+                }
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           <div className="mh-filter-row">
@@ -183,6 +257,7 @@ export default function AdminBookingDashboardPage() {
                   <tr>
                     <th>Booking</th>
                     <th>Date</th>
+                    <th>Starts</th>
                     <th>Customer</th>
                     <th>Items</th>
                     <th>Amount</th>
@@ -191,6 +266,7 @@ export default function AdminBookingDashboardPage() {
                     <th>Payment</th>
                     <th>Status</th>
                     <th>Source</th>
+                    <th>Assign</th>
                     <th />
                   </tr>
                 </thead>
@@ -199,6 +275,9 @@ export default function AdminBookingDashboardPage() {
                     <tr key={b.id}>
                       <td style={{ fontWeight: 600 }}>{b.reference}</td>
                       <td>{b.date}</td>
+                      <td style={{ fontSize: "var(--text-xs)", whiteSpace: "nowrap" }}>
+                        <Countdown startAt={b.startAt} />
+                      </td>
                       <td>
                         {b.contact?.name ?? "—"}
                         {b.contact?.phone && (
@@ -212,6 +291,25 @@ export default function AdminBookingDashboardPage() {
                       <td><StatusBadge status={String(b.paymentStatus)} /></td>
                       <td><StatusBadge status={b.bookingStatus} /></td>
                       <td style={{ whiteSpace: "nowrap" }}>{sourceLabel(b.source)}</td>
+                      <td>
+                        {isPrivileged && !b.assignedAgentId && !b.assignedAdminId && !b.assignedSubAdminId && !["completed", "cancelled", "refunded"].includes(b.bookingStatus) ? (
+                          <select
+                            defaultValue=""
+                            disabled={assigningId === b.id}
+                            onChange={(e) => handleAssign(b.id, e.target.value)}
+                            style={{ padding: 4, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)", fontSize: "var(--text-xs)" }}
+                          >
+                            <option value="" disabled>{assigningId === b.id ? "Assigning..." : "Assign..."}</option>
+                            {(agents.data ?? []).map((a) => (
+                              <option key={a.uid} value={a.uid}>{a.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+                            {b.assignedAgentId || b.assignedAdminId || b.assignedSubAdminId ? "Assigned" : "—"}
+                          </span>
+                        )}
+                      </td>
                       <td>
                         <button className="btn btn-outline" onClick={() => setSelected(b)}>Open</button>
                       </td>
