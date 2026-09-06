@@ -7,9 +7,12 @@ import TestsPage from "@/pages/TestsPage";
 import TestDetailPage from "@/pages/TestDetailPage";
 import PackagesPage from "@/pages/PackagesPage";
 import PackageDetailPage from "@/pages/PackageDetailPage";
-import LabsPage from "@/pages/LabsPage";
+// LabsPage and RadiologyPage are deliberately unrouted below (disabled,
+// not deleted) — the files and their route imports below stay so
+// either can be turned back on by uncommenting.
+// import LabsPage from "@/pages/LabsPage";
 import HealthConcernsPage from "@/pages/HealthConcernsPage";
-import RadiologyPage from "@/pages/RadiologyPage";
+// import RadiologyPage from "@/pages/RadiologyPage";
 import ArticlesPage from "@/pages/ArticlesPage";
 import ArticleDetailPage from "@/pages/ArticleDetailPage";
 import BookingFlowPage from "@/pages/BookingFlowPage";
@@ -82,10 +85,10 @@ export default function App() {
         <Route path="/tests/:slug" element={<TestDetailPage />} />
         <Route path="/packages" element={<PackagesPage />} />
         <Route path="/packages/:slug" element={<PackageDetailPage />} />
-        <Route path="/labs" element={<LabsPage />} />
+        {/* <Route path="/labs" element={<LabsPage />} /> */}
         <Route path="/offers" element={<OffersPage />} />
         <Route path="/health-concerns" element={<HealthConcernsPage />} />
-        <Route path="/radiology" element={<RadiologyPage />} />
+        {/* <Route path="/radiology" element={<RadiologyPage />} /> */}
         <Route path="/articles" element={<ArticlesPage />} />
         <Route path="/articles/:slug" element={<ArticleDetailPage />} />
         <Route path="/about" element={<AboutPage />} />

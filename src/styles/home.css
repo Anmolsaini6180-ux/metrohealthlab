@@ -282,16 +282,21 @@
 
 /* Wide desktop: .container caps at --container-max (1280px), so the
    card itself keeps growing wider while min-height stayed pinned at
-   300px — well past 1024px that's a 4:1+ letterbox. object-fit: contain
-   (see .mh-hero__bg) never crops for that, but a box that wide next to
-   a portrait-ish photo shrinks the photo down to a sliver in the
-   middle to keep it whole. Capping the TRACK's width (not just
-   min-height) keeps the box closer to a real photo's own proportions,
-   so contain has less empty space to leave either side of the photo —
-   it does not eliminate that space for every possible photo shape
-   (nothing can, short of cropping, which is exactly what this layout
-   was built to avoid), which is what .mh-hero__bg-fill's dominant-
-   colour fill is for. */
+   300px — well past 1024px that's a 4:1+ letterbox, which shrinks a
+   contain-fitted photo down to a sliver in the middle to keep it
+   whole. Capping the TRACK's width keeps the box closer to a real
+   photo's own proportions, reducing (never eliminating, for an
+   arbitrary photo shape) how much empty space contain has to leave
+   either side.
+   Desktop specifically ALSO switches the photo itself to object-fit:
+   cover, object-position: top (below) — a deliberate, explicit
+   exception to "never crop" for this one card at this one breakpoint,
+   trimming only the excess at the BOTTOM of the frame (top anchoring
+   keeps the whole face/torso intact) so the card reads as a clean
+   rectangle instead of leaving top/bottom letterboxing on top of the
+   side letterboxing the width cap already reduced. Mobile keeps
+   object-fit: contain (no crop at all) — the width-cap+colour-fill
+   pair is the whole treatment there. */
 @media (min-width: 1024px) {
   .mh-hero {
     min-height: 380px;
@@ -300,6 +305,11 @@
   .mh-hero-track {
     max-width: 820px;
     margin-inline: auto;
+  }
+
+  .mh-hero__bg {
+    object-fit: cover;
+    object-position: center top;
   }
 }
 

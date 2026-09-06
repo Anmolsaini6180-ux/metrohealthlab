@@ -13,7 +13,6 @@ import HeroBanner from "@/components/home/HeroBanner";
 import DoorstepPromo from "@/components/home/DoorstepPromo";
 import PackageShowcase from "@/components/home/PackageShowcase";
 import {
-  CompareLabsPromo,
   DoorstepSteps,
   FamilyCareRow,
   FamilyHealthStory,
@@ -21,7 +20,6 @@ import {
   HealthConcernGrid,
   HealthInsights,
   HomeCollectionStory,
-  RadiologyRow,
   SeniorHealthStory,
   WhyChooseUs,
   isHealthConcern,
@@ -65,6 +63,7 @@ export default function HomePage() {
       {/* ---- Categories ---- */}
       {categories.loading && <LoadingState rows={1} label="Loading categories..." />}
       {categories.error && <ErrorState message={categories.error} onRetry={categories.retry} />}
+      {tests.error && <ErrorState message={tests.error} onRetry={tests.retry} />}
       {categories.data && <QuickCategories categories={quickCategories} tests={testList} />}
 
       {/* ---- Doorstep reassurance ---- */}
@@ -78,9 +77,6 @@ export default function HomePage() {
       )}
       {packages.data && packages.data.length > 0 && <PackageShowcase packages={packages.data} />}
 
-      {/* ---- Compare labs ---- */}
-      <CompareLabsPromo labCount={labs.data?.length ?? 0} />
-
       {/* ---- Health concerns ---- */}
       {categories.data && categories.data.length === 0 && (
         <EmptyState
@@ -93,10 +89,6 @@ export default function HomePage() {
 
       {/* ---- Family care ---- */}
       {categories.data && <FamilyCareRow categories={categoryList} />}
-
-      {/* ---- Radiology ---- */}
-      {tests.error && <ErrorState message={tests.error} onRetry={tests.retry} />}
-      {tests.data && <RadiologyRow categories={categoryList} tests={testList} />}
 
       {/* ---- Large visual storytelling — image comes only from Admin ->
           Media Library (site_sections); copy/CTA are real either way ---- */}

@@ -45,9 +45,7 @@ export default function Header() {
           <Link to="/tests">Tests</Link>
           <Link to="/packages">Packages</Link>
           <Link to="/offers">Offers</Link>
-          <Link to="/labs">Compare Labs</Link>
           <Link to="/health-concerns">Health Concerns</Link>
-          <Link to="/radiology">Radiology</Link>
           <Link to="/articles">Articles</Link>
           {/* Desktop only, deliberately: the mobile icon row is already
               at capacity (a 4th icon there once pushed the wordmark to

@@ -162,32 +162,11 @@ export default function PackageDetailPage() {
         </div>
       )}
 
-      <div>
-        <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Compare labs</h2>
-        {pricing.loading && <LoadingState rows={2} />}
-        {pricing.error && <ErrorState message={pricing.error} onRetry={pricing.retry} />}
-        {pricing.data && pricing.data.length === 0 && (
-          <EmptyState icon="storefront" title="No labs currently offer this package" />
-        )}
-        {pricing.data && pricing.data.length > 0 && (
-          <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-            {pricing.data.map((pr) => (
-              <div key={pr.id} className="mh-pkgdetail__lab-row">
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontWeight: 700 }}>{labNameById.get(pr.labId) ?? "Partner lab"}</p>
-                  <p style={{ fontWeight: 600, color: "var(--color-primary)" }}>{formatCurrencyInr(pr.price)}</p>
-                  <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-                    {pr.collectionType === "both" ? "Home & Center" : pr.collectionType} • Reports in {pr.reportTat}
-                  </p>
-                </div>
-                <button className="btn btn-accent" onClick={() => bookWithLab(pr.labId, pr.price, pr.id, labNameById.get(pr.labId))}>
-                  Book
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* "Compare labs" list is disabled site-wide (not deleted — see
+          LabsPage's own route in App.tsx for the matching note). The
+          `pricing` subscription above it stays: bookPrice/bookLabId/
+          cheapest, used by the "Book Now" button, are computed from
+          it regardless of whether this list renders. */}
 
       {p.faq && p.faq.length > 0 && (
         <div>
