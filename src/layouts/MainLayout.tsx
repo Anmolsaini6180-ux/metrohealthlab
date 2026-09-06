@@ -6,8 +6,16 @@ import { firebaseConfigured } from "@/firebase/config";
 import FirebaseSetupNotice from "@/components/common/FirebaseSetupNotice";
 import InstallAppPrompt from "@/components/common/InstallAppPrompt";
 import CallToBookButton from "@/components/layout/CallToBookButton";
+import { useAuth } from "@/hooks/useAuth";
+import { useNotificationPush } from "@/hooks/useNotificationPush";
 
 export default function MainLayout() {
+  // Mounted here (once per page), never inside NotificationBell (which
+  // renders twice at once — mobile + desktop nav — and would fire a
+  // duplicate OS notification per real one if it owned this instead).
+  const { supabaseUserId } = useAuth();
+  useNotificationPush(supabaseUserId);
+
   return (
     <div className="app-shell">
       <Header />

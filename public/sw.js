@@ -16,6 +16,21 @@ self.addEventListener("install", (event) => {
   );
 });
 
+// Lets a tap on the OS-level toast (see useNotificationPush.ts) bring
+// an already-open tab to the front instead of always opening a new
+// one, the way a real notification is expected to behave.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) return client.focus();
+      }
+      return self.clients.openWindow("/notifications");
+    })
+  );
+});
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>

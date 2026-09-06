@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotificationPush } from "@/hooks/useNotificationPush";
 import { CAN_MANAGE_CATALOG, CAN_MANAGE_TEAM, CAN_VIEW_ANALYTICS } from "@/types/team";
 import Logo from "@/components/brand/Logo";
 import Breadcrumbs from "@/components/admin/Breadcrumbs";
@@ -83,7 +84,10 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
 
 export default function AdminLayout() {
   const { role } = useAdminRole();
-  const { profile, user } = useAuth();
+  const { profile, user, supabaseUserId } = useAuth();
+  // Mounted once here (not inside NotificationBell, which renders
+  // twice at once) — see useNotificationPush's own comment.
+  useNotificationPush(supabaseUserId);
   const navigate = useNavigate();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
