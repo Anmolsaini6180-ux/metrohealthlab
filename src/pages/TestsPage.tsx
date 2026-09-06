@@ -5,6 +5,8 @@ import CardGridSkeleton from "@/components/common/CardGridSkeleton";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import TestCard from "@/components/common/TestCard";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema } from "@/utils/seoSchema";
 import type { DiagnosticTest } from "@/types/test";
 
 export default function TestsPage() {
@@ -33,6 +35,25 @@ export default function TestsPage() {
 
   return (
     <div className="mh-alltests">
+      <Seo
+        title={activeCategory ? `${activeCategory.name} — Book Diagnostic Tests` : "Diagnostic Tests — Book Online"}
+        description={
+          activeCategory
+            ? `Browse and book ${activeCategory.name.toLowerCase()} with home sample collection from Metro Health Lab.`
+            : "Browse Metro Health Lab's full range of diagnostic tests. Compare prices, check preparation requirements, and book with home sample collection."
+        }
+        // Canonicalizes every ?q=/?category= variation back to the
+        // plain listing — a search-term or category filter is the
+        // same underlying page/content, not a distinct page worth its
+        // own indexed URL (the classic SPA index-bloat trap: without
+        // this, Google could crawl and index unlimited /tests?q=<junk>
+        // permutations as separate thin pages).
+        path="/tests"
+        // A search-results view is thin/duplicate by nature — never
+        // indexed, regardless of what was searched for.
+        index={!q}
+        jsonLd={buildBreadcrumbSchema([{ name: "Home", path: "/" }, { name: "Tests", path: "/tests" }])}
+      />
       <aside className="mh-alltests__sidebar">
         <h2 className="mh-alltests__sidebar-title">Categories</h2>
         <nav className="mh-alltests__cat-list" aria-label="Filter by category">

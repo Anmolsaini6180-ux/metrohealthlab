@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 import ContactPage from "@/pages/ContactPage";
 import type { BrandingSettings } from "@/types/settings";
 
@@ -10,12 +11,18 @@ vi.mock("@/hooks/useBrandingSettings", () => ({
   useBrandingSettings: () => ({ settings: branding.value, loading: false }),
 }));
 
+// ContactPage now renders <Seo> (react-helmet-async's <Helmet>), which
+// needs a HelmetProvider ancestor — the real app always has exactly
+// one at its root (see main.tsx), so adding it here matches production
+// rather than working around a real bug.
 function render(settings: Partial<BrandingSettings> | null): string {
   branding.value = settings ? ({ businessName: "Metro Health Lab", ...settings } as BrandingSettings) : null;
   return renderToStaticMarkup(
-    <MemoryRouter>
-      <ContactPage />
-    </MemoryRouter>
+    <HelmetProvider>
+      <MemoryRouter>
+        <ContactPage />
+      </MemoryRouter>
+    </HelmetProvider>
   );
 }
 

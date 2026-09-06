@@ -5,6 +5,8 @@ import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { getTestBySlug } from "@/services/testService";
 import { subscribeToActiveLabs, subscribeToLabPricingForTest } from "@/services/labService";
 import { formatCurrencyInr } from "@/services/pricingService";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema, buildFaqSchema, buildProductSchema } from "@/utils/seoSchema";
 import type { LabPricing } from "@/types/lab";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
@@ -52,8 +54,44 @@ export default function TestDetailPage() {
     });
   }
 
+  // Compare Labs is disabled site-wide (not deleted — see LabsPage's
+  // own route in App.tsx for the matching note, and PackageDetailPage's
+  // identical treatment). This page used to show every lab's price as
+  // its own list with a per-row "Book" button; real bug found and fixed
+  // here while auditing for SEO: that list was still fully live on this
+  // page even though it was removed everywhere else on the site. The
+  // `pricing` subscription stays — it's what the single Book Now button
+  // below uses to book at the best price actually on offer.
+  const cheapest = (pricing.data ?? []).reduce<LabPricing | null>(
+    (best, row) => (best === null || row.price < best.price ? row : best),
+    null
+  );
+  const bookPrice = cheapest?.price ?? t.sellingPrice;
+  const bookLabId = cheapest?.labId ?? t.labIds[0] ?? "";
+  const discountPercent = t.mrp > bookPrice ? Math.round(((t.mrp - bookPrice) / t.mrp) * 100) : null;
+
+  const canonicalPath = `/tests/${t.slug}`;
+  const seoTitle = t.seoTitle || `${t.name} — Book Online`;
+  const seoDescription =
+    t.seoDescription ||
+    `Book ${t.name} with home sample collection. ${t.sampleType} sample, reports in ${t.reportTat}. Pay Cash on Home.`;
+
   return (
     <div style={{ display: "grid", gap: "var(--space-lg)" }}>
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        path={canonicalPath}
+        jsonLd={[
+          buildBreadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Tests", path: "/tests" },
+            { name: t.name, path: canonicalPath },
+          ]),
+          buildProductSchema({ name: t.name, description: t.description, price: bookPrice, path: canonicalPath }),
+          t.faq && t.faq.length > 0 ? buildFaqSchema(t.faq) : null,
+        ].filter(Boolean)}
+      />
       <div>
         <h1 style={{ fontSize: "var(--text-2xl)" }}>{t.name}</h1>
         <p className="text-soft" style={{ marginTop: 4 }}>
@@ -71,34 +109,32 @@ export default function TestDetailPage() {
         </div>
       )}
 
-      <div>
-        <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Compare labs</h2>
+      <div className="card">
         {pricing.loading && <LoadingState rows={2} />}
         {pricing.error && <ErrorState message={pricing.error} onRetry={pricing.retry} />}
         {pricing.data && pricing.data.length === 0 && (
           <EmptyState icon="storefront" title="No labs currently offer this test" />
         )}
         {pricing.data && pricing.data.length > 0 && (
-          <div style={{ display: "grid", gap: "var(--space-sm)" }}>
-            {pricing.data.map((p) => (
-              <div
-                key={p.id}
-                className="card"
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-sm)" }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontWeight: 700 }}>{labNameById.get(p.labId) ?? "Partner lab"}</p>
-                  <p style={{ fontWeight: 600, color: "var(--color-primary)" }}>{formatCurrencyInr(p.price)}</p>
-                  <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-                    {p.collectionType === "both" ? "Home & Center" : p.collectionType} • Reports in {p.reportTat}
-                  </p>
-                </div>
-                <button className="btn btn-accent" onClick={() => bookWithLab(p.labId, p.price, p.id, labNameById.get(p.labId))}>
-                  Book
-                </button>
-              </div>
-            ))}
-          </div>
+          <>
+            <p className="mh-pkgdetail__price-row" style={{ margin: 0 }}>
+              <span className="mh-pkgdetail__price">{formatCurrencyInr(bookPrice)}</span>
+              {discountPercent !== null && (
+                <>
+                  <s className="mh-pkgdetail__mrp">{formatCurrencyInr(t.mrp)}</s>
+                  <span className="mh-pkgdetail__off">{discountPercent}% OFF</span>
+                </>
+              )}
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: "var(--space-sm)" }}
+              onClick={() => bookWithLab(bookLabId, bookPrice, cheapest?.id ?? "", cheapest ? labNameById.get(cheapest.labId) : undefined)}
+            >
+              Book Now
+              <span className="mi" aria-hidden="true">arrow_forward</span>
+            </button>
+          </>
         )}
       </div>
 

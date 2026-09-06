@@ -352,6 +352,59 @@ Useful commands:
 
 ## Media and report uploads
 
+> **Current plan: Spark.** Image upload works today through an **unsigned**
+> Cloudinary upload preset. Report upload/download and the shared media library
+> index still require Cloud Functions — see "What works now vs. what needs Blaze".
+
+### Cloudinary upload preset (one-time, required for image upload)
+
+1. Cloudinary console -> **Settings -> Upload -> Upload presets -> Add upload preset**.
+2. **Signing Mode: Unsigned.** Copy the generated preset name.
+3. Restrict the preset — these are the real limits, because anything the browser
+   checks can be bypassed:
+   - **Folder:** `metro-health`
+   - **Allowed formats:** `jpg, png, webp, gif, svg`
+   - **Max file size:** 5 MB
+   - **Delivery type:** `upload`
+4. Put the two **public** values where the frontend can read them:
+
+   | Variable | Value |
+   |---|---|
+   | `VITE_CLOUDINARY_CLOUD_NAME` | your Cloudinary cloud name |
+   | `VITE_CLOUDINARY_UPLOAD_PRESET` | the unsigned preset name from step 2 |
+
+   - **Local dev:** a `.env` file in the repo root (git-ignored).
+   - **Production:** Vercel -> Project -> **Settings -> Environment Variables**,
+     added to **Production and Preview**, then redeploy. Vite inlines these at
+     build time, so an existing deployment will not pick them up on its own.
+
+5. **Test it:** Admin -> **Settings -> Branding** -> *Upload image* on the Logo
+   field. A progress bar runs to 100%, the preview updates, and **Save** stores
+   the delivered URL in `settings/branding`. Confirm the asset landed under
+   `metro-health/branding` in the Cloudinary Media Library.
+
+**Never commit:** `CLOUDINARY_API_SECRET`, any Razorpay key secret or webhook
+secret, a Firebase service-account JSON, or a populated `.env`. Only
+`.env.example` — names, no values — belongs in git.
+
+### What works now vs. what needs Blaze
+
+| Upload | Spark (now) | Needs Cloud Functions |
+|---|---|---|
+| Branding logo / favicon | yes — unsigned Cloudinary, URL saved in `settings/branding` | — |
+| Banner / offer / article images | yes — same path, URL saved on the document | — |
+| Shared media library index (`mediaAssets`) | read-only | `confirmMediaUpload`, `deleteMediaAsset` |
+| Patient report upload | no | `confirmReportUpload`, `setReportReady` |
+| Report download link | no | `getReportDownloadUrl` |
+
+`mediaAssets` and `reports` are `allow write: if false` in `firestore.rules`
+**on purpose**: a report is health data whose owning customer must be derived
+from the booking server-side, so a staff account can never file one against the
+wrong patient. That protection is not something an upload widget should route
+around, so those two stay backend-gated rather than being loosened for Spark.
+
+### The signed flow (restored automatically on Blaze)
+
 There is no Firebase Storage console step any more.
 
 **Images** (logo, favicon, banners, test/package/lab images):

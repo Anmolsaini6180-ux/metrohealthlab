@@ -5,6 +5,8 @@ import CardGridSkeleton from "@/components/common/CardGridSkeleton";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import PackageCard from "@/components/common/PackageCard";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema } from "@/utils/seoSchema";
 
 export default function PackagesPage() {
   const [params] = useSearchParams();
@@ -23,6 +25,13 @@ export default function PackagesPage() {
 
   return (
     <div>
+      <Seo
+        title="Health Checkup Packages — Book Online"
+        description="Compare and book Metro Health Lab's health checkup packages — full body, thyroid, diabetes, women's and senior health panels — with home sample collection."
+        path="/packages"
+        index={!q}
+        jsonLd={buildBreadcrumbSchema([{ name: "Home", path: "/" }, { name: "Packages", path: "/packages" }])}
+      />
       <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-md)" }}>
         {q ? `Results for "${q}"` : "Health packages"}
       </h1>

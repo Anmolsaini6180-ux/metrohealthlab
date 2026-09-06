@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 import App from "./App";
 import { AuthProvider } from "@/hooks/useAuth";
 import { BrandingSettingsProvider } from "@/hooks/useBrandingSettings";
@@ -9,15 +10,17 @@ import "@/styles/global.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <BrandingSettingsProvider>
-          <ToastProvider>
-            <App />
-          </ToastProvider>
-        </BrandingSettingsProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <BrandingSettingsProvider>
+            <ToastProvider>
+              <App />
+            </ToastProvider>
+          </BrandingSettingsProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </HelmetProvider>
   </React.StrictMode>
 );
 

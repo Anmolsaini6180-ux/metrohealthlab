@@ -4,7 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Metro Health Lab</title>
-    <meta name="description" content="Book diagnostic tests, health packages and home sample collection with Metro Health Lab." />
+    <!-- No static <meta name="description"> here on purpose: every
+         route renders <Seo> (src/components/common/Seo.tsx, via
+         react-helmet-async), which sets one client-side. Helmet only
+         ever tracks tags it renders itself — it has no way to find or
+         remove a plain static tag already in this file — so a
+         hardcoded description here would end up sitting ALONGSIDE
+         Helmet's real one as a silent duplicate <meta name="description">,
+         rather than being replaced by it (confirmed live: querying the
+         DOM after mount found two). The one gap this leaves — a crawler
+         that does not execute JS sees no description at all instead of
+         a wrong one — is strictly better than a wrong, non-unique one
+         on every single page, and is the same already-disclosed
+         CSR/Helmet limitation every other per-page tag already has. -->
 
     <!-- PWA: makes Chrome offer "Install app" instead of just
          "Add to Home screen", and gives the installed app its icon,

@@ -4,6 +4,7 @@ import Logo from "@/components/brand/Logo";
 import { updateUserPassword } from "@/services/authService";
 import { useAuth } from "@/hooks/useAuth";
 import { toUserMessage } from "@/utils/errors";
+import Seo from "@/components/common/Seo";
 
 // Where ForgotPasswordPage's reset link actually lands: Supabase puts a
 // recovery token in the URL, its client SDK exchanges it for a real
@@ -45,6 +46,9 @@ export default function ResetPasswordPage() {
 
   return (
     <div style={{ maxWidth: 400, margin: "0 auto", padding: "var(--space-xl) 0" }}>
+      {/* noindex: this URL carries a one-time Supabase recovery token as
+          a query/hash param — it should never be indexed or crawled. */}
+      <Seo title="Reset Password" description="Set a new password for your Metro Health Lab account." path="/reset-password" index={false} />
       <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-md)" }}>
         <Logo variant="full" height={56} />
       </div>

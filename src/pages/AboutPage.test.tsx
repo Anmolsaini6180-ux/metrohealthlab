@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { HelmetProvider } from "react-helmet-async";
 import AboutPage from "@/pages/AboutPage";
 import type { BrandingSettings } from "@/types/settings";
 
 // Rendered through react-dom/server, same pattern as the other
-// branding-driven components in this project.
+// branding-driven components in this project. AboutPage now renders
+// <Seo> (react-helmet-async's <Helmet> under the hood), which throws
+// without a HelmetProvider ancestor — wrapping it here is the correct
+// fix, not a workaround: the real app always has exactly one
+// HelmetProvider at its root (see main.tsx), so this makes the test
+// match production, not paper over a real bug.
 const branding = vi.hoisted(() => ({ value: null as BrandingSettings | null }));
 
 vi.mock("@/hooks/useBrandingSettings", () => ({
@@ -13,7 +19,11 @@ vi.mock("@/hooks/useBrandingSettings", () => ({
 
 function render(settings: Partial<BrandingSettings> | null): string {
   branding.value = settings ? ({ businessName: "Metro Health Lab", ...settings } as BrandingSettings) : null;
-  return renderToStaticMarkup(<AboutPage />);
+  return renderToStaticMarkup(
+    <HelmetProvider>
+      <AboutPage />
+    </HelmetProvider>
+  );
 }
 
 describe("AboutPage", () => {

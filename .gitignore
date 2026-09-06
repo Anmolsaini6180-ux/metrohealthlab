@@ -1,6 +1,11 @@
 node_modules
 dist
 dist-ssr
+
+# Generated fresh by `npm run build` (scripts/generate-sitemap.mjs) from
+# the live catalog on every deploy — committing it would just churn the
+# same way a committed dist/ would.
+public/sitemap.xml
 *.local
 .env
 .env.local

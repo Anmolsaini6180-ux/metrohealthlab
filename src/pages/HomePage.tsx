@@ -1,5 +1,7 @@
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import Seo from "@/components/common/Seo";
+import { buildOrganizationSchema, buildWebsiteSchema } from "@/utils/seoSchema";
 import { subscribeToArticles, subscribeToBanners } from "@/services/contentService";
 import { subscribeToTestCategories, subscribeToTests } from "@/services/testService";
 import { subscribeToPackages } from "@/services/packageService";
@@ -55,6 +57,12 @@ export default function HomePage() {
 
   return (
     <div className="mh-home">
+      <Seo
+        title="Diagnostic Tests & Health Checkups with Home Sample Collection"
+        description="Book blood tests, health checkups and diagnostic packages with Metro Health Lab. Home sample collection, digital reports, and Cash on Home payment."
+        path="/"
+        jsonLd={[buildWebsiteSchema(), buildOrganizationSchema(settings)].filter(Boolean)}
+      />
       {/* ---- Hero ---- */}
       {banners.loading && <LoadingState rows={1} label="Loading offers..." />}
       {banners.error && <ErrorState message={banners.error} onRetry={banners.retry} />}

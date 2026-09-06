@@ -6,6 +6,8 @@ import { getPackageBySlug } from "@/services/packageService";
 import { getTests } from "@/services/testService";
 import { subscribeToActiveLabs, subscribeToLabPricingForPackage } from "@/services/labService";
 import { formatCurrencyInr } from "@/services/pricingService";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema, buildFaqSchema, buildProductSchema } from "@/utils/seoSchema";
 import type { LabPricing } from "@/types/lab";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
@@ -75,8 +77,28 @@ export default function PackageDetailPage() {
   const bookLabId = cheapest?.labId ?? p.labIds[0] ?? "";
   const discountPercent = p.mrp > bookPrice ? Math.round(((p.mrp - bookPrice) / p.mrp) * 100) : null;
 
+  const canonicalPath = `/packages/${p.slug}`;
+  const seoTitle = p.seoTitle || `${p.name} — Book Online`;
+  const seoDescription =
+    p.seoDescription ||
+    `${p.name}: ${includedTests.length > 0 ? `${includedTests.length}+ tests, ` : ""}reports in ${p.reportTat}${p.homeCollection ? ", with home sample collection" : ""}. Pay Cash on Home.`;
+
   return (
     <div className="mh-pkgdetail">
+      <Seo
+        title={seoTitle}
+        description={seoDescription}
+        path={canonicalPath}
+        jsonLd={[
+          buildBreadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Packages", path: "/packages" },
+            { name: p.name, path: canonicalPath },
+          ]),
+          buildProductSchema({ name: p.name, description: p.description || seoDescription, price: bookPrice, path: canonicalPath }),
+          p.faq && p.faq.length > 0 ? buildFaqSchema(p.faq) : null,
+        ].filter(Boolean)}
+      />
       <div className="mh-pkgdetail__topbar">
         <button className="mh-pkgdetail__back" onClick={() => navigate(-1)} aria-label="Go back">
           <span className="mi" aria-hidden="true">arrow_back</span>
@@ -141,7 +163,12 @@ export default function PackageDetailPage() {
         </button>
         {cheapest && labNameById.get(cheapest.labId) && (
           <p className="text-soft" style={{ fontSize: "var(--text-xs)", marginTop: 4 }}>
-            Best price at {labNameById.get(cheapest.labId)} — compare all labs below
+            {/* Real bug fixed here: this used to say "...compare all
+                labs below", promising a list that was removed when
+                Compare Labs was disabled site-wide (see the comment
+                further down) — leaving customers looking for a section
+                that no longer exists. */}
+            Best price at {labNameById.get(cheapest.labId)}
           </p>
         )}
       </div>

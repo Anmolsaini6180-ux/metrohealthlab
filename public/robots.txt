@@ -1,0 +1,40 @@
+User-agent: *
+Allow: /
+
+# Authenticated customer areas — already behind a login redirect and
+# an explicit noindex meta tag (see ProtectedRoute.tsx), disallowed
+# here too as a second, independent layer. robots.txt alone is not an
+# indexing control (a disallowed URL can still be indexed by its
+# anchor text without ever being crawled) — the noindex meta tag is
+# the real control; this just saves crawl budget on pages Google could
+# never render anyway without a session.
+Disallow: /dashboard
+Disallow: /book
+Disallow: /bookings
+Disallow: /track/
+Disallow: /reports
+Disallow: /profile
+Disallow: /family
+Disallow: /addresses
+Disallow: /notifications
+Disallow: /support
+
+# Admin / staff — never public, never indexable.
+Disallow: /admin
+Disallow: /agent
+
+# Auth utility pages — real pages, never worth ranking.
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+
+# Search-result / filter query strings on catalog listings would
+# otherwise let a crawler discover unlimited ?q=<anything> permutations
+# of the same underlying page (see TestsPage.tsx / PackagesPage.tsx —
+# noindex is also set directly on the rendered page for the same
+# reason; this is the second, defense-in-depth layer).
+Disallow: /tests?q=
+Disallow: /packages?q=
+
+Sitemap: https://metrohealthlab.in/sitemap.xml

@@ -24,6 +24,8 @@ const EMPTY_FORM = {
   homeCollection: true,
   tp: "",
   testCountOverride: "",
+  seoTitle: "",
+  seoDescription: "",
 };
 
 export default function AdminPackagesPage() {
@@ -108,6 +110,8 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
           homeCollection: existing.homeCollection,
           tp: existing.tp != null ? String(existing.tp) : "",
           testCountOverride: existing.testCountOverride != null ? String(existing.testCountOverride) : "",
+          seoTitle: existing.seoTitle ?? "",
+          seoDescription: existing.seoDescription ?? "",
         }
       : EMPTY_FORM
   );
@@ -149,6 +153,24 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
       <input placeholder="Slug" required value={form.slug} onChange={(e) => update("slug", e.target.value)} />
       <input placeholder="Category" required value={form.category} onChange={(e) => update("category", e.target.value)} />
       <textarea placeholder="Description" rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} />
+
+      <details>
+        <summary style={{ cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600 }}>SEO (optional)</summary>
+        <div style={{ display: "grid", gap: "var(--space-sm)", marginTop: "var(--space-sm)" }}>
+          <input
+            placeholder="SEO title override (leave blank to auto-generate)"
+            value={form.seoTitle}
+            onChange={(e) => update("seoTitle", e.target.value)}
+          />
+          <textarea
+            placeholder="SEO description override (leave blank to auto-generate)"
+            rows={2}
+            maxLength={200}
+            value={form.seoDescription}
+            onChange={(e) => update("seoDescription", e.target.value)}
+          />
+        </div>
+      </details>
       <TestPicker selectedIds={form.testIds} onChange={(testIds) => update("testIds", testIds)} />
       <label style={{ display: "grid", gap: 4 }}>
         <span style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>

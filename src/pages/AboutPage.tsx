@@ -1,6 +1,8 @@
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { useAsync } from "@/hooks/useAsync";
 import { getAssignedMedia } from "@/services/mediaService";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema } from "@/utils/seoSchema";
 
 // A generic-but-true fallback used only until an admin writes real copy
 // in Admin -> Branding settings -> "About Us page content". It never
@@ -20,8 +22,16 @@ export default function AboutPage() {
   // actually assigned.
   const hero = useAsync(() => getAssignedMedia("site_sections", "about_hero"), []);
 
+  const rawAbout = (settings?.aboutText?.trim() || DEFAULT_ABOUT).replace(/\s+/g, " ");
+
   return (
     <article className="mh-static-page">
+      <Seo
+        title={`About ${name}`}
+        description={rawAbout.length > 160 ? `${rawAbout.slice(0, 157)}...` : rawAbout}
+        path="/about"
+        jsonLd={buildBreadcrumbSchema([{ name: "Home", path: "/" }, { name: "About", path: "/about" }])}
+      />
       {hero.data && (
         <img className="mh-static-page__hero" src={hero.data.secureUrl} alt={hero.data.altText ?? ""} />
       )}

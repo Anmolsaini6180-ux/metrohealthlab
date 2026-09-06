@@ -5,6 +5,8 @@ import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import CategoryIcon from "@/components/common/CategoryIcon";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema } from "@/utils/seoSchema";
 
 // Health concerns are modeled as an alternate entry point into the same
 // testCategories collection (e.g. "Diabetes", "Thyroid", "Heart Health")
@@ -15,6 +17,12 @@ export default function HealthConcernsPage() {
 
   return (
     <div>
+      <Seo
+        title="Shop by Health Concern"
+        description="Find the right diagnostic tests for specific health concerns — diabetes, thyroid, heart health, and more — from Metro Health Lab."
+        path="/health-concerns"
+        jsonLd={buildBreadcrumbSchema([{ name: "Home", path: "/" }, { name: "Health Concerns", path: "/health-concerns" }])}
+      />
       <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-md)" }}>Shop by health concern</h1>
       {categories.loading && <LoadingState rows={3} />}
       {categories.error && <ErrorState message={categories.error} onRetry={categories.retry} />}

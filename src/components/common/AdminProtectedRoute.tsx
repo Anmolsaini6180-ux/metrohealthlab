@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import LoadingState from "./LoadingState";
+import Seo from "./Seo";
 
 // Even a user who manually types /admin into the URL bar is rejected
 // here unless AuthProvider resolved a staff role for them out of
@@ -23,5 +24,10 @@ export default function AdminProtectedRoute({ children }: { children: ReactNode 
 
   if (loading) return <LoadingState label="Checking access..." />;
   if (!role) return <Navigate to="/admin/login" state={{ from: location }} replace />;
-  return <>{children}</>;
+  return (
+    <>
+      <Seo title="Admin" description="Metro Health Lab admin console." path={location.pathname} index={false} />
+      {children}
+    </>
+  );
 }

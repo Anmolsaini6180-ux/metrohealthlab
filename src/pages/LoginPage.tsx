@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { ConfirmationResult, RecaptchaVerifier } from "firebase/auth";
 import Logo from "@/components/brand/Logo";
+import Seo from "@/components/common/Seo";
 import {
   createRecaptchaVerifier,
   loginWithEmail,
@@ -146,6 +147,7 @@ export default function LoginPage() {
 
   return (
     <div className="mh-auth-split">
+      <Seo title="Log In" description="Log in to your Metro Health Lab account." path="/login" index={false} />
       <div className="mh-auth-split__brand">
         <Logo variant="full" height={72} />
         <h2 style={{ marginTop: "var(--space-lg)", fontSize: "var(--text-2xl)" }}>

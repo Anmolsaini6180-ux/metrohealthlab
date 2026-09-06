@@ -23,6 +23,8 @@ const EMPTY_FORM = {
   centerCollection: true,
   fastingRequired: false,
   tp: "",
+  seoTitle: "",
+  seoDescription: "",
 };
 
 export default function AdminTestsPage() {
@@ -129,6 +131,8 @@ function TestForm({
           centerCollection: existing.centerCollection,
           fastingRequired: existing.fastingRequired,
           tp: existing.tp != null ? String(existing.tp) : "",
+          seoTitle: existing.seoTitle ?? "",
+          seoDescription: existing.seoDescription ?? "",
         }
       : EMPTY_FORM
   );
@@ -185,6 +189,30 @@ function TestForm({
         </select>
       )}
       <textarea placeholder="Description" rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} />
+
+      {/* Optional — the public test page falls back to a description
+          built from the name/sample-type/report-TAT when these are
+          left blank (see TestDetailPage.tsx's own Seo call). Only
+          worth filling in when the auto-generated version genuinely
+          isn't the best title/description for search results. */}
+      <details>
+        <summary style={{ cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600 }}>SEO (optional)</summary>
+        <div style={{ display: "grid", gap: "var(--space-sm)", marginTop: "var(--space-sm)" }}>
+          <input
+            placeholder="SEO title override (leave blank to auto-generate)"
+            value={form.seoTitle}
+            onChange={(e) => update("seoTitle", e.target.value)}
+          />
+          <textarea
+            placeholder="SEO description override (leave blank to auto-generate)"
+            rows={2}
+            maxLength={200}
+            value={form.seoDescription}
+            onChange={(e) => update("seoDescription", e.target.value)}
+          />
+        </div>
+      </details>
+
       <input placeholder="Sample type (e.g. Blood)" required value={form.sampleType} onChange={(e) => update("sampleType", e.target.value)} />
       <input placeholder="Report TAT (e.g. 24 hours)" required value={form.reportTat} onChange={(e) => update("reportTat", e.target.value)} />
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>

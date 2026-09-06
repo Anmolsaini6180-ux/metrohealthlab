@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { useAsync } from "@/hooks/useAsync";
 import { getAssignedMedia } from "@/services/mediaService";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema } from "@/utils/seoSchema";
 
 export default function ContactPage() {
   const { settings } = useBrandingSettings();
@@ -11,6 +13,12 @@ export default function ContactPage() {
 
   return (
     <article className="mh-static-page">
+      <Seo
+        title="Contact Us"
+        description="Get in touch with Metro Health Lab for booking help, general queries, or support."
+        path="/contact"
+        jsonLd={buildBreadcrumbSchema([{ name: "Home", path: "/" }, { name: "Contact", path: "/contact" }])}
+      />
       {image.data && (
         <img className="mh-static-page__hero" src={image.data.secureUrl} alt={image.data.altText ?? ""} />
       )}

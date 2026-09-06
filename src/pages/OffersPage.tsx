@@ -7,6 +7,8 @@ import { formatCurrencyInr } from "@/services/pricingService";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import Seo from "@/components/common/Seo";
+import { buildBreadcrumbSchema } from "@/utils/seoSchema";
 import type { Offer } from "@/types/content";
 
 function discountLabel(offer: Offer): string | null {
@@ -40,6 +42,12 @@ export default function OffersPage() {
 
   return (
     <div style={{ display: "grid", gap: "var(--space-md)" }}>
+      <Seo
+        title="Offers & Deals on Diagnostic Tests"
+        description="Current discounts on Metro Health Lab's diagnostic tests and health checkup packages."
+        path="/offers"
+        jsonLd={buildBreadcrumbSchema([{ name: "Home", path: "/" }, { name: "Offers", path: "/offers" }])}
+      />
       <div>
         <h1 className="mh-section-title" style={{ fontSize: "var(--text-2xl)", marginBottom: 4 }}>
           Offers &amp; deals

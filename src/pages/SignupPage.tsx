@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/brand/Logo";
+import Seo from "@/components/common/Seo";
 import { loginWithGoogle, registerAndLoginWithEmail } from "@/services/authService";
 import { toUserMessage } from "@/utils/errors";
 
@@ -81,6 +82,7 @@ export default function SignupPage() {
 
   return (
     <div className="mh-auth-split">
+      <Seo title="Create Account" description="Create a Metro Health Lab account to book tests and track your health." path="/signup" index={false} />
       <div className="mh-auth-split__brand">
         <Logo variant="full" height={72} />
         <h2 style={{ marginTop: "var(--space-lg)", fontSize: "var(--text-2xl)" }}>Create your account</h2>

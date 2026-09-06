@@ -6,6 +6,7 @@ import { useAdminRole } from "@/hooks/useAdminRole";
 import { loginWithEmail, loginWithGoogle, logout } from "@/services/authService";
 import { adminAccessDenialReason, adminHomePathForRole } from "@/utils/roleAccess";
 import { describeSignInError } from "@/utils/authErrors";
+import Seo from "@/components/common/Seo";
 
 export default function AdminLoginPage() {
   const location = useLocation();
@@ -94,6 +95,7 @@ export default function AdminLoginPage() {
 
   return (
     <div className="mh-admin-login">
+      <Seo title="Admin Sign In" description="Metro Health Lab admin sign in." path="/admin/login" index={false} />
       <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-md)" }}>
         <Logo variant="full" height={56} />
       </div>

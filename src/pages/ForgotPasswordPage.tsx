@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Logo from "@/components/brand/Logo";
 import { resetPassword } from "@/services/authService";
 import { toUserMessage } from "@/utils/errors";
+import Seo from "@/components/common/Seo";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -26,6 +27,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div style={{ maxWidth: 400, margin: "0 auto", padding: "var(--space-xl) 0" }}>
+      <Seo title="Forgot Password" description="Reset your Metro Health Lab account password." path="/forgot-password" index={false} />
       <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-md)" }}>
         <Logo variant="full" height={56} />
       </div>
