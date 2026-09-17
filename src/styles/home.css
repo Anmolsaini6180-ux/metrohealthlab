@@ -391,9 +391,18 @@
   display: none;
 }
 
-.mh2-pkg-card {
+/* Sizing (flex-basis for the rail, grid sizing for a listing page) is
+   the PARENT's job, not the card's own — .mh2-pkg-card itself only
+   ever describes its own visual chrome, so the exact same component
+   works unmodified inside a horizontal rail (homepage) or a wrapping
+   grid (the /packages listing page). */
+.mh2-pkg-rail .mh2-pkg-card {
   flex: 0 0 240px;
   scroll-snap-align: start;
+}
+
+.mh2-pkg-card,
+.mh2-test-card {
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-lg);
@@ -404,7 +413,8 @@
   transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard);
 }
 
-.mh2-pkg-card:hover {
+.mh2-pkg-card:hover,
+.mh2-test-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-elevated);
 }
@@ -548,6 +558,137 @@
   color: var(--color-primary);
   text-align: center;
   margin-top: 2px;
+}
+
+/* Test card's own media area — a centered icon on a tinted background,
+   shorter than a package's photo slot since there's no image asset for
+   an individual test. Shares .mh2-pkg-card__body/__count/__meta/
+   __footer/__prices/__view-link for everything below the media, so the
+   two card types read as one consistent system in a mixed grid. */
+.mh2-test-card__media {
+  position: relative;
+  height: 72px;
+  background: var(--color-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Listing pages (/tests, /packages)
+   ============================================================ */
+.mh2-listing__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.mh2-listing__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  color: var(--color-primary-deep);
+}
+
+.mh2-listing__count {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  margin-top: 2px;
+}
+
+.mh2-listing__sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+
+.mh2-listing__sort select {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.mh2-pkg-grid,
+.mh2-test-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* ---- All-tests layout: desktop category sidebar + main column ---- */
+.mh2-alltests {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.mh2-alltests__sidebar {
+  display: none;
+}
+
+.mh2-alltests__cat-list {
+  display: grid;
+  gap: 2px;
+}
+
+.mh2-alltests__cat-list button {
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mh2-alltests__cat-list button:hover {
+  background: var(--color-bg-tint);
+}
+
+.mh2-alltests__cat-list button.is-active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.mh2-alltests__sidebar-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0 12px 8px;
+}
+
+@media (min-width: 1024px) {
+  .mh2-alltests {
+    grid-template-columns: 220px 1fr;
+    align-items: start;
+  }
+
+  .mh2-alltests__sidebar {
+    display: block;
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-md));
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-sm) 0;
+  }
+
+  .mh2-alltests .mh2-alltests__mobile-chips {
+    display: none;
+  }
 }
 
 /* ---- Doorstep promo strip ---- */
@@ -844,186 +985,6 @@
   }
 }
 
-/* ============================================================
-   ALL TESTS PAGE
-   ============================================================ */
-.mh-alltests {
-  grid-template-columns: minmax(0, 1fr);
-  display: grid;
-  gap: var(--space-md);
-}
-
-.mh-alltests__sidebar {
-  display: none;
-}
-
-.mh-alltests__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
-}
-
-.mh-alltests__count {
-  font-size: var(--text-sm);
-  white-space: nowrap;
-}
-
-.mh-alltests__mobile-chips {
-  margin-bottom: var(--space-md);
-}
-
-/* ---- List rows (mobile + shared) ---- */
-.mh-test-list {
-  display: grid;
-  gap: 10px;
-}
-
-.mh-test-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.mh-test-row:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-card);
-}
-
-.mh-test-row__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: var(--color-bg-tint);
-  flex-shrink: 0;
-}
-
-.mh-test-row__body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.mh-test-row__name {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--text-sm);
-  color: var(--color-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mh-test-row__meta {
-  font-size: 12px;
-  color: var(--color-ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mh-test-row__price {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  flex-shrink: 0;
-  text-align: right;
-}
-
-.mh-test-row__lead {
-  font-size: 10px;
-  color: var(--color-ink-soft);
-  line-height: 1.2;
-}
-
-.mh-test-row__amount {
-  font-weight: 700;
-  font-size: var(--text-sm);
-  color: var(--color-ink);
-  line-height: 1.3;
-}
-
-.mh-test-row__mrp {
-  font-size: 11px;
-  color: var(--color-ink-soft);
-  text-decoration: line-through;
-}
-
-.mh-test-row__go {
-  display: flex;
-  align-items: center;
-  color: var(--color-ink-soft);
-  flex-shrink: 0;
-}
-
-/* ---- Desktop: real sidebar instead of the chip row ---- */
-@media (min-width: 1024px) {
-  .mh-alltests {
-    grid-template-columns: 240px minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .mh-alltests__sidebar {
-    display: block;
-    position: sticky;
-    top: calc(var(--header-height) + var(--space-md));
-    background: var(--color-surface);
-    border: 1px solid var(--color-line);
-    border-radius: 16px;
-    padding: var(--space-md);
-  }
-
-  .mh-alltests__sidebar-title {
-    font-size: var(--text-sm);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-ink-soft);
-    margin-bottom: var(--space-sm);
-  }
-
-  .mh-alltests__cat-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .mh-alltests__cat-list button {
-    text-align: left;
-    padding: 9px 10px;
-    border-radius: 10px;
-    border: none;
-    background: transparent;
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--color-ink);
-    cursor: pointer;
-  }
-
-  .mh-alltests__cat-list button:hover {
-    background: var(--color-bg-tint);
-  }
-
-  .mh-alltests__cat-list button.is-active {
-    background: var(--color-bg-tint);
-    color: var(--color-primary);
-  }
-
-  div.mh-alltests__mobile-chips {
-    display: none;
-  }
-}
 
 /* ---- Large image storytelling sections (Home Collection / Family /
    Senior Health) ----

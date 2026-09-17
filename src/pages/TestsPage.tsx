@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { searchTests, subscribeToTestCategories, subscribeToTests } from "@/services/testService";
@@ -9,10 +10,29 @@ import Seo from "@/components/common/Seo";
 import { buildBreadcrumbSchema } from "@/utils/seoSchema";
 import type { DiagnosticTest } from "@/types/test";
 
+type SortKey = "relevance" | "price-asc" | "price-desc" | "name";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  relevance: "Relevance",
+  "price-asc": "Price: Low to High",
+  "price-desc": "Price: High to Low",
+  name: "Name: A to Z",
+};
+
+function sortTests(tests: DiagnosticTest[], sort: SortKey): DiagnosticTest[] {
+  if (sort === "relevance") return tests;
+  const sorted = [...tests];
+  if (sort === "price-asc") sorted.sort((a, b) => a.sellingPrice - b.sellingPrice);
+  else if (sort === "price-desc") sorted.sort((a, b) => b.sellingPrice - a.sellingPrice);
+  else if (sort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
+  return sorted;
+}
+
 export default function TestsPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const categoryId = params.get("category") ?? undefined;
+  const [sort, setSort] = useState<SortKey>("relevance");
 
   const categories = useRealtimeQuery(subscribeToTestCategories, []);
   const categoryById = new Map((categories.data ?? []).map((c) => [c.id, c]));
@@ -31,10 +51,11 @@ export default function TestsPage() {
     [q, categoryId]
   );
 
+  const sorted = useMemo(() => sortTests(tests.data ?? [], sort), [tests.data, sort]);
   const activeCategory = categoryId ? categoryById.get(categoryId) : undefined;
 
   return (
-    <div className="mh-alltests">
+    <div className="mh2-alltests">
       <Seo
         title={activeCategory ? `${activeCategory.name} — Book Diagnostic Tests` : "Diagnostic Tests — Book Online"}
         description={
@@ -54,9 +75,9 @@ export default function TestsPage() {
         index={!q}
         jsonLd={buildBreadcrumbSchema([{ name: "Home", path: "/" }, { name: "Tests", path: "/tests" }])}
       />
-      <aside className="mh-alltests__sidebar">
-        <h2 className="mh-alltests__sidebar-title">Categories</h2>
-        <nav className="mh-alltests__cat-list" aria-label="Filter by category">
+      <aside className="mh2-alltests__sidebar">
+        <h2 className="mh2-alltests__sidebar-title">Categories</h2>
+        <nav className="mh2-alltests__cat-list" aria-label="Filter by category">
           <button
             className={!categoryId ? "is-active" : undefined}
             onClick={() => setParams(q ? { q } : {})}
@@ -75,17 +96,31 @@ export default function TestsPage() {
         </nav>
       </aside>
 
-      <div className="mh-alltests__main">
-        <div className="mh-alltests__head">
-          <h1 style={{ fontSize: "var(--text-xl)" }}>
-            {q ? `Results for "${q}"` : activeCategory ? activeCategory.name : "All Tests"}
-          </h1>
-          {tests.data && <span className="text-soft mh-alltests__count">{tests.data.length} tests</span>}
+      <div>
+        <div className="mh2-listing__head">
+          <div>
+            <h1 className="mh2-listing__title">
+              {q ? `Results for "${q}"` : activeCategory ? activeCategory.name : "All Tests"}
+            </h1>
+            {tests.data && <p className="mh2-listing__count">{sorted.length} test{sorted.length === 1 ? "" : "s"}</p>}
+          </div>
+          {sorted.length > 1 && (
+            <label className="mh2-listing__sort">
+              Sort by
+              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+                {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+                  <option key={key} value={key}>
+                    {SORT_LABELS[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
 
         {/* Mobile-only chip row — the sidebar above is desktop-only via CSS */}
         {categories.data && categories.data.length > 0 && (
-          <div className="mh-chip-row mh-hscroll mh-alltests__mobile-chips" role="tablist" aria-label="Filter by category">
+          <div className="mh-chip-row mh-hscroll mh2-alltests__mobile-chips" role="tablist" aria-label="Filter by category">
             <button
               role="tab"
               aria-selected={!categoryId}
@@ -110,12 +145,12 @@ export default function TestsPage() {
 
         {tests.loading && <CardGridSkeleton count={6} variant="test" />}
         {tests.error && <ErrorState message={tests.error} onRetry={tests.retry} />}
-        {tests.data && tests.data.length === 0 && (
+        {tests.data && sorted.length === 0 && (
           <EmptyState icon="search_off" title="No tests found" description="Try a different search or category." />
         )}
-        {tests.data && tests.data.length > 0 && (
-          <div className="mh-test-list">
-            {tests.data.map((t) => (
+        {sorted.length > 0 && (
+          <div className="mh2-test-grid" role="list">
+            {sorted.map((t) => (
               <TestCard key={t.id} test={t} category={categoryById.get(t.categoryId)} />
             ))}
           </div>
