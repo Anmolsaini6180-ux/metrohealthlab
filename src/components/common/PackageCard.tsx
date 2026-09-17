@@ -17,13 +17,12 @@ function discountPercent(pkg: HealthPackage): number | null {
 }
 
 /**
- * The one real package card — used on the homepage showcase, the
- * /packages listing, and (via RadiologyPage's own existing import)
- * radiology services. Previously two separate, drifting
- * implementations existed (this file's own old plain-text version,
- * and a second one inlined directly in PackageShowcase.tsx); this
- * replaces both with a single component so a future change to how a
- * package is presented only has one place to make it.
+ * The one real package card — used on the homepage showcase and the
+ * /packages listing. Previously two separate, drifting implementations
+ * existed (this file's own old plain-text version, and a second one
+ * inlined directly in PackageShowcase.tsx); this replaces both with a
+ * single component so a future change to how a package is presented
+ * only has one place to make it.
  *
  * `imageUrl` is resolved by the caller (getAssignedMediaMap/
  * getAssignedMedia against category "packages") rather than fetched

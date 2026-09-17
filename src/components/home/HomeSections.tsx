@@ -1,12 +1,11 @@
 import { Link } from "react-router-dom";
 import CategoryIcon from "@/components/common/CategoryIcon";
-import { formatCurrencyInr } from "@/services/pricingService";
 import { useAsync } from "@/hooks/useAsync";
 import { useDominantEdgeColor } from "@/hooks/useDominantEdgeColor";
 import { getAssignedMedia } from "@/services/mediaService";
 import { getSiteContent } from "@/services/siteContentService";
 import type { SiteSectionSlot } from "@/types/media";
-import type { TestCategory, DiagnosticTest } from "@/types/test";
+import type { TestCategory } from "@/types/test";
 import type { Article } from "@/types/content";
 
 // ---------- Shop by health concern ----------
@@ -108,43 +107,6 @@ export function FamilyCareRow({ categories }: { categories: TestCategory[] }) {
           </Link>
         ))}
       </div>
-    </section>
-  );
-}
-
-// ---------- Radiology ----------
-
-// Imaging is sold per-scan rather than per-package, so this row lists
-// the cheapest real test under each imaging category.
-export function RadiologyRow({ categories, tests }: { categories: TestCategory[]; tests: DiagnosticTest[] }) {
-  const imaging = tests.filter((t) => t.sampleType === "Imaging" || t.sampleType === "Cardiac");
-  if (imaging.length === 0) return null;
-
-  const byName = new Map<string, DiagnosticTest>();
-  for (const t of imaging) {
-    const existing = byName.get(t.name);
-    if (!existing || t.sellingPrice < existing.sellingPrice) byName.set(t.name, t);
-  }
-
-  return (
-    <section>
-      <h2 className="mh-section-title">Radiology</h2>
-      <p className="mh-section-subtitle">Scans &amp; imaging at partner centers</p>
-      <div className="mh-hscroll" role="list">
-        {[...byName.values()].map((t) => (
-          <article key={t.id} role="listitem" className="mh-radiology">
-            <h3 className="mh-radiology__name">{t.name}</h3>
-            <p className="mh-radiology__mode">
-              {t.homeCollection && t.centerCollection ? "Home & Center" : t.homeCollection ? "Home collection" : "Center visit"}
-            </p>
-            <p className="mh-radiology__price">Starting @ {formatCurrencyInr(t.sellingPrice)}</p>
-            <Link className="mh-radiology__cta" to={`/tests/${t.slug}`}>
-              Book Now
-            </Link>
-          </article>
-        ))}
-      </div>
-      {categories.length === 0 && null}
     </section>
   );
 }
