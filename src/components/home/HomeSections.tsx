@@ -131,7 +131,9 @@ export function CompareLabsPromo({ labCount }: { labCount: number }) {
 
 // ---------- Healthcare at your doorstep ----------
 
-const DOORSTEP_STEPS = [
+// Exported so HomeCollectionPage's own "How it works" section shows the
+// exact same steps rather than a second, driftable copy of them.
+export const DOORSTEP_STEPS = [
   "Select test & slot",
   "Phlebotomist visits",
   "Sample collected safely",

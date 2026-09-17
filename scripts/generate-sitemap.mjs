@@ -43,6 +43,7 @@ const STATIC_PATHS = [
   { path: "/", changefreq: "daily", priority: "1.0" },
   { path: "/tests", changefreq: "daily", priority: "0.9" },
   { path: "/packages", changefreq: "daily", priority: "0.9" },
+  { path: "/home-collection", changefreq: "weekly", priority: "0.7" },
   { path: "/offers", changefreq: "daily", priority: "0.7" },
   { path: "/health-concerns", changefreq: "weekly", priority: "0.6" },
   { path: "/articles", changefreq: "weekly", priority: "0.6" },

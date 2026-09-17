@@ -7,6 +7,7 @@ import TestsPage from "@/pages/TestsPage";
 import TestDetailPage from "@/pages/TestDetailPage";
 import PackagesPage from "@/pages/PackagesPage";
 import PackageDetailPage from "@/pages/PackageDetailPage";
+import HomeCollectionPage from "@/pages/HomeCollectionPage";
 // LabsPage is deliberately unrouted below (disabled, not deleted) — the
 // file and its route import below stay so it can be turned back on by
 // uncommenting.
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="/tests/:slug" element={<TestDetailPage />} />
         <Route path="/packages" element={<PackagesPage />} />
         <Route path="/packages/:slug" element={<PackageDetailPage />} />
+        <Route path="/home-collection" element={<HomeCollectionPage />} />
         {/* <Route path="/labs" element={<LabsPage />} /> */}
         <Route path="/offers" element={<OffersPage />} />
         <Route path="/health-concerns" element={<HealthConcernsPage />} />

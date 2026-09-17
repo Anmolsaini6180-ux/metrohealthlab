@@ -15,7 +15,7 @@ export default function DoorstepPromo() {
         <p className="mh-doorstep-promo__title">Healthcare at Your Doorstep</p>
         <p className="mh-doorstep-promo__sub">Safe, reliable &amp; hassle-free diagnostics</p>
       </div>
-      <Link to="/about" className="mh-doorstep-promo__cta">
+      <Link to="/home-collection" className="mh-doorstep-promo__cta">
         Know More
         <span className="mi" aria-hidden="true">arrow_forward</span>
       </Link>
