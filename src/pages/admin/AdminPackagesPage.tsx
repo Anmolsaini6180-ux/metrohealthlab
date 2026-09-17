@@ -10,6 +10,7 @@ import type { DiagnosticTest } from "@/types/test";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import ImagePicker from "@/components/admin/ImagePicker";
 import { toUserMessage } from "@/utils/errors";
 
 const EMPTY_FORM = {
@@ -153,6 +154,19 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
       <input placeholder="Slug" required value={form.slug} onChange={(e) => update("slug", e.target.value)} />
       <input placeholder="Category" required value={form.category} onChange={(e) => update("category", e.target.value)} />
       <textarea placeholder="Description" rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} />
+
+      {existing ? (
+        <ImagePicker
+          label="Package image"
+          category="packages"
+          relatedId={existing.id}
+          hint="Shown on the package card and detail page. Landscape, at least 800x600."
+        />
+      ) : (
+        <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>
+          Save the package first to attach an image.
+        </p>
+      )}
 
       <details>
         <summary style={{ cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600 }}>SEO (optional)</summary>

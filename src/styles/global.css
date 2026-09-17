@@ -778,46 +778,122 @@ button.card:hover {
   border-color: transparent;
 }
 
-/* ---------- Footer ---------- */
+/* ---------- Footer (design system v2) ---------- */
 
-.mh-footer {
-  border-top: 1px solid var(--color-line);
-  background: var(--color-bg-warm);
+.mh2-footer {
+  background: var(--color-primary-deep);
+  color: rgba(255, 255, 255, 0.72);
   margin-top: var(--space-xl);
 }
 
-.mh-footer .container {
-  padding-block: var(--space-lg);
+.mh2-footer__inner {
+  padding-block: var(--space-xl) var(--space-lg);
   display: grid;
   gap: var(--space-lg);
 }
 
-.mh-footer__grid {
+.mh2-footer__top {
   display: grid;
-  gap: var(--space-md);
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-lg);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
-.mh-footer__grid a {
-  display: block;
-  padding: 4px 0;
-  color: var(--color-ink-soft);
+.mh2-footer__brand {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+}
+
+.mh2-footer__logo {
+  filter: brightness(0) invert(1);
+}
+
+.mh2-footer__tagline {
+  font-weight: 600;
+  color: #fff;
   font-size: var(--text-sm);
 }
 
-.mh-footer__grid a:hover {
-  color: var(--color-primary);
+.mh2-footer__about {
+  font-size: var(--text-xs);
+  line-height: 1.6;
 }
 
-.mh-footer__bottom {
+.mh2-footer__social {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.mh2-footer__social:hover {
+  background: var(--color-accent);
+}
+
+.mh2-footer__col {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.mh2-footer__col-title {
+  font-weight: 700;
+  color: #fff;
+  font-size: var(--text-sm);
+  margin-bottom: 2px;
+}
+
+.mh2-footer__col a,
+.mh2-footer__col span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.4;
+}
+
+.mh2-footer__col a:hover {
+  color: #fff;
+}
+
+.mh2-footer__col .mi {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.mh2-footer__address {
+  align-items: flex-start;
+}
+
+.mh2-footer__bottom {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-sm);
   padding-top: var(--space-md);
-  border-top: 1px solid var(--color-line);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
   font-size: var(--text-xs);
-  color: var(--color-ink-soft);
+}
+
+.mh2-footer__pay-note {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+@media (min-width: 1024px) {
+  .mh2-footer__top {
+    grid-template-columns: 1.6fr repeat(4, 1fr);
+  }
+
+  .mh2-footer__brand {
+    grid-column: auto;
+  }
 }
 
 /* ---------- Patient dashboard ---------- */

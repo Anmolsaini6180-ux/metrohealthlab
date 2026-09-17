@@ -4,6 +4,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { getPackageBySlug } from "@/services/packageService";
 import { getTests } from "@/services/testService";
+import { getAssignedMedia } from "@/services/mediaService";
 import { subscribeToActiveLabs, subscribeToLabPricingForPackage } from "@/services/labService";
 import { formatCurrencyInr } from "@/services/pricingService";
 import Seo from "@/components/common/Seo";
@@ -30,6 +31,16 @@ export default function PackageDetailPage() {
   // the reference shows, rather than a bare count.
   const allTests = useAsync(() => getTests(), []);
   const includedTests = (allTests.data ?? []).filter((t) => (pkg.data?.testIds ?? []).includes(t.id));
+
+  // The real, admin-assigned image (Admin -> Packages -> Package image,
+  // via ImagePicker -> media_assets, category "packages"). No fallback
+  // image is invented here — a package with none assigned simply shows
+  // no image block, exactly like every other genuinely-optional asset
+  // in this app.
+  const packageImage = useAsync(
+    () => (pkg.data?.id ? getAssignedMedia("packages", pkg.data.id) : Promise.resolve(null)),
+    [pkg.data?.id]
+  );
 
   const [pricingState, setPricingState] = useState<{ data: LabPricing[] | null; loading: boolean; error: string | null }>({
     data: null,
@@ -113,6 +124,10 @@ export default function PackageDetailPage() {
           </button>
         )}
       </div>
+
+      {packageImage.data && (
+        <img className="mh-pkgdetail__image" src={packageImage.data.secureUrl} alt={packageImage.data.altText || ""} />
+      )}
 
       <div>
         <div className="mh-pkgdetail__title-row">

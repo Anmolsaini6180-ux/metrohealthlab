@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { displayedTestCount } from "@/utils/packageDisplay";
+import { useAsync } from "@/hooks/useAsync";
+import { getAssignedMediaMap } from "@/services/mediaService";
 import type { HealthPackage } from "@/types/package";
 
 interface Props {
@@ -39,6 +41,9 @@ export default function PackageShowcase({ packages }: Props) {
 
   const [filter, setFilter] = useState(ALL);
 
+  const packageIds = useMemo(() => packages.map((p) => p.id), [packages]);
+  const images = useAsync(() => getAssignedMediaMap("packages", packageIds), [packageIds.join(",")]);
+
   const visible = useMemo(
     () => (filter === ALL ? packages : packages.filter((p) => p.category === filter)),
     [packages, filter]
@@ -47,9 +52,16 @@ export default function PackageShowcase({ packages }: Props) {
   if (packages.length === 0) return null;
 
   return (
-    <section>
-      <h2 className="mh-section-title">Popular Health Packages</h2>
-      <p className="mh-section-subtitle">Curated by Metro Health</p>
+    <section className="mh2-pkg-section">
+      <div className="mh-section-head">
+        <div>
+          <h2 className="mh-section-title">Most Booked Health Checkups</h2>
+          <p className="mh-section-subtitle">Curated by Metro Health Lab</p>
+        </div>
+        <Link to="/packages" className="mh-section-link">
+          View all
+        </Link>
+      </div>
 
       {categories.length > 1 && (
         <div className="mh-chip-row mh-hscroll" role="tablist" aria-label="Filter packages by category">
@@ -68,53 +80,62 @@ export default function PackageShowcase({ packages }: Props) {
         </div>
       )}
 
-      <div className="mh-hscroll" role="list">
+      <div className="mh2-pkg-rail" role="list">
         {visible.map((p) => {
           const off = discountPercent(p);
+          const image = images.data?.get(p.id);
           return (
-            <article key={p.id} role="listitem" className="mh-pkg-card">
-              <div className="mh-pkg-card__head">
-                {p.tag && <span className="mh-pkg-card__tag">{p.tag}</span>}
-                {typeof p.rating === "number" && (
-                  <span className="mh-pkg-card__rating">
-                    <span className="mi" aria-hidden="true">star</span>
-                    {p.rating}
-                  </span>
+            <article key={p.id} role="listitem" className="mh2-pkg-card">
+              <div className="mh2-pkg-card__media">
+                {image ? (
+                  <img className="mh2-pkg-card__image" src={image.secureUrl} alt="" loading="lazy" />
+                ) : (
+                  <div className="mh2-pkg-card__image-fallback" aria-hidden="true">
+                    <span className="mi">inventory_2</span>
+                  </div>
                 )}
+                {off !== null && <span className="mh2-pkg-card__badge">{off}% OFF</span>}
+                {p.tag && <span className="mh2-pkg-card__tag">{p.tag}</span>}
               </div>
 
-              <h3 className="mh-pkg-card__name">{p.name}</h3>
-              <p className="mh-pkg-card__count">
-                {displayedTestCount(p)} {displayedTestCount(p) === 1 ? "Test" : "Tests"}
-              </p>
+              <div className="mh2-pkg-card__body">
+                <h3 className="mh2-pkg-card__name">{p.name}</h3>
+                <p className="mh2-pkg-card__count">
+                  {displayedTestCount(p)} {displayedTestCount(p) === 1 ? "Test" : "Tests"}
+                  {typeof p.rating === "number" && (
+                    <span className="mh2-pkg-card__rating">
+                      <span className="mi" aria-hidden="true">star</span>
+                      {p.rating}
+                    </span>
+                  )}
+                </p>
 
-              <p className="mh-pkg-card__prices">
-                <span className="mh-pkg-card__price">{formatCurrencyInr(p.sellingPrice)}</span>
-                {off !== null && (
-                  <>
-                    <s className="mh-pkg-card__mrp">{formatCurrencyInr(p.mrp)}</s>
-                    <span className="mh-pkg-card__off">{off}% OFF</span>
-                  </>
-                )}
-              </p>
+                <p className="mh2-pkg-card__meta">
+                  {p.homeCollection && (
+                    <span>
+                      <span className="mi" aria-hidden="true">local_shipping</span> Home Collection
+                    </span>
+                  )}
+                  {p.reportTat && (
+                    <span>
+                      <span className="mi" aria-hidden="true">schedule</span> {shortTat(p.reportTat)}
+                    </span>
+                  )}
+                </p>
 
-              <p className="mh-pkg-card__meta">
-                {p.homeCollection && (
-                  <>
-                    <span className="mi" aria-hidden="true">local_shipping</span> Home Collection
-                    {p.reportTat ? " · " : ""}
-                  </>
-                )}
-                {p.reportTat && (
-                  <>
-                    <span className="mi" aria-hidden="true">schedule</span> Report in {shortTat(p.reportTat)}
-                  </>
-                )}
-              </p>
-
-              <Link className="mh-pkg-card__cta" to={`/packages/${p.slug}`}>
-                View Details
-              </Link>
+                <div className="mh2-pkg-card__footer">
+                  <p className="mh2-pkg-card__prices">
+                    <span className="mh2-pkg-card__price">{formatCurrencyInr(p.sellingPrice)}</span>
+                    {off !== null && <s className="mh2-pkg-card__mrp">{formatCurrencyInr(p.mrp)}</s>}
+                  </p>
+                  <Link className="mh2-btn mh2-btn--primary mh2-btn--sm" to={`/packages/${p.slug}`}>
+                    Book Now
+                  </Link>
+                </div>
+                <Link className="mh2-pkg-card__view-link" to={`/packages/${p.slug}`}>
+                  View Details
+                </Link>
+              </div>
             </article>
           );
         })}
