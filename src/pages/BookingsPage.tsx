@@ -76,12 +76,18 @@ export default function BookingsPage() {
   const filtered = useMemo(() => (bookings.data ?? []).filter((b) => matchesTab(b, tab)), [bookings.data, tab]);
 
   return (
-    <div className="mh-bookings">
-      <h1 style={{ fontSize: "var(--text-2xl)" }}>My Bookings</h1>
+    <div className="mh2-bookings">
+      <h1 className="mh2-dashboard__section-title" style={{ fontSize: "var(--text-2xl)" }}>My Bookings</h1>
 
-      <div className="mh-tab-row">
+      <div className="mh2-tab-row" role="tablist" aria-label="Filter bookings">
         {TABS.map((t) => (
-          <button key={t} className={`mh-tab-btn${tab === t ? " is-active" : ""}`} onClick={() => setTab(t)}>
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={`mh2-tab-btn${tab === t ? " is-active" : ""}`}
+            onClick={() => setTab(t)}
+          >
             {t}
           </button>
         ))}
@@ -93,29 +99,29 @@ export default function BookingsPage() {
         <EmptyState icon="calendar_month" title={`No ${tab.toLowerCase()} bookings`} description="Book a test or package to see it here." />
       )}
       {bookings.data && filtered.length > 0 && (
-        <div className="mh-bookings__list">
+        <div className="mh2-bookings__list">
           {filtered.map((b) => (
-            <Link key={b.id} to={`/bookings/${b.id}`} className="mh-booking-card">
-              <span className="mh-booking-card__icon" aria-hidden="true">
+            <Link key={b.id} to={`/bookings/${b.id}`} className="mh2-booking-card">
+              <span className="mh2-booking-card__icon" aria-hidden="true">
                 <span className="mi">science</span>
               </span>
-              <span className="mh-booking-card__body">
-                <span className="mh-booking-card__row">
-                  <span className="mh-booking-card__id">{b.reference}</span>
-                  <span className={`mh-status-badge ${TONE_CLASS[statusTone(b.bookingStatus)]}`}>
+              <span className="mh2-booking-card__body">
+                <span className="mh2-booking-card__row">
+                  <span className="mh2-booking-card__id">{b.reference}</span>
+                  <span className={`mh2-status-badge ${TONE_CLASS[statusTone(b.bookingStatus)]}`}>
                     {STATUS_LABELS[b.bookingStatus] ?? b.bookingStatus}
                   </span>
                 </span>
-                <span className="mh-booking-card__items">{b.items.map((i) => i.name).join(", ")}</span>
-                <span className="mh-booking-card__row">
-                  <span className="mh-booking-card__date">
+                <span className="mh2-booking-card__items">{b.items.map((i) => i.name).join(", ")}</span>
+                <span className="mh2-booking-card__row">
+                  <span className="mh2-booking-card__date">
                     <span className="mi" aria-hidden="true">event</span>
                     {new Date(b.date).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
                   </span>
-                  <span className="mh-booking-card__price">{formatCurrencyInr(b.finalAmount)}</span>
+                  <span className="mh2-booking-card__price">{formatCurrencyInr(b.finalAmount)}</span>
                 </span>
               </span>
-              <span className="mh-booking-card__chevron mi" aria-hidden="true">chevron_right</span>
+              <span className="mh2-booking-card__chevron mi" aria-hidden="true">chevron_right</span>
             </Link>
           ))}
         </div>

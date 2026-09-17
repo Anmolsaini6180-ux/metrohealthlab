@@ -65,22 +65,21 @@ export default function NotificationsPage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-sm)" }}>
-        <h1 style={{ fontSize: "var(--text-2xl)" }}>Notifications</h1>
+        <h1 className="mh2-dashboard__section-title" style={{ fontSize: "var(--text-2xl)" }}>Notifications</h1>
         {hasUnread && supabaseUserId && (
-          <button className="btn btn-outline" onClick={() => markAllNotificationsRead(supabaseUserId)}>
+          <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => markAllNotificationsRead(supabaseUserId)}>
             Mark all as read
           </button>
         )}
       </div>
 
-      <div className="mh-filter-row" role="tablist" aria-label="Filter notifications" style={{ marginBottom: "var(--space-md)" }}>
+      <div className="mh2-tab-row" role="tablist" aria-label="Filter notifications" style={{ marginBottom: "var(--space-md)" }}>
         {TABS.map((t) => (
           <button
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
-            className={`btn ${tab === t.id ? "btn-primary" : "btn-outline"}`}
-            style={{ padding: "6px 14px", fontSize: "var(--text-sm)" }}
+            className={`mh2-tab-btn${tab === t.id ? " is-active" : ""}`}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -107,7 +106,7 @@ export default function NotificationsPage() {
           that category, so the action reads clearest off the full list. */}
       {tab === "all" && canLoadMore && (
         <div style={{ textAlign: "center", marginTop: "var(--space-md)" }}>
-          <button className="btn btn-outline" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
+          <button className="mh2-btn mh2-btn--outline" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
             Load more
           </button>
         </div>

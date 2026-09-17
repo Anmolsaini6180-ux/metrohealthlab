@@ -26,9 +26,9 @@ export default function FamilyPage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
-        <h1 style={{ fontSize: "var(--text-2xl)" }}>Family members</h1>
+        <h1 className="mh2-dashboard__section-title" style={{ fontSize: "var(--text-2xl)" }}>Family members</h1>
         <button
-          className="btn btn-primary"
+          className="mh2-btn mh2-btn--primary"
           onClick={() => {
             setEditingPatient(null);
             setShowForm((s) => !s);
@@ -61,16 +61,19 @@ export default function FamilyPage() {
         <EmptyState icon="group" title="No family members added yet" />
       )}
       {patients.data && patients.data.length > 0 && (
-        <div style={{ display: "grid", gap: "var(--space-sm)", marginTop: "var(--space-md)" }}>
+        <div className="mh2-list" style={{ marginTop: "var(--space-md)" }}>
           {patients.data.map((p) => (
-            <div key={p.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <p style={{ fontWeight: 600 }}>{p.name}</p>
-                <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{p.relationship} • {p.gender}</p>
-              </div>
-              <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+            <div key={p.id} className="mh2-list-card">
+              <span className="mh2-list-card__icon" aria-hidden="true">
+                <span className="mi">person</span>
+              </span>
+              <span className="mh2-list-card__body">
+                <span className="mh2-list-card__title">{p.name}</span>
+                <span className="mh2-list-card__meta">{p.relationship} • {p.gender}</span>
+              </span>
+              <span className="mh2-list-card__actions">
                 <button
-                  className="btn btn-outline"
+                  className="mh2-btn mh2-btn--outline mh2-btn--sm"
                   onClick={() => {
                     setShowForm(false);
                     setEditingPatient(p);
@@ -78,10 +81,10 @@ export default function FamilyPage() {
                 >
                   Edit
                 </button>
-                <button className="btn btn-outline" onClick={() => handleDelete(p.id)}>
+                <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => handleDelete(p.id)}>
                   Remove
                 </button>
-              </div>
+              </span>
             </div>
           ))}
         </div>
@@ -127,7 +130,7 @@ function AddPatientForm({
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+    <form className="mh2-card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
       <input placeholder="Full name" required value={name} onChange={(e) => setName(e.target.value)} />
       <select value={relationship} onChange={(e) => setRelationship(e.target.value as PatientRelationship)}>
         {RELATIONSHIPS.map((r) => (
@@ -144,10 +147,10 @@ function AddPatientForm({
       </select>
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-        <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+        <button className="mh2-btn mh2-btn--primary" type="submit" disabled={busy} style={{ flex: 1 }}>
           {busy ? "Saving..." : editPatient ? "Save changes" : "Save"}
         </button>
-        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+        <button className="mh2-btn mh2-btn--outline" type="button" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
       </div>

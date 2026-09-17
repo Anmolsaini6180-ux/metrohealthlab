@@ -31,19 +31,19 @@ export default function BookingDetailPage() {
   const pendingAmount = pendingFor(b);
 
   return (
-    <div style={{ display: "grid", gap: "var(--space-md)" }}>
+    <div className="mh2-bookingdetail">
       <div>
-        <h1 style={{ fontSize: "var(--text-2xl)" }}>{b.reference}</h1>
+        <h1 className="mh2-bookingdetail__title">{b.reference}</h1>
         <p className="text-soft">{b.date} • {b.collectionType === "home" ? "Home collection" : "Center visit"}</p>
       </div>
 
-      <div className="card">
+      <div className="mh2-card">
         {b.items.map((item, i) => (
-          <p key={i}>{item.name}</p>
+          <p key={i} style={{ fontWeight: 600 }}>{item.name}</p>
         ))}
       </div>
 
-      <div className="card" style={{ display: "grid", gap: 4 }}>
+      <div className="mh2-card" style={{ display: "grid", gap: 4 }}>
         <Row label="Slot" value={slot.data ? `${slot.data.startTime} – ${slot.data.endTime}` : slot.loading ? "Loading…" : "—"} />
         {b.collectionType === "home" && (
           <Row
@@ -59,7 +59,7 @@ export default function BookingDetailPage() {
         )}
       </div>
 
-      <div className="card" style={{ display: "grid", gap: 4 }}>
+      <div className="mh2-card" style={{ display: "grid", gap: 4 }}>
         <Row label="Status" value={b.bookingStatus.replace(/_/g, " ")} />
         <Row label="Subtotal" value={formatCurrencyInr(b.subtotal)} />
         <Row label="Collection fee" value={formatCurrencyInr(b.collectionFee)} />
@@ -72,15 +72,15 @@ export default function BookingDetailPage() {
           is shown as what to hand the collection agent rather than as
           an unfinished payment with a gateway button behind it. */}
       {pendingAmount > 0 && b.bookingStatus !== "cancelled" && (
-        <div className="card" style={{ display: "grid", gap: 4 }}>
-          <p style={{ fontWeight: 600 }}>Pay {formatCurrencyInr(pendingAmount)} in cash</p>
+        <div className="mh2-card" style={{ display: "grid", gap: 4 }}>
+          <p style={{ fontWeight: 700 }}>Pay {formatCurrencyInr(pendingAmount)} in cash</p>
           <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
             Hand this to the collection agent when they visit. Nothing is charged online.
           </p>
         </div>
       )}
 
-      <Link className="btn btn-primary" to={`/track/${b.id}`}>
+      <Link className="mh2-btn mh2-btn--primary" to={`/track/${b.id}`}>
         Track this booking
       </Link>
     </div>
@@ -89,7 +89,7 @@ export default function BookingDetailPage() {
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: bold ? 700 : 400 }}>
+    <div className={`mh2-bookingdetail__row${bold ? " is-total" : ""}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>

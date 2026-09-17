@@ -27,23 +27,23 @@ export default function ProfilePage() {
   const initial = (profile?.name ?? profile?.email ?? user?.email ?? "?").charAt(0).toUpperCase();
 
   return (
-    <div className="mh-profile">
-      <div className="mh-profile__head">
-        <div className="mh-profile__avatar">{initial}</div>
+    <div className="mh2-profile">
+      <div className="mh2-profile__head">
+        <div className="mh2-profile__avatar">{initial}</div>
         <div>
-          <p className="mh-profile__name">{profile?.name ?? "Your account"}</p>
-          <p className="mh-profile__contact">{profile?.email ?? user?.email ?? profile?.phone ?? ""}</p>
+          <p className="mh2-profile__name">{profile?.name ?? "Your account"}</p>
+          <p className="mh2-profile__contact">{profile?.email ?? user?.email ?? profile?.phone ?? ""}</p>
         </div>
       </div>
 
-      <div className="mh-profile__menu">
+      <div className="mh2-profile__menu">
         {LINKS.map((l) => (
-          <Link key={l.to} to={l.to} className="mh-profile__item">
-            <span className="mh-profile__item-icon" aria-hidden="true">
+          <Link key={l.to} to={l.to} className="mh2-profile__item">
+            <span className="mh2-profile__item-icon" aria-hidden="true">
               <span className="mi">{l.icon}</span>
             </span>
-            <span className="mh-profile__item-label">{l.label}</span>
-            <span className="mi mh-profile__item-chevron" aria-hidden="true">chevron_right</span>
+            <span className="mh2-profile__item-label">{l.label}</span>
+            <span className="mi mh2-profile__item-chevron" aria-hidden="true">chevron_right</span>
           </Link>
         ))}
         {/* Shown only when the ID token actually carries a staff role
@@ -51,17 +51,17 @@ export default function ProfilePage() {
             navigated to /admin directly anyway, AdminProtectedRoute and
             the RLS policies would both refuse them. */}
         {adminHomePathForRole(role) && (
-          <Link to={adminHomePathForRole(role)!} className="mh-profile__item">
-            <span className="mh-profile__item-icon is-accent" aria-hidden="true">
+          <Link to={adminHomePathForRole(role)!} className="mh2-profile__item">
+            <span className="mh2-profile__item-icon is-accent" aria-hidden="true">
               <span className="mi">admin_panel_settings</span>
             </span>
-            <span className="mh-profile__item-label">{adminMenuLabelForRole(role)}</span>
-            <span className="mi mh-profile__item-chevron" aria-hidden="true">chevron_right</span>
+            <span className="mh2-profile__item-label">{adminMenuLabelForRole(role)}</span>
+            <span className="mi mh2-profile__item-chevron" aria-hidden="true">chevron_right</span>
           </Link>
         )}
       </div>
 
-      <button className="mh-profile__logout" onClick={handleLogout}>
+      <button className="mh2-profile__logout" onClick={handleLogout}>
         <span className="mi" aria-hidden="true">logout</span>
         Log out
       </button>

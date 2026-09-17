@@ -29,8 +29,8 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="mh-reports">
-      <h1 style={{ fontSize: "var(--text-2xl)" }}>Reports</h1>
+    <div className="mh2-reports">
+      <h1 className="mh2-dashboard__section-title" style={{ fontSize: "var(--text-2xl)" }}>Reports</h1>
       {reports.loading && <LoadingState rows={3} />}
       {reports.error && <ErrorState message={reports.error} onRetry={reports.retry} />}
       {reports.data && reports.data.length === 0 && (
@@ -38,7 +38,7 @@ export default function ReportsPage() {
       )}
       {downloadError && <ErrorState message={downloadError} />}
       {reports.data && reports.data.length > 0 && (
-        <div className="mh-reports__list">
+        <div className="mh2-list">
           {reports.data.map((r) => {
             // uploadedAt/createdAt come straight off a Postgres
             // timestamptz column via Supabase, so this is always a real
@@ -47,21 +47,24 @@ export default function ReportsPage() {
             const rawDate = r.uploadedAt ?? r.createdAt;
             const dateLabel = rawDate ? new Date(String(rawDate)).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null;
             return (
-              <div key={r.id} className="mh-report-card">
-                <span className="mh-report-card__icon" aria-hidden="true">
+              <div key={r.id} className="mh2-list-card">
+                <span className="mh2-list-card__icon" aria-hidden="true">
                   <span className="mi">description</span>
                 </span>
-                <span className="mh-report-card__body">
-                  <span className="mh-report-card__title">{r.filename ?? `Booking ${r.bookingId}`}</span>
-                  <span className="mh-report-card__meta">
-                    <span className={`mh-status-badge ${r.status === "ready" ? "is-completed" : "is-active"}`}>
+                <span className="mh2-list-card__body">
+                  {/* bookingId is the internal uuid FK, never shown to a
+                      customer (same rule as Booking.id elsewhere) — a
+                      report with no filename yet just reads "Report". */}
+                  <span className="mh2-list-card__title">{r.filename ?? "Report"}</span>
+                  <span className="mh2-list-card__meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className={`mh2-status-badge ${r.status === "ready" ? "is-completed" : "is-active"}`}>
                       {r.status === "ready" ? "Ready" : "Processing"}
                     </span>
-                    {dateLabel && <span className="mh-report-card__date">{dateLabel}</span>}
+                    {dateLabel && <span>{dateLabel}</span>}
                   </span>
                 </span>
                 {r.status === "ready" && (
-                  <button className="btn btn-outline" onClick={() => handleDownload(r.id)} disabled={downloadingId === r.id}>
+                  <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => handleDownload(r.id)} disabled={downloadingId === r.id}>
                     <span className="mi" aria-hidden="true">download</span>
                     {downloadingId === r.id ? "Opening..." : "Download"}
                   </button>

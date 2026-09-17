@@ -1,0 +1,225 @@
+/* ============================================================
+   DESIGN SYSTEM V2 — Account area
+   Dashboard, booking detail, and a shared list-card pattern reused by
+   Family/Addresses/Reports. Legacy .mh-stat-grid/.mh-stat-card/
+   .mh-quick-action are left alone — all three are shared with admin
+   pages (AdminDashboardPage, AdminMarketingPage, AdminSegmentsPage),
+   none of which are part of this pass.
+   ============================================================ */
+.mh2-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.mh2-dashboard__greeting-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  color: var(--color-primary-deep);
+}
+
+.mh2-dashboard__greeting-sub {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  margin-top: 2px;
+}
+
+.mh2-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-sm);
+}
+
+.mh2-stat-card {
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.mh2-stat-card__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  color: var(--color-primary);
+}
+
+.mh2-stat-card__label {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  margin-top: 2px;
+}
+
+.mh2-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-sm);
+}
+
+.mh2-quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+  text-align: center;
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard);
+}
+
+.mh2-quick-action:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+}
+
+.mh2-quick-action .mi {
+  font-size: 26px;
+  color: var(--color-primary);
+}
+
+.mh2-quick-action.is-accent .mi {
+  color: var(--color-accent);
+}
+
+.mh2-dashboard__notify-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-deep);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.mh2-dashboard__section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-sm);
+}
+
+.mh2-dashboard__section-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: var(--color-primary-deep);
+}
+
+/* ---- Generic v2 card, reused by the "upcoming appointment" card,
+   booking-detail sections, and every list page below. ---- */
+.mh2-card {
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+
+a.mh2-card {
+  display: block;
+  color: inherit;
+}
+
+/* ---- Generic list-card: an icon, a body (title + meta line(s)), and
+   trailing actions — reused as-is by Family, Addresses, and Reports so
+   all three read as one consistent system rather than three separate
+   ad hoc layouts. ---- */
+.mh2-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.mh2-list-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+
+.mh2-list-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh2-list-card__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.mh2-list-card__title {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.mh2-list-card__title em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-primary);
+  margin-left: 6px;
+}
+
+.mh2-list-card__meta {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+
+.mh2-list-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ---- Booking detail ---- */
+.mh2-bookingdetail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+}
+
+.mh2-bookingdetail__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  color: var(--color-primary-deep);
+}
+
+.mh2-bookingdetail__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.mh2-bookingdetail__row.is-total {
+  font-weight: 800;
+  font-size: var(--text-base);
+}

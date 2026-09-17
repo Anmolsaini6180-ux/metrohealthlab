@@ -73,50 +73,48 @@ export default function DashboardPage() {
   if (reports.error) return <ErrorState message={reports.error} onRetry={reports.retry} />;
 
   return (
-    <div style={{ display: "grid", gap: "var(--space-lg)" }}>
+    <div className="mh2-dashboard">
       <div>
-        <h1 style={{ fontSize: "var(--text-xl)" }}>
+        <h1 className="mh2-dashboard__greeting-title">
           {greeting}, {greetingName}
         </h1>
-        <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
-          Here's what's happening with your health bookings.
-        </p>
+        <p className="mh2-dashboard__greeting-sub">Here's what's happening with your health bookings.</p>
       </div>
 
-      <div className="mh-stat-grid">
-        <div className="mh-stat-card">
-          <div className="mh-stat-card__value">{stats.upcoming}</div>
-          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Upcoming bookings</p>
+      <div className="mh2-stat-grid">
+        <div className="mh2-stat-card">
+          <div className="mh2-stat-card__value">{stats.upcoming}</div>
+          <p className="mh2-stat-card__label">Upcoming bookings</p>
         </div>
-        <div className="mh-stat-card">
-          <div className="mh-stat-card__value">{stats.completed}</div>
-          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Completed tests</p>
+        <div className="mh2-stat-card">
+          <div className="mh2-stat-card__value">{stats.completed}</div>
+          <p className="mh2-stat-card__label">Completed tests</p>
         </div>
-        <div className="mh-stat-card">
-          <div className="mh-stat-card__value">{stats.reportsAvailable}</div>
-          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Reports available</p>
+        <div className="mh2-stat-card">
+          <div className="mh2-stat-card__value">{stats.reportsAvailable}</div>
+          <p className="mh2-stat-card__label">Reports available</p>
         </div>
-        <div className="mh-stat-card">
-          <div className="mh-stat-card__value">{stats.pendingActions}</div>
-          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Pending actions</p>
+        <div className="mh2-stat-card">
+          <div className="mh2-stat-card__value">{stats.pendingActions}</div>
+          <p className="mh2-stat-card__label">Pending actions</p>
         </div>
       </div>
 
-      <div className="mh-stat-grid">
-        <Link to="/tests" className="card mh-quick-action">
-          <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>science</span>
+      <div className="mh2-quick-grid">
+        <Link to="/tests" className="mh2-quick-action">
+          <span className="mi" aria-hidden="true">science</span>
           Book a Test
         </Link>
-        <Link to="/packages" className="card mh-quick-action">
-          <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>inventory_2</span>
+        <Link to="/packages" className="mh2-quick-action">
+          <span className="mi" aria-hidden="true">inventory_2</span>
           Book a Package
         </Link>
-        <Link to="/bookings" className="card mh-quick-action">
-          <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>calendar_month</span>
+        <Link to="/bookings" className="mh2-quick-action">
+          <span className="mi" aria-hidden="true">calendar_month</span>
           My Bookings
         </Link>
-        <Link to="/reports" className="card mh-quick-action">
-          <span className="mi" style={{ fontSize: 26, color: "var(--color-primary)" }}>description</span>
+        <Link to="/reports" className="mh2-quick-action">
+          <span className="mi" aria-hidden="true">description</span>
           My Reports
         </Link>
         {/* Staff only — driven by the role on the caller's Firestore
@@ -124,28 +122,30 @@ export default function DashboardPage() {
             Hiding it is a convenience; AdminProtectedRoute and
             firestore.rules are what actually deny access to /admin. */}
         {adminHomePathForRole(role) && (
-          <Link to={adminHomePathForRole(role)!} className="card mh-quick-action">
-            <span className="mi" style={{ fontSize: 26, color: "var(--color-accent)" }}>admin_panel_settings</span>
+          <Link to={adminHomePathForRole(role)!} className="mh2-quick-action is-accent">
+            <span className="mi" aria-hidden="true">admin_panel_settings</span>
             {adminMenuLabelForRole(role)}
           </Link>
         )}
       </div>
 
       {unreadCount > 0 && (
-        <Link to="/notifications" className="card" style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-          <span className="mi" style={{ color: "var(--color-accent)" }}>notifications</span>
+        <Link to="/notifications" className="mh2-dashboard__notify-banner">
+          <span className="mi" aria-hidden="true">notifications</span>
           You have {unreadCount} unread notification{unreadCount > 1 ? "s" : ""}
         </Link>
       )}
 
       <div>
-        <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Upcoming appointment</h2>
+        <h2 className="mh2-dashboard__section-title" style={{ marginBottom: "var(--space-sm)" }}>
+          Upcoming appointment
+        </h2>
         {!nextAppointment && (
           <EmptyState icon="event_available" title="No upcoming appointments" description="Book a test to see it here." />
         )}
         {nextAppointment && (
-          <Link to={`/track/${nextAppointment.id}`} className="card" style={{ display: "block" }}>
-            <p style={{ fontWeight: 600 }}>{nextAppointment.id}</p>
+          <Link to={`/track/${nextAppointment.id}`} className="mh2-card" style={{ display: "block" }}>
+            <p style={{ fontWeight: 700 }}>{nextAppointment.reference}</p>
             <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
               {nextAppointment.date} • {nextAppointment.collectionType === "home" ? "Home collection" : "Center visit"}
             </p>
@@ -157,8 +157,8 @@ export default function DashboardPage() {
       </div>
 
       <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-sm)" }}>
-          <h2 style={{ fontSize: "var(--text-lg)" }}>Recent bookings</h2>
+        <div className="mh2-dashboard__section-head">
+          <h2 className="mh2-dashboard__section-title">Recent bookings</h2>
           <Link to="/bookings" className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
             View all
           </Link>
@@ -167,13 +167,13 @@ export default function DashboardPage() {
         {(bookings.data ?? []).length > 0 && (
           <div style={{ display: "grid", gap: "var(--space-sm)" }}>
             {(bookings.data ?? []).slice(0, 3).map((b) => (
-              <Link key={b.id} to={`/bookings/${b.id}`} className="card" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <Link key={b.id} to={`/bookings/${b.id}`} className="mh2-card" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                 <div>
-                  <p style={{ fontWeight: 600 }}>{b.id}</p>
+                  <p style={{ fontWeight: 700 }}>{b.reference}</p>
                   <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{b.items.map((i) => i.name).join(", ")}</p>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <p style={{ fontWeight: 600 }}>{formatCurrencyInr(b.finalAmount)}</p>
+                  <p style={{ fontWeight: 700 }}>{formatCurrencyInr(b.finalAmount)}</p>
                   <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{STATUS_LABELS[b.bookingStatus]}</p>
                 </div>
               </Link>

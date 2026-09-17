@@ -143,3 +143,156 @@
   background: #fbe9e9;
   color: var(--color-danger);
 }
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Bookings list
+   .mh2-tab-row/.mh2-tab-btn and .mh2-status-badge are generic enough
+   to be reused as-is by NotificationsPage and ReportsPage — neither
+   has its own dedicated stylesheet, so they share these instead of
+   duplicating the pattern.
+   ============================================================ */
+.mh2-bookings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+}
+
+.mh2-tab-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.mh2-tab-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+}
+
+.mh2-tab-btn.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.mh2-bookings__list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.mh2-booking-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard);
+}
+
+.mh2-booking-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+}
+
+.mh2-booking-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh2-booking-card__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mh2-booking-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mh2-booking-card__id {
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.mh2-booking-card__items {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mh2-booking-card__date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+
+.mh2-booking-card__date .mi {
+  font-size: 15px;
+}
+
+.mh2-booking-card__price {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-primary-deep);
+}
+
+.mh2-booking-card__chevron {
+  color: var(--color-ink-soft);
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.mh2-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mh2-status-badge.is-upcoming {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.mh2-status-badge.is-active {
+  background: #fff2e6;
+  color: var(--color-accent);
+}
+
+.mh2-status-badge.is-completed {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.mh2-status-badge.is-cancelled {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
