@@ -35,17 +35,29 @@ export default function PhoneNumberModal({ initialPhone = "", title, description
       }}
       onClick={onCancel}
     >
-      <div className="card" style={{ maxWidth: 380, width: "100%" }} onClick={(e) => e.stopPropagation()}>
-        <p style={{ fontWeight: 700, marginBottom: 6, fontSize: "var(--text-lg)" }}>{title ?? "Your contact number"}</p>
+      <div
+        style={{
+          maxWidth: 380,
+          width: "100%",
+          background: "var(--color-surface)",
+          borderRadius: "var(--radius-xl)",
+          boxShadow: "var(--shadow-floating)",
+          padding: "var(--space-lg)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p style={{ fontWeight: 800, marginBottom: 6, fontSize: "var(--text-lg)", fontFamily: "var(--font-display)", color: "var(--color-primary-deep)" }}>
+          {title ?? "Your contact number"}
+        </p>
         <p className="text-soft" style={{ fontSize: "var(--text-sm)", marginBottom: "var(--space-md)" }}>
           {description ?? "Our team will call this number about your booking — collection updates and anything that needs confirming."}
         </p>
         <label style={{ display: "grid", gap: 4 }}>
           <span style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>Mobile number</span>
-          <div className="mh-pincode-row">
-            <span className="mh-pincode-row__prefix">+91</span>
+          <div className="mh2-pincode-row">
+            <span className="mh2-pincode-row__prefix">+91</span>
             <input
-              className="mh-pincode-row__input"
+              className="mh2-pincode-row__input"
               type="tel"
               inputMode="numeric"
               autoFocus
@@ -65,10 +77,10 @@ export default function PhoneNumberModal({ initialPhone = "", title, description
           </p>
         )}
         <div style={{ display: "flex", gap: "var(--space-sm)", justifyContent: "flex-end", marginTop: "var(--space-md)" }}>
-          <button className="btn btn-outline" type="button" onClick={onCancel}>
+          <button className="mh2-btn mh2-btn--outline" type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button className="btn btn-primary" type="button" disabled={!valid} onClick={() => onConfirm(normalizeIndianMobile(phone))}>
+          <button className="mh2-btn mh2-btn--primary" type="button" disabled={!valid} onClick={() => onConfirm(normalizeIndianMobile(phone))}>
             Continue
           </button>
         </div>

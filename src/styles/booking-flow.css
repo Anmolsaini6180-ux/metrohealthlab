@@ -1,230 +1,15 @@
 /* ============================================================
    BOOKING FLOW
+   The legacy booking, stepper, select-card, toggle, pincode-row,
+   service-msg, date/slot picker, payment-card and edit-btn classes
+   that used to live here have been replaced by the mh2- versions
+   below — BookingFlowPage, BookingStepper and PhoneNumberModal are
+   their only consumers, and all three now use the v2 classes
+   exclusively. .mh-add-row and .mh-order-summary below stay,
+   unchanged: both are shared with admin upload rows and
+   TrackBookingPage respectively, neither of which is part of this
+   pass.
    ============================================================ */
-.mh-booking {
-  display: grid;
-  /* Without an explicit column, a CSS grid's single implicit column
-     sizes to fit the widest child's min-content — and then, by grid's
-     own default stretch behaviour, EVERY row (the stepper, the toggle
-     row, the nav buttons) gets stretched to match that one column's
-     width, even rows whose own content is much narrower. On a real
-     device this pushed the whole booking flow ~40-60px past the
-     viewport edge, invisibly (see html/body's overflow-x: clip above:
-     nothing scrolls to reveal it — a real button's tap target, and the
-     5th step's own label, were simply gone off-screen). minmax(0, 1fr)
-     caps the column at the actually-available width instead; confirmed
-     end to end with production markup down to 320px wide. */
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-lg);
-}
-
-.mh-booking__head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.mh-booking__nav {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-sm);
-}
-
-.mh-booking__section {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-sm);
-}
-
-.mh-booking__section-title {
-  font-size: var(--text-base);
-  font-weight: 700;
-  margin-bottom: 2px;
-}
-
-/* ---- Stepper ---- */
-.mh-stepper {
-  display: flex;
-  align-items: flex-start;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.mh-stepper__item {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.mh-stepper__dot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--color-bg-tint);
-  color: var(--color-ink-soft);
-  font-weight: 700;
-  font-size: 13px;
-  border: 2px solid var(--color-line);
-  z-index: 1;
-}
-
-.mh-stepper__dot .mi {
-  font-size: 16px;
-}
-
-.mh-stepper__item.is-active .mh-stepper__dot {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
-}
-
-.mh-stepper__item.is-done .mh-stepper__dot {
-  background: var(--color-success);
-  border-color: var(--color-success);
-  color: #fff;
-}
-
-.mh-stepper__label {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--color-ink-soft);
-  text-align: center;
-}
-
-.mh-stepper__item.is-active .mh-stepper__label {
-  color: var(--color-ink);
-}
-
-.mh-stepper__line {
-  position: absolute;
-  top: 15px;
-  left: calc(50% + 20px);
-  right: calc(-50% + 20px);
-  height: 2px;
-  background: var(--color-line);
-  z-index: 0;
-}
-
-.mh-stepper__item.is-done .mh-stepper__line {
-  background: var(--color-success);
-}
-
-/* ---- Selectable list cards (patient / address) ---- */
-.mh-select-list {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-}
-
-.mh-select-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1.5px solid var(--color-line);
-  background: var(--color-surface);
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.mh-select-card.is-selected {
-  border-color: var(--color-primary);
-  background: var(--color-bg-tint);
-}
-
-.mh-select-card__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--color-bg-tint);
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.mh-select-card.is-selected .mh-select-card__icon {
-  background: #fff;
-}
-
-.mh-select-card__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mh-select-card__title {
-  font-weight: 700;
-  font-size: var(--text-sm);
-  color: var(--color-ink);
-}
-
-.mh-select-card__title em {
-  font-style: normal;
-  font-weight: 600;
-  font-size: 11px;
-  color: var(--color-primary);
-  margin-left: 6px;
-}
-
-.mh-select-card__meta {
-  font-size: 12px;
-  color: var(--color-ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mh-select-card__check {
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-/* Wraps a select-card together with its sibling edit button — the edit
-   control can't nest inside the select-card <button> itself (invalid
-   HTML: button-in-button), so this lays the two out side by side
-   instead. */
-.mh-select-card-row {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.mh-select-card-row .mh-select-card {
-  flex: 1;
-  min-width: 0;
-}
-
-.mh-edit-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  border: 1.5px solid var(--color-line);
-  background: var(--color-surface);
-  color: var(--color-ink-soft);
-}
-
-.mh-edit-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: var(--color-bg-tint);
-}
-
 .mh-add-row {
   display: flex;
   align-items: center;
@@ -241,199 +26,6 @@
 .mh-add-row:hover {
   border-color: var(--color-primary);
   background: var(--color-bg-tint);
-}
-
-/* ---- Collection type toggle ---- */
-.mh-toggle-row {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.mh-toggle-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1.5px solid var(--color-line);
-  background: var(--color-surface);
-  font-weight: 600;
-  font-size: var(--text-sm);
-  color: var(--color-ink);
-}
-
-.mh-toggle-btn .mi {
-  font-size: 18px;
-}
-
-.mh-toggle-btn.is-active {
-  border-color: var(--color-primary);
-  background: var(--color-bg-tint);
-  color: var(--color-primary);
-}
-
-/* ---- Pincode check ---- */
-.mh-pincode-row {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.mh-pincode-row__input {
-  flex: 1;
-  padding: 11px 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-line);
-  font-size: var(--text-sm);
-}
-
-/* Fixed "+91" ahead of the booking-contact-number input — same row
-   shape as the pincode check, just with a non-editable prefix instead
-   of a Check button on that side. */
-.mh-pincode-row__prefix {
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-line);
-  background: var(--color-bg-tint);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-ink-soft);
-}
-
-.mh-service-msg {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-sm);
-  margin-top: 8px;
-}
-
-.mh-service-msg .mi {
-  font-size: 18px;
-}
-
-.mh-service-msg.is-danger {
-  color: var(--color-danger);
-}
-
-.mh-service-msg.is-success {
-  color: var(--color-success);
-}
-
-/* ---- Date / slot pickers ---- */
-.mh-date-row {
-  display: flex;
-  gap: 10px;
-}
-
-.mh-date-card {
-  flex: 0 0 64px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 10px 4px;
-  border-radius: 12px;
-  border: 1.5px solid var(--color-line);
-  background: var(--color-surface);
-}
-
-.mh-date-card.is-active {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: #fff;
-}
-
-.mh-date-card__day {
-  font-size: 11px;
-  text-transform: uppercase;
-  opacity: 0.75;
-}
-
-.mh-date-card__num {
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.mh-date-card__month {
-  font-size: 11px;
-  opacity: 0.75;
-}
-
-.mh-slot-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-}
-
-.mh-slot-btn {
-  position: relative;
-  padding: 10px 8px;
-  border-radius: 12px;
-  border: 1.5px solid var(--color-line);
-  background: var(--color-surface);
-  font-weight: 600;
-  font-size: 12.5px;
-  color: var(--color-ink);
-}
-
-.mh-slot-btn.is-active {
-  border-color: var(--color-primary);
-  background: var(--color-bg-tint);
-  color: var(--color-primary);
-}
-
-.mh-slot-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.mh-slot-btn__full {
-  display: block;
-  font-size: 10px;
-  color: var(--color-danger);
-  margin-top: 2px;
-}
-
-/* ---- Payment (cash on home only) ---- */
-.mh-payment-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border-radius: 14px;
-  border: 1.5px solid var(--color-primary);
-  background: var(--color-bg-tint);
-}
-
-.mh-payment-card__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #fff;
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.mh-payment-card__icon .mi {
-  font-size: 24px;
-}
-
-.mh-payment-card__title {
-  font-weight: 700;
-  font-size: var(--text-base);
-}
-
-.mh-payment-card__check {
-  margin-left: auto;
-  color: var(--color-primary);
-  flex-shrink: 0;
 }
 
 /* ---- Order summary (review step) ---- */
@@ -465,6 +57,511 @@
 }
 
 .mh-order-summary__rule {
+  border: none;
+  border-top: 1px dashed var(--color-line);
+  margin: 2px 0;
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Booking flow
+   Parallel to the legacy classes above, used exclusively by
+   BookingFlowPage/BookingStepper/PhoneNumberModal. .mh-add-row and
+   .mh-order-summary* above are deliberately left alone — both are
+   shared with admin upload rows and TrackBookingPage, neither of
+   which is part of this pass.
+   ============================================================ */
+.mh2-booking {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+.mh2-booking__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.mh2-booking__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink);
+  flex-shrink: 0;
+}
+
+.mh2-booking__back:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.mh2-booking__eyebrow {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  font-weight: 600;
+}
+
+.mh2-booking__title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-primary-deep);
+}
+
+.mh2-booking__nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.mh2-booking__section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+
+.mh2-booking__section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  color: var(--color-primary-deep);
+}
+
+/* ---- Stepper ---- */
+.mh2-stepper {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mh2-stepper__item {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mh2-stepper__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  color: var(--color-ink-soft);
+  font-weight: 700;
+  font-size: 13px;
+  border: 2px solid var(--color-line);
+  z-index: 1;
+}
+
+.mh2-stepper__dot .mi {
+  font-size: 16px;
+}
+
+.mh2-stepper__item.is-active .mh2-stepper__dot {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--color-primary-soft);
+}
+
+.mh2-stepper__item.is-done .mh2-stepper__dot {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+}
+
+.mh2-stepper__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+
+.mh2-stepper__item.is-active .mh2-stepper__label {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+.mh2-stepper__line {
+  position: absolute;
+  top: 16px;
+  left: calc(50% + 20px);
+  right: calc(-50% + 20px);
+  height: 2px;
+  background: var(--color-line);
+  z-index: 0;
+}
+
+.mh2-stepper__item.is-done .mh2-stepper__line {
+  background: var(--color-success);
+}
+
+/* ---- Selectable list cards (patient / address) ---- */
+.mh2-select-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.mh2-select-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  text-align: left;
+  transition: border-color 0.15s var(--ease-standard), background 0.15s var(--ease-standard);
+}
+
+.mh2-select-card.is-selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.mh2-select-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh2-select-card.is-selected .mh2-select-card__icon {
+  background: #fff;
+}
+
+.mh2-select-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mh2-select-card__title {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.mh2-select-card__title em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-primary);
+  margin-left: 6px;
+}
+
+.mh2-select-card__meta {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mh2-select-card__check {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh2-select-card-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mh2-select-card-row .mh2-select-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.mh2-edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+}
+
+.mh2-edit-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.mh2-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--color-line);
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  background: transparent;
+}
+
+.mh2-add-row:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+/* ---- Collection type toggle ---- */
+.mh2-toggle-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.mh2-toggle-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.mh2-toggle-btn .mi {
+  font-size: 18px;
+}
+
+.mh2-toggle-btn.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+/* ---- Pincode / phone input row ---- */
+.mh2-pincode-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.mh2-pincode-row__input {
+  flex: 1;
+  height: var(--btn-height);
+  padding: 0 14px;
+  border-radius: var(--btn-radius);
+  border: 1.5px solid var(--color-line);
+  font-size: var(--text-sm);
+}
+
+.mh2-pincode-row__prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: var(--btn-radius);
+  border: 1.5px solid var(--color-line);
+  background: var(--gray-50);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+
+.mh2-service-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.mh2-service-msg .mi {
+  font-size: 18px;
+}
+
+.mh2-service-msg.is-danger {
+  color: var(--color-danger);
+}
+
+.mh2-service-msg.is-success {
+  color: var(--color-success);
+}
+
+/* ---- Date / slot pickers ---- */
+.mh2-date-row {
+  display: flex;
+  gap: 10px;
+}
+
+.mh2-date-card {
+  flex: 0 0 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.mh2-date-card.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.mh2-date-card__day {
+  font-size: 11px;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.mh2-date-card__num {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.mh2-date-card__month {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.mh2-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.mh2-slot-btn {
+  position: relative;
+  padding: 10px 8px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-line);
+  background: var(--color-surface);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--color-ink);
+}
+
+.mh2-slot-btn.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.mh2-slot-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mh2-slot-btn__full {
+  display: block;
+  font-size: 10px;
+  color: var(--color-danger);
+  margin-top: 2px;
+}
+
+/* ---- Payment (cash on home only) ---- */
+.mh2-payment-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.mh2-payment-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh2-payment-card__icon .mi {
+  font-size: 24px;
+}
+
+.mh2-payment-card__title {
+  font-weight: 700;
+  font-size: var(--text-base);
+}
+
+.mh2-payment-card__check {
+  margin-left: auto;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+/* ---- Order summary (review step) — a booking-flow-scoped copy of
+   .mh-order-summary* above; that one stays as-is since TrackBookingPage
+   also renders it and isn't part of this pass. ---- */
+.mh2-order-summary {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  display: grid;
+  gap: 8px;
+  background: var(--gray-50);
+}
+
+.mh2-order-summary__title {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  margin-bottom: 2px;
+}
+
+.mh2-order-summary__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.mh2-order-summary__row.is-total {
+  font-weight: 800;
+  font-size: var(--text-base);
+  color: var(--color-ink);
+}
+
+.mh2-order-summary__rule {
   border: none;
   border-top: 1px dashed var(--color-line);
   margin: 2px 0;

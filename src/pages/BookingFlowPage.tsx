@@ -268,9 +268,9 @@ export default function BookingFlowPage() {
   // fallback the page offers when automated booking is unavailable.
   if (user && !supabaseUserId) {
     return (
-      <div className="mh-booking">
-        <div className="card" style={{ display: "grid", gap: "var(--space-sm)" }}>
-          <p style={{ fontWeight: 700 }}>
+      <div className="mh2-booking">
+        <div className="mh2-booking__section">
+          <p style={{ fontWeight: 800, fontFamily: "var(--font-display)", color: "var(--color-primary-deep)" }}>
             {phoneBridgeError ? "Couldn't verify your sign-in" : "Setting up your account..."}
           </p>
           <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
@@ -279,16 +279,16 @@ export default function BookingFlowPage() {
           </p>
           {phoneBridgeError && (
             <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-              <button className="btn btn-primary" onClick={retryPhoneBridge}>
+              <button className="mh2-btn mh2-btn--primary" onClick={retryPhoneBridge}>
                 Try again
               </button>
               {contactPhone && (
-                <a className="btn btn-outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
+                <a className="mh2-btn mh2-btn--outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
                   Call {contactPhone}
                 </a>
               )}
               {whatsappLink && (
-                <a className="btn btn-outline" href={whatsappLink} target="_blank" rel="noreferrer">
+                <a className="mh2-btn mh2-btn--outline" href={whatsappLink} target="_blank" rel="noreferrer">
                   Send details on WhatsApp
                 </a>
               )}
@@ -432,22 +432,22 @@ export default function BookingFlowPage() {
   }
 
   return (
-    <div className="mh-booking">
-      <div className="mh-booking__head">
-        <button className="mh-pkgdetail__back" onClick={() => navigate(-1)} aria-label="Go back">
+    <div className="mh2-booking">
+      <div className="mh2-booking__head">
+        <button className="mh2-booking__back" onClick={() => navigate(-1)} aria-label="Go back">
           <span className="mi" aria-hidden="true">arrow_back</span>
         </button>
         <div>
-          <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>Book a Test / Package</p>
-          <h1 style={{ fontSize: "var(--text-lg)" }}>{sel.name}</h1>
+          <p className="mh2-booking__eyebrow">Book a Test / Package</p>
+          <h1 className="mh2-booking__title">{sel.name}</h1>
         </div>
       </div>
 
       <BookingStepper steps={STEPS} labels={STEP_LABELS} activeIndex={stepIndex} />
 
       {step === "patient" && (
-        <section className="mh-booking__section">
-          <h2 className="mh-booking__section-title">Who is this test for?</h2>
+        <section className="mh2-booking__section">
+          <h2 className="mh2-booking__section-title">Who is this test for?</h2>
           {/* Only the FIRST load shows a skeleton — a retry after adding a
               member keeps the previous list visible (useAsync's own
               contract: `data` isn't cleared while `loading` is true), so
@@ -457,29 +457,29 @@ export default function BookingFlowPage() {
           {patients.loading && !patients.data && <LoadingState rows={2} />}
           {patients.error && <ErrorState message={patients.error} onRetry={patients.retry} />}
           {patients.data && (
-            <div className="mh-select-list">
+            <div className="mh2-select-list">
               {patients.data.map((p) => (
                 <button
                   key={p.id}
-                  className={`mh-select-card${patientId === p.id ? " is-selected" : ""}`}
+                  className={`mh2-select-card${patientId === p.id ? " is-selected" : ""}`}
                   onClick={() => setPatientId(p.id)}
                 >
-                  <span className="mh-select-card__icon" aria-hidden="true">
+                  <span className="mh2-select-card__icon" aria-hidden="true">
                     <span className="mi">person</span>
                   </span>
-                  <span className="mh-select-card__body">
-                    <span className="mh-select-card__title">{p.name}</span>
-                    <span className="mh-select-card__meta">{p.relationship}</span>
+                  <span className="mh2-select-card__body">
+                    <span className="mh2-select-card__title">{p.name}</span>
+                    <span className="mh2-select-card__meta">{p.relationship}</span>
                   </span>
                   {patientId === p.id && (
-                    <span className="mh-select-card__check" aria-hidden="true">
+                    <span className="mh2-select-card__check" aria-hidden="true">
                       <span className="mi">check_circle</span>
                     </span>
                   )}
                 </button>
               ))}
               {!showAddPatient && (
-                <button className="mh-add-row" onClick={() => setShowAddPatient(true)}>
+                <button className="mh2-add-row" onClick={() => setShowAddPatient(true)}>
                   <span className="mi" aria-hidden="true">add_circle</span>
                   Add a family member
                 </button>
@@ -498,18 +498,18 @@ export default function BookingFlowPage() {
             </div>
           )}
 
-          <div className="mh-contact-phone" style={{ marginTop: "var(--space-md)" }}>
+          <div style={{ marginTop: "var(--space-md)" }}>
             {isValidIndianMobile(phone) ? (
               // Case C (Section 12): already have a good number — a
               // small confirmation chip, not a permanent form section.
-              <div className="mh-select-card is-selected" style={{ cursor: "default" }}>
-                <span className="mh-select-card__icon" aria-hidden="true">
+              <div className="mh2-select-card is-selected" style={{ cursor: "default" }}>
+                <span className="mh2-select-card__icon" aria-hidden="true">
                   <span className="mi">call</span>
                 </span>
-                <span className="mh-select-card__body">
-                  <span className="mh-select-card__title">Contact number +91 {normalizeIndianMobile(phone)}</span>
+                <span className="mh2-select-card__body">
+                  <span className="mh2-select-card__title">Contact number +91 {normalizeIndianMobile(phone)}</span>
                 </span>
-                <button type="button" className="btn btn-outline" onClick={() => setPhoneModalOpen(true)}>
+                <button type="button" className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => setPhoneModalOpen(true)}>
                   Change
                 </button>
               </div>
@@ -517,7 +517,7 @@ export default function BookingFlowPage() {
               // Case B: logged in but nothing valid on file yet — a
               // compact prompt that opens the explanatory modal, never
               // a bare input dropped straight into the page.
-              <button type="button" className="mh-add-row" onClick={() => setPhoneModalOpen(true)}>
+              <button type="button" className="mh2-add-row" onClick={() => setPhoneModalOpen(true)}>
                 <span className="mi" aria-hidden="true">call</span>
                 Add your phone number
               </button>
@@ -541,19 +541,19 @@ export default function BookingFlowPage() {
       )}
 
       {step === "collection" && (
-        <section className="mh-booking__section" style={{ display: "grid", gap: "var(--space-md)" }}>
+        <section className="mh2-booking__section">
           <div>
-            <h2 className="mh-booking__section-title">Collection type</h2>
-            <div className="mh-toggle-row">
+            <h2 className="mh2-booking__section-title">Collection type</h2>
+            <div className="mh2-toggle-row">
               <button
-                className={`mh-toggle-btn${collectionType === "home" ? " is-active" : ""}`}
+                className={`mh2-toggle-btn${collectionType === "home" ? " is-active" : ""}`}
                 onClick={() => setCollectionType("home")}
               >
                 <span className="mi" aria-hidden="true">home</span>
                 Home collection
               </button>
               <button
-                className={`mh-toggle-btn${collectionType === "center" ? " is-active" : ""}`}
+                className={`mh2-toggle-btn${collectionType === "center" ? " is-active" : ""}`}
                 onClick={() => setCollectionType("center")}
               >
                 <span className="mi" aria-hidden="true">storefront</span>
@@ -563,8 +563,8 @@ export default function BookingFlowPage() {
           </div>
 
           <div>
-            <h2 className="mh-booking__section-title">Check serviceability</h2>
-            <div className="mh-pincode-row">
+            <h2 className="mh2-booking__section-title">Check serviceability</h2>
+            <div className="mh2-pincode-row">
               <input
                 value={pincode}
                 onChange={(e) => {
@@ -578,20 +578,20 @@ export default function BookingFlowPage() {
                   setPincodeChecked(null);
                 }}
                 placeholder="Enter pincode"
-                className="mh-pincode-row__input"
+                className="mh2-pincode-row__input"
               />
-              <button className="btn btn-outline" onClick={handleCheckPincode}>
+              <button className="mh2-btn mh2-btn--outline" onClick={handleCheckPincode}>
                 Check
               </button>
             </div>
             {pincodeChecked && !pincodeChecked.available && (
-              <p className="mh-service-msg is-danger">
+              <p className="mh2-service-msg is-danger">
                 <span className="mi" aria-hidden="true">error</span>
                 Service not available at this pincode yet.
               </p>
             )}
             {pincodeChecked && pincodeChecked.available && (
-              <p className="mh-service-msg is-success">
+              <p className="mh2-service-msg is-success">
                 <span className="mi" aria-hidden="true">check_circle</span>
                 Service available — exact pricing is confirmed on the next step.
               </p>
@@ -600,18 +600,18 @@ export default function BookingFlowPage() {
 
           {collectionType === "home" && (
             <div>
-              <h2 className="mh-booking__section-title">Delivery / Collection Address</h2>
+              <h2 className="mh2-booking__section-title">Delivery / Collection Address</h2>
               {addresses.loading && !addresses.data && <LoadingState rows={2} />}
               {addresses.error && <ErrorState message={addresses.error} onRetry={addresses.retry} />}
               {addresses.data && (
-                <div className="mh-select-list">
+                <div className="mh2-select-list">
                   {addresses.data.length === 0 && !showAddAddress && (
                     <EmptyState icon="location_on" title="No saved addresses yet" description="Add one below to continue." />
                   )}
                   {addresses.data.map((a) => (
-                    <div key={a.id} className="mh-select-card-row">
+                    <div key={a.id} className="mh2-select-card-row">
                       <button
-                        className={`mh-select-card${addressId === a.id ? " is-selected" : ""}`}
+                        className={`mh2-select-card${addressId === a.id ? " is-selected" : ""}`}
                         onClick={() => {
                           setAddressId(a.id);
                           setPincode(a.pincode);
@@ -623,19 +623,19 @@ export default function BookingFlowPage() {
                           void runServiceabilityCheck(a.pincode);
                         }}
                       >
-                        <span className="mh-select-card__icon" aria-hidden="true">
+                        <span className="mh2-select-card__icon" aria-hidden="true">
                           <span className="mi">location_on</span>
                         </span>
-                        <span className="mh-select-card__body">
-                          <span className="mh-select-card__title">
+                        <span className="mh2-select-card__body">
+                          <span className="mh2-select-card__title">
                             {a.label} {a.isDefault && <em>(Default)</em>}
                           </span>
-                          <span className="mh-select-card__meta">
+                          <span className="mh2-select-card__meta">
                             {a.house}, {a.street}, {a.city} {a.pincode}
                           </span>
                         </span>
                         {addressId === a.id && (
-                          <span className="mh-select-card__check" aria-hidden="true">
+                          <span className="mh2-select-card__check" aria-hidden="true">
                             <span className="mi">check_circle</span>
                           </span>
                         )}
@@ -648,7 +648,7 @@ export default function BookingFlowPage() {
                           force abandoning the flow to go fix it. */}
                       <button
                         type="button"
-                        className="mh-edit-btn"
+                        className="mh2-edit-btn"
                         aria-label={`Edit ${a.label} address`}
                         onClick={() => {
                           setShowAddAddress(false);
@@ -665,7 +665,7 @@ export default function BookingFlowPage() {
                       had one saved address there was no way left to add
                       a second without leaving the booking flow. */}
                   {!showAddAddress && !editingAddress && (
-                    <button className="mh-add-row" onClick={() => setShowAddAddress(true)}>
+                    <button className="mh2-add-row" onClick={() => setShowAddAddress(true)}>
                       <span className="mi" aria-hidden="true">add_circle</span>
                       Add a new address
                     </button>
@@ -704,49 +704,49 @@ export default function BookingFlowPage() {
       )}
 
       {step === "schedule" && (
-        <section className="mh-booking__section" style={{ display: "grid", gap: "var(--space-md)" }}>
+        <section className="mh2-booking__section">
           <div>
-            <h2 className="mh-booking__section-title">Select Date &amp; Time</h2>
-            <div className="mh-date-row mh-hscroll">
+            <h2 className="mh2-booking__section-title">Select Date &amp; Time</h2>
+            <div className="mh2-date-row mh-hscroll">
               {nextSevenDays.map((d) => {
                 const dt = new Date(d);
                 return (
                   <button
                     key={d}
-                    className={`mh-date-card${date === d ? " is-active" : ""}`}
+                    className={`mh2-date-card${date === d ? " is-active" : ""}`}
                     onClick={() => {
                       setDate(d);
                       setSlotId(null);
                     }}
                   >
-                    <span className="mh-date-card__day">{dt.toLocaleDateString(undefined, { weekday: "short" })}</span>
-                    <span className="mh-date-card__num">{dt.getDate()}</span>
-                    <span className="mh-date-card__month">{dt.toLocaleDateString(undefined, { month: "short" })}</span>
+                    <span className="mh2-date-card__day">{dt.toLocaleDateString(undefined, { weekday: "short" })}</span>
+                    <span className="mh2-date-card__num">{dt.getDate()}</span>
+                    <span className="mh2-date-card__month">{dt.toLocaleDateString(undefined, { month: "short" })}</span>
                   </button>
                 );
               })}
             </div>
           </div>
           <div>
-            <h2 className="mh-booking__section-title">Available slots</h2>
+            <h2 className="mh2-booking__section-title">Available slots</h2>
             {slots.loading && <LoadingState rows={2} />}
             {slots.error && <ErrorState message={slots.error} onRetry={slots.retry} />}
             {slots.data && slots.data.length === 0 && (
               <EmptyState icon="event_busy" title="No slots available for this date" description="Try another date." />
             )}
             {slots.data && slots.data.length > 0 && (
-              <div className="mh-slot-grid">
+              <div className="mh2-slot-grid">
                 {slots.data.map((s) => {
                   const full = s.bookedCount >= s.capacity;
                   return (
                     <button
                       key={s.id}
-                      className={`mh-slot-btn${slotId === s.id ? " is-active" : ""}`}
+                      className={`mh2-slot-btn${slotId === s.id ? " is-active" : ""}`}
                       disabled={full}
                       onClick={() => setSlotId(s.id)}
                     >
                       {s.startTime}–{s.endTime}
-                      {full && <span className="mh-slot-btn__full">Full</span>}
+                      {full && <span className="mh2-slot-btn__full">Full</span>}
                     </button>
                   );
                 })}
@@ -757,23 +757,23 @@ export default function BookingFlowPage() {
       )}
 
       {step === "payment" && (
-        <section className="mh-booking__section">
-          <h2 className="mh-booking__section-title">Payment Method</h2>
+        <section className="mh2-booking__section">
+          <h2 className="mh2-booking__section-title">Payment Method</h2>
           {/* Cash on home is the only method offered. It is shown as a
               settled choice rather than a one-option picker, because a
               list you cannot choose differently from is just noise. No
               UPI/card/wallet/netbanking option exists in this product. */}
-          <div className="mh-payment-card is-selected">
-            <span className="mh-payment-card__icon" aria-hidden="true">
+          <div className="mh2-payment-card">
+            <span className="mh2-payment-card__icon" aria-hidden="true">
               <span className="mi">payments</span>
             </span>
             <div>
-              <p className="mh-payment-card__title">Cash on Home</p>
+              <p className="mh2-payment-card__title">Cash on Home</p>
               <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
                 Pay the collection agent in cash when they visit. Nothing is charged now.
               </p>
             </div>
-            <span className="mh-payment-card__check" aria-hidden="true">
+            <span className="mh2-payment-card__check" aria-hidden="true">
               <span className="mi">check_circle</span>
             </span>
           </div>
@@ -781,8 +781,8 @@ export default function BookingFlowPage() {
       )}
 
       {step === "review" && (
-        <section className="mh-booking__section" style={{ display: "grid", gap: "var(--space-sm)" }}>
-          <h2 className="mh-booking__section-title">Review &amp; Confirm</h2>
+        <section className="mh2-booking__section">
+          <h2 className="mh2-booking__section-title">Review &amp; Confirm</h2>
 
           <label style={{ display: "grid", gap: 4 }}>
             <span style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>
@@ -802,12 +802,12 @@ export default function BookingFlowPage() {
 
           {quote && (
             <>
-              <div className="mh-order-summary">
-                <p className="mh-order-summary__title">Order Summary</p>
+              <div className="mh2-order-summary">
+                <p className="mh2-order-summary__title">Order Summary</p>
                 <Row label="Subtotal" value={formatCurrencyInr(quote.subtotal)} />
                 <Row label="Home Collection Charges" value={formatCurrencyInr(quote.collectionFee)} />
                 <Row label="Discount" value={`- ${formatCurrencyInr(quote.discount)}`} />
-                <hr className="mh-order-summary__rule" />
+                <hr className="mh2-order-summary__rule" />
                 <Row label="Total Amount" value={formatCurrencyInr(quote.finalAmount)} bold />
                 <Row label="Payment method" value="Cash on Home" />
               </div>
@@ -822,19 +822,19 @@ export default function BookingFlowPage() {
               it gets its own honest message and a way to reach a human
               rather than a Retry button that cannot ever succeed. */}
           {bookingUnavailable ? (
-            <div className="card" style={{ display: "grid", gap: "var(--space-sm)", borderColor: "var(--color-amber)" }}>
-              <p style={{ fontWeight: 700 }}>Booking confirmation is temporarily unavailable</p>
+            <div style={{ display: "grid", gap: "var(--space-sm)", padding: "var(--space-md)", borderRadius: "var(--radius-lg)", border: "1.5px solid var(--color-amber)", background: "var(--color-surface)" }}>
+              <p style={{ fontWeight: 800, fontFamily: "var(--font-display)" }}>Booking confirmation is temporarily unavailable</p>
               <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
                 We could not complete your booking automatically. Nothing has been charged and no
                 booking was created. Please contact us and we will book this for you.
               </p>
               {contactPhone && (
-                <a className="btn btn-primary" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
+                <a className="mh2-btn mh2-btn--primary" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
                   Call {contactPhone} to book
                 </a>
               )}
               {whatsappLink && (
-                <a className="btn btn-outline" href={whatsappLink} target="_blank" rel="noreferrer">
+                <a className="mh2-btn mh2-btn--outline" href={whatsappLink} target="_blank" rel="noreferrer">
                   Send these details on WhatsApp
                 </a>
               )}
@@ -845,7 +845,7 @@ export default function BookingFlowPage() {
 
           {!createdBooking && !bookingUnavailable && (
             <button
-              className="btn btn-primary"
+              className="mh2-btn mh2-btn--primary"
               style={{ width: "100%" }}
               onClick={handleConfirm}
               disabled={creatingBooking || !quote || quoteLoading}
@@ -856,16 +856,16 @@ export default function BookingFlowPage() {
         </section>
       )}
 
-      <div className="mh-booking__nav">
+      <div className="mh2-booking__nav">
         <button
-          className="btn btn-outline"
+          className="mh2-btn mh2-btn--outline"
           disabled={stepIndex === 0 || !!createdBooking}
           onClick={() => setStepIndex((i) => i - 1)}
         >
           Back
         </button>
         {step !== "review" && (
-          <button className="btn btn-primary" disabled={!canGoNext()} onClick={handleNext}>
+          <button className="mh2-btn mh2-btn--primary" disabled={!canGoNext()} onClick={handleNext}>
             Continue
             <span className="mi" aria-hidden="true">arrow_forward</span>
           </button>
@@ -877,7 +877,7 @@ export default function BookingFlowPage() {
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`mh-order-summary__row${bold ? " is-total" : ""}`}>
+    <div className={`mh2-order-summary__row${bold ? " is-total" : ""}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
@@ -932,10 +932,10 @@ function QuickAddPatientForm({
       </select>
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-        <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+        <button className="mh2-btn mh2-btn--primary" type="submit" disabled={busy} style={{ flex: 1 }}>
           {busy ? "Saving..." : "Save"}
         </button>
-        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+        <button className="mh2-btn mh2-btn--outline" type="button" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
       </div>
@@ -1010,10 +1010,10 @@ function QuickAddAddressForm({
       <input placeholder="Landmark (optional)" value={form.landmark} onChange={(e) => update("landmark", e.target.value)} />
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
       <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-        <button className="btn btn-primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+        <button className="mh2-btn mh2-btn--primary" type="submit" disabled={busy} style={{ flex: 1 }}>
           {busy ? "Saving..." : editAddress ? "Save changes" : "Save address"}
         </button>
-        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+        <button className="mh2-btn mh2-btn--outline" type="button" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
       </div>

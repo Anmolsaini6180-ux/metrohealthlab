@@ -10,16 +10,16 @@ interface Props {
 // just renders where the customer currently is.
 export default function BookingStepper({ steps, labels, activeIndex }: Props) {
   return (
-    <ol className="mh-stepper" aria-label="Booking progress">
+    <ol className="mh2-stepper" aria-label="Booking progress">
       {steps.map((key, i) => {
         const state = i < activeIndex ? "done" : i === activeIndex ? "active" : "upcoming";
         return (
-          <li key={key} className={`mh-stepper__item is-${state}`}>
-            <span className="mh-stepper__dot" aria-hidden="true">
+          <li key={key} className={`mh2-stepper__item is-${state}`}>
+            <span className="mh2-stepper__dot" aria-hidden="true">
               {state === "done" ? <span className="mi">check</span> : i + 1}
             </span>
-            <span className="mh-stepper__label">{labels[key]}</span>
-            {i < steps.length - 1 && <span className="mh-stepper__line" aria-hidden="true" />}
+            <span className="mh2-stepper__label">{labels[key]}</span>
+            {i < steps.length - 1 && <span className="mh2-stepper__line" aria-hidden="true" />}
           </li>
         );
       })}
