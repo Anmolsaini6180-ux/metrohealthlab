@@ -16,6 +16,7 @@ import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import CartLabSwapConfirm from "@/components/common/CartLabSwapConfirm";
+import packageFallbackImage from "@/assets/package-fallback.jpg";
 
 export default function PackageDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -39,10 +40,10 @@ export default function PackageDetailPage() {
   const includedTests = (allTests.data ?? []).filter((t) => (pkg.data?.testIds ?? []).includes(t.id));
 
   // The real, admin-assigned image (Admin -> Packages -> Package image,
-  // via ImagePicker -> media_assets, category "packages"). No fallback
-  // image is invented here — a package with none assigned simply shows
-  // no image block, exactly like every other genuinely-optional asset
-  // in this app.
+  // via ImagePicker -> media_assets, category "packages"). Falls back
+  // to the same generic stock photo PackageCard uses (see its own
+  // comment) when no real one has been assigned yet — never invented
+  // per-package content, just a placeholder until a real photo exists.
   const packageImage = useAsync(
     () => (pkg.data?.id ? getAssignedMedia("packages", pkg.data.id) : Promise.resolve(null)),
     [pkg.data?.id]
@@ -146,9 +147,11 @@ export default function PackageDetailPage() {
         )}
       </div>
 
-      {packageImage.data && (
-        <img className="mh-pkgdetail__image" src={packageImage.data.secureUrl} alt={packageImage.data.altText || ""} />
-      )}
+      <img
+        className="mh-pkgdetail__image"
+        src={packageImage.data?.secureUrl ?? packageFallbackImage}
+        alt={packageImage.data?.altText || ""}
+      />
 
       <div>
         <div className="mh-pkgdetail__title-row">

@@ -2,6 +2,12 @@ import { Link } from "react-router-dom";
 import type { HealthPackage } from "@/types/package";
 import { formatCurrencyInr } from "@/services/pricingService";
 import { displayedTestCount } from "@/utils/packageDisplay";
+// Generic stock photo (Unsplash License, free for commercial use) —
+// shown only when a package has no real admin-uploaded photo yet
+// (Admin -> Packages -> Package image). Never presented as a photo of
+// this business's own facility or a specific package; a plain, generic
+// lab-tubes image is what stands in until a real one is assigned.
+import packageFallbackImage from "@/assets/package-fallback.jpg";
 
 // Turnaround is stored as free text ("24 hours", "48 hours"). Compact
 // the common unit down to "24h" while leaving any other wording the
@@ -35,13 +41,12 @@ export default function PackageCard({ pkg, imageUrl }: { pkg: HealthPackage; ima
   return (
     <article className="mh2-pkg-card" role="listitem">
       <div className="mh2-pkg-card__media">
-        {imageUrl ? (
-          <img className="mh2-pkg-card__image" src={imageUrl} alt="" loading="lazy" />
-        ) : (
-          <div className="mh2-pkg-card__image-fallback" aria-hidden="true">
-            <span className="mi">inventory_2</span>
-          </div>
-        )}
+        <img
+          className="mh2-pkg-card__image"
+          src={imageUrl ?? packageFallbackImage}
+          alt=""
+          loading="lazy"
+        />
         {off !== null && <span className="mh2-pkg-card__badge">{off}% OFF</span>}
         {pkg.tag && <span className="mh2-pkg-card__tag">{pkg.tag}</span>}
       </div>
