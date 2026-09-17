@@ -1,11 +1,15 @@
-// Supabase-backed. Booking creation goes through the create_website_booking
-// RPC (SECURITY DEFINER) instead of a client-side insert: it re-derives
-// price from lab_pricing and the collection fee from service_areas,
-// atomically reserves the slot (UPDATE ... WHERE booked_count < capacity),
-// and verifies patient_id/address_id actually belong to the caller —
-// server-side, in one transaction. This is the real implementation of
-// what the old Firestore comments described as "intended" for an
-// undeployed Cloud Function; here it is deployed and live.
+// Supabase-backed. Booking creation goes through the
+// create_website_booking_cart RPC (SECURITY DEFINER) instead of a
+// client-side insert: it re-derives every item's price from its own
+// lab_pricing row, the collection fee from service_areas, atomically
+// reserves the slot (UPDATE ... WHERE booked_count < capacity), and
+// verifies patient_id/address_id actually belong to the caller —
+// server-side, in one transaction. See
+// supabase/migrations/20260917194500_add_cart_support_booking_items_and_rpc.sql.
+// The original single-item create_website_booking RPC still exists in
+// the database (nothing dropped it) but has no caller left in this
+// app — createCashBooking, the frontend wrapper around it, was removed
+// once the cart flow replaced every place that called it.
 //
 // getBookingQuote/createBooking (the old Cloud-Function-calling pair)
 // are removed: nothing in the app called them (grepped for
@@ -13,7 +17,8 @@
 // they pointed at Cloud Functions that were never deployed on Spark.
 import { getSupabaseClient, subscribeToTableChanges } from "@/supabase/client";
 import { rowToBooking, rowToBookingStatusHistory } from "@/supabase/bookingMappers";
-import type { Booking, BookingItem, BookingStatusHistoryEntry, CollectionType } from "@/types/booking";
+import type { Booking, BookingStatusHistoryEntry, CollectionType } from "@/types/booking";
+import type { CartItem } from "@/types/cart";
 
 type Unsubscribe = () => void;
 // Explicit column list on the embedded booking_items, NOT `(*)` — this
@@ -44,36 +49,33 @@ export interface GetBookingQuoteResponse {
   expiresAt: string;
 }
 
-export interface CreateCashBookingInput {
-  userId: string;
-  patientId: string;
-  item: BookingItem;
-  /** lab_pricing row the price came from — the RPC verifies against it. */
-  pricingRefId: string;
-  /** service_areas row the pincode/fee came from. */
+export interface CreateCashBookingCartInput {
+  items: CartItem[];
   serviceAreaId: string;
-  labId: string;
-  labName?: string;
   collectionType: CollectionType;
   addressId?: string;
-  pincode: string;
-  collectionFee: number;
   date: string;
   slotId: string;
   contact?: { name?: string; phone?: string; address?: string };
-  /** Optional landmark/gate/collection note — never internal (tp etc.), just for the visit itself. */
+  patientId: string;
   notes?: string;
 }
 
-export async function createCashBooking(
-  input: CreateCashBookingInput
+/** Cart checkout — create_website_booking_cart validates every item
+ * resolves to the same lab, sums their prices server-side, and writes
+ * one bookings row plus one booking_items row per item. See
+ * supabase/migrations/20260917194500_add_cart_support_booking_items_and_rpc.sql. */
+export async function createCashBookingCart(
+  input: CreateCashBookingCartInput
 ): Promise<{ bookingId: string; finalAmount: number }> {
-  const { data, error } = await getSupabaseClient().rpc("create_website_booking", {
-    p_pricing_ref_id: input.pricingRefId,
+  const { data, error } = await getSupabaseClient().rpc("create_website_booking_cart", {
+    p_items: input.items.map((i) => ({
+      pricing_ref_id: i.pricingRefId,
+      item_type: i.itemType,
+      item_ref_id: i.refId,
+      item_name: i.name,
+    })),
     p_service_area_id: input.serviceAreaId,
-    p_item_type: input.item.itemType,
-    p_item_ref_id: input.item.refId,
-    p_item_name: input.item.name,
     p_collection_type: input.collectionType,
     p_date: input.date,
     p_slot_id: input.slotId,

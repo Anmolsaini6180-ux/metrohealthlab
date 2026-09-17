@@ -5,6 +5,7 @@ import { adminHomePathForRole, adminMenuLabelForRole } from "@/utils/roleAccess"
 import Logo from "@/components/brand/Logo";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
+import CartIcon from "./CartIcon";
 import HeaderCallButton from "./HeaderCallButton";
 import SearchAutocomplete from "@/components/common/SearchAutocomplete";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
@@ -64,6 +65,7 @@ export default function Header() {
 
         <div className="mh-header__icons">
           <HeaderCallButton />
+          <CartIcon />
           <NotificationBell />
           <ProfileMenu />
         </div>
@@ -91,9 +93,12 @@ export default function Header() {
           <div className="mh-header__icons">
             <HeaderCallButton />
             <NotificationBell />
-            {/* No bookings icon here: the mobile bottom nav already has a
-                Bookings tab, and a fourth icon pushed the wordmark onto
-                two lines at 375px. */}
+            {/* No bookings or cart icon here: the mobile bottom nav
+                already has a Bookings tab, and a 4th icon here (tried
+                with Cart while building the cart feature) confirmed the
+                wordmark still wraps to two lines at 375px — the cart is
+                reached from the toast shown right after Add to Cart, or
+                the persistent icon in the desktop header. */}
             <ProfileMenu />
           </div>
         </div>

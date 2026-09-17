@@ -566,3 +566,67 @@
   border-top: 1px dashed var(--color-line);
   margin: 2px 0;
 }
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Cart
+   ============================================================ */
+.mh2-cart {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+.mh2-cart__lab {
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  font-weight: 600;
+}
+
+.mh2-cart__items {
+  display: grid;
+  gap: 10px;
+}
+
+.mh2-cart__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+
+.mh2-cart__item-body {
+  min-width: 0;
+}
+
+.mh2-cart__item-name {
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+.mh2-cart__item-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--color-primary-deep);
+}
+
+.mh2-cart__item-prices s {
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+}
+
+.mh2-cart__item-off {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-success);
+}

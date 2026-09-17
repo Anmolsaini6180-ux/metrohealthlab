@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAsync } from "@/hooks/useAsync";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
+import { useCart } from "@/hooks/useCart";
+import { useToast } from "@/hooks/useToast";
 import { getTestBySlug } from "@/services/testService";
 import { subscribeToActiveLabs, subscribeToLabPricingForTest } from "@/services/labService";
 import { formatCurrencyInr } from "@/services/pricingService";
@@ -11,10 +13,14 @@ import type { LabPricing } from "@/types/lab";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import CartLabSwapConfirm from "@/components/common/CartLabSwapConfirm";
 
 export default function TestDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const cart = useCart();
+  const { showToast } = useToast();
+  const [pendingSwap, setPendingSwap] = useState<null | (() => void)>(null);
   const test = useAsync(() => getTestBySlug(slug!), [slug]);
 
   // Realtime — this is the customer actively deciding whether to book,
@@ -48,10 +54,22 @@ export default function TestDetailPage() {
 
   const t = test.data;
 
-  function bookWithLab(labId: string, price: number, pricingRefId: string, labName?: string) {
-    navigate("/book", {
-      state: { itemType: "test", refId: t.id, name: t.name, labId, price, pricingRefId, labName },
-    });
+  function addToCart(labId: string, price: number, mrp: number, pricingRefId: string, labName?: string) {
+    const item = { itemType: "test" as const, refId: t.id, name: t.name, price, mrp, pricingRefId, labId, labName };
+    const result = cart.addItem(item);
+    if (result === "added") {
+      showToast(`${t.name} added to cart`);
+      navigate("/cart");
+    } else if (result === "already-in-cart") {
+      showToast(`${t.name} is already in your cart`);
+      navigate("/cart");
+    } else {
+      setPendingSwap(() => () => {
+        cart.replaceCart(item);
+        showToast(`${t.name} added to cart`);
+        navigate("/cart");
+      });
+    }
   }
 
   // Compare Labs is disabled site-wide (not deleted — see LabsPage's
@@ -129,14 +147,24 @@ export default function TestDetailPage() {
             <button
               className="btn btn-primary"
               style={{ width: "100%", marginTop: "var(--space-sm)" }}
-              onClick={() => bookWithLab(bookLabId, bookPrice, cheapest?.id ?? "", cheapest ? labNameById.get(cheapest.labId) : undefined)}
+              onClick={() =>
+                addToCart(bookLabId, bookPrice, t.mrp, cheapest?.id ?? "", cheapest ? labNameById.get(cheapest.labId) : undefined)
+              }
             >
-              Book Now
+              Add to Cart
               <span className="mi" aria-hidden="true">arrow_forward</span>
             </button>
           </>
         )}
       </div>
+
+      {pendingSwap && (
+        <CartLabSwapConfirm
+          currentLabName={cart.labName}
+          onConfirm={pendingSwap}
+          onCancel={() => setPendingSwap(null)}
+        />
+      )}
 
       {t.faq && t.faq.length > 0 && (
         <div>

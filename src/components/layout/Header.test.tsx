@@ -18,6 +18,7 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null, profile: { nam
 vi.mock("@/hooks/useAdminRole", () => ({ useAdminRole: () => ({ role: adminRole.value, loading: false }) }));
 vi.mock("@/components/layout/ProfileMenu", () => ({ default: () => <div data-stub="profile" /> }));
 vi.mock("@/components/layout/NotificationBell", () => ({ default: () => <div data-stub="bell" /> }));
+vi.mock("@/components/layout/CartIcon", () => ({ default: () => <div data-stub="cart" /> }));
 
 function render(settings: Partial<BrandingSettings> | null, role: AdminRole | null = null): string {
   branding.value = settings ? ({ businessName: "Metro Health Lab", ...settings } as BrandingSettings) : null;

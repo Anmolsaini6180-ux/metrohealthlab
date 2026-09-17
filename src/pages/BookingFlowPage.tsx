@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync } from "@/hooks/useAsync";
+import { useCart } from "@/hooks/useCart";
 import { getPatients, addPatient } from "@/services/patientService";
 import { getAddresses, addAddress, updateAddress } from "@/services/addressService";
 import type { Address } from "@/types/address";
 import { checkServiceability } from "@/services/serviceabilityService";
 import { subscribeToSlots } from "@/services/slotService";
 import { formatCurrencyInr } from "@/services/pricingService";
-import { createCashBooking, type GetBookingQuoteResponse } from "@/services/bookingService";
+import { createCashBookingCart, type GetBookingQuoteResponse } from "@/services/bookingService";
 import { updateUserProfile } from "@/services/userService";
 import type { CollectionType } from "@/types/booking";
 import type { Slot } from "@/types/slot";
@@ -21,37 +22,6 @@ import { isCallableUnavailable, logOperationError, toUserMessage } from "@/utils
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { buildWhatsAppLink } from "@/utils/whatsappBooking";
 import { isValidIndianMobile, normalizeIndianMobile } from "@/utils/phone";
-
-// ProtectedRoute already sends a logged-out visitor to /login (state:
-// {from: location}) before this page can ever mount — but LoginPage's
-// own redirect-back only ever carried the pathname, not the original
-// location.state, so the test/package the customer picked before being
-// sent to log in was silently lost, landing them on "Nothing selected
-// yet" right after signing in. Persisting it here (and re-reading it
-// below when router state is empty) survives that whole detour,
-// including a real Google OAuth redirect, which cannot carry React
-// Router state through it at all.
-const PENDING_SELECTION_KEY = "mh_pending_booking_selection";
-
-function readStoredSelection(): BookingSelection | null {
-  try {
-    const raw = sessionStorage.getItem(PENDING_SELECTION_KEY);
-    return raw ? (JSON.parse(raw) as BookingSelection) : null;
-  } catch {
-    return null;
-  }
-}
-
-interface BookingSelection {
-  itemType: "test" | "package";
-  refId: string;
-  name: string;
-  labId: string;
-  price: number; // display-only — create_website_booking re-derives it server-side from pricingRefId
-  /** pricing row the price came from; the RPC verifies against it. */
-  pricingRefId?: string;
-  labName?: string;
-}
 
 // No coupon step: redeeming a coupon means incrementing its usage
 // counters atomically, which a browser cannot do safely. Coupons are
@@ -72,23 +42,13 @@ export default function BookingFlowPage() {
   // the Firebase user.uid (see src/supabase/identity.ts) — user itself
   // is still needed for display fields (displayName/phoneNumber).
   const { user, profile, supabaseUserId, phoneBridgeError, retryPhoneBridge } = useAuth();
-  const location = useLocation();
   const navigate = useNavigate();
-  const routerSelection = location.state as BookingSelection | null;
-  const selection = routerSelection ?? readStoredSelection();
-
-  // A real selection just arrived via navigation — keep it around in
-  // case a login/signup detour is about to unmount this page.
-  useEffect(() => {
-    if (routerSelection) {
-      try {
-        sessionStorage.setItem(PENDING_SELECTION_KEY, JSON.stringify(routerSelection));
-      } catch {
-        // best-effort only — worst case is the pre-login-redirect bug
-        // this exists to fix, not a broken booking.
-      }
-    }
-  }, [routerSelection]);
+  // The cart is already sessionStorage-backed (see useCart.tsx), so it
+  // survives a login/signup detour — including a real Google OAuth
+  // redirect — the same way the old per-page pending-selection storage
+  // used to, without this page needing its own copy of that mechanism.
+  const cart = useCart();
+  const items = cart.items;
 
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex];
@@ -218,21 +178,18 @@ export default function BookingFlowPage() {
     },
   };
 
-  if (!selection) {
+  if (items.length === 0) {
     return (
       <EmptyState
-        icon="science"
-        title="Nothing selected yet"
+        icon="shopping_cart"
+        title="Your cart is empty"
         description="Pick a test or package first, then choose a lab to book."
         action={{ label: "Browse tests", onClick: () => navigate("/tests") }}
       />
     );
   }
 
-  // Re-bind to a definitely-non-null const so the handlers/closures
-  // defined below (which TS can't narrow `selection` through) are typed
-  // correctly without repeated non-null assertions.
-  const sel: BookingSelection = selection;
+  const cartTitle = items.length === 1 ? items[0].name : `${items.length} items`;
 
   // Fallback route when automatic booking is unavailable: hand the
   // customer's own details to the business over WhatsApp so a human can
@@ -245,7 +202,7 @@ export default function BookingFlowPage() {
         [
           "Booking request",
           "",
-          `Item: ${sel.name}`,
+          `Items: ${items.map((i) => i.name).join(", ")}`,
           quote ? `Amount: ₹${quote.finalAmount.toLocaleString("en-IN")}` : "",
           `Collection: ${collectionType === "home" ? "Home" : "Center"}`,
           date ? `Preferred date: ${date}` : "",
@@ -314,7 +271,7 @@ export default function BookingFlowPage() {
     setQuoteError(null);
 
     const collectionFee = collectionType === "home" ? pincodeChecked.collectionFee : 0;
-    const subtotal = sel.price;
+    const subtotal = items.reduce((sum, i) => sum + i.price, 0);
 
     setQuote({
       quoteId: "",
@@ -360,25 +317,16 @@ export default function BookingFlowPage() {
     setCreatingBooking(true);
     setBookingError(null);
     try {
-      // create_website_booking is a SECURITY DEFINER Supabase RPC:
-      // it re-derives the price from pricingRefId, the fee from
-      // serviceAreaId, and pins the booking to start unpaid server-side
-      // — so nothing here has to be trusted for the booking to be
-      // correct. (userId below is accepted for shape/back-compat only;
-      // the RPC uses the live session's own auth.uid(), never this
-      // value.)
-      const result = await createCashBooking({
-        userId: supabaseUserId,
-        patientId,
-        item: { itemType: sel.itemType, refId: sel.refId, name: sel.name, labId: sel.labId, price: sel.price },
-        pricingRefId: sel.pricingRefId ?? "",
+      // create_website_booking_cart is a SECURITY DEFINER Supabase RPC:
+      // it re-derives every item's price from its own pricingRefId, the
+      // fee from serviceAreaId, requires every item resolve to the same
+      // lab, and pins the booking to start unpaid server-side — so
+      // nothing here has to be trusted for the booking to be correct.
+      const result = await createCashBookingCart({
+        items,
         serviceAreaId: pincodeChecked.areaId,
-        labId: sel.labId,
-        labName: sel.labName,
         collectionType,
         addressId: collectionType === "home" ? addressId ?? undefined : undefined,
-        pincode,
-        collectionFee: quote.collectionFee,
         date,
         slotId,
         contact: {
@@ -388,14 +336,11 @@ export default function BookingFlowPage() {
           // (for a Google/email account) not exist at all.
           phone: normalizeIndianMobile(phone),
         },
+        patientId,
         notes: instructions.trim() || undefined,
       });
       setCreatedBooking(result);
-      try {
-        sessionStorage.removeItem(PENDING_SELECTION_KEY);
-      } catch {
-        // non-fatal — the booking itself already succeeded
-      }
+      cart.clear();
       // justBooked only lives in router state for this one navigation,
       // so TrackBookingPage can show a one-time success banner right
       // after a fresh booking without showing it again on every later
@@ -439,7 +384,7 @@ export default function BookingFlowPage() {
         </button>
         <div>
           <p className="mh2-booking__eyebrow">Book a Test / Package</p>
-          <h1 className="mh2-booking__title">{sel.name}</h1>
+          <h1 className="mh2-booking__title">{cartTitle}</h1>
         </div>
       </div>
 
@@ -804,6 +749,10 @@ export default function BookingFlowPage() {
             <>
               <div className="mh2-order-summary">
                 <p className="mh2-order-summary__title">Order Summary</p>
+                {items.map((i) => (
+                  <Row key={`${i.itemType}-${i.refId}`} label={i.name} value={formatCurrencyInr(i.price)} />
+                ))}
+                <hr className="mh2-order-summary__rule" />
                 <Row label="Subtotal" value={formatCurrencyInr(quote.subtotal)} />
                 <Row label="Home Collection Charges" value={formatCurrencyInr(quote.collectionFee)} />
                 <Row label="Discount" value={`- ${formatCurrencyInr(quote.discount)}`} />

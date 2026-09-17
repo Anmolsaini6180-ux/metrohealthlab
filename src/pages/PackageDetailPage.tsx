@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAsync } from "@/hooks/useAsync";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
+import { useCart } from "@/hooks/useCart";
+import { useToast } from "@/hooks/useToast";
 import { getPackageBySlug } from "@/services/packageService";
 import { getTests } from "@/services/testService";
 import { getAssignedMedia } from "@/services/mediaService";
@@ -13,10 +15,14 @@ import type { LabPricing } from "@/types/lab";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import CartLabSwapConfirm from "@/components/common/CartLabSwapConfirm";
 
 export default function PackageDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const cart = useCart();
+  const { showToast } = useToast();
+  const [pendingSwap, setPendingSwap] = useState<null | (() => void)>(null);
   const pkg = useAsync(() => getPackageBySlug(slug!), [slug]);
 
   // Each labPricing row only stores a labId; without this the
@@ -65,14 +71,29 @@ export default function PackageDetailPage() {
 
   const p = pkg.data;
 
-  // `pricingRefId` travels with the selection because the
-  // create_website_booking RPC re-derives the price from that
+  // `pricingRefId` travels with the cart item because
+  // create_website_booking_cart re-derives the price from that
   // lab_pricing row when the booking is written — the number alone is
   // never trusted client-side.
-  function bookWithLab(labId: string, price: number, pricingRefId: string, labName?: string) {
-    navigate("/book", {
-      state: { itemType: "package", refId: p.id, name: p.name, labId, price, pricingRefId, labName },
-    });
+  function addToCart(labId: string, price: number, mrp: number, pricingRefId: string, labName?: string) {
+    const item = { itemType: "package" as const, refId: p.id, name: p.name, price, mrp, pricingRefId, labId, labName };
+    const result = cart.addItem(item);
+    if (result === "added") {
+      showToast(`${p.name} added to cart`);
+      navigate("/cart");
+    } else if (result === "already-in-cart") {
+      showToast(`${p.name} is already in your cart`);
+      navigate("/cart");
+    } else {
+      // Cart already holds an item from a different lab — a booking is
+      // fulfilled by one lab visit, so confirm swapping it rather than
+      // silently discarding what's already there.
+      setPendingSwap(() => () => {
+        cart.replaceCart(item);
+        showToast(`${p.name} added to cart`);
+        navigate("/cart");
+      });
+    }
   }
 
   // Booking used to be reachable only by first picking a row out of
@@ -171,9 +192,11 @@ export default function PackageDetailPage() {
         <button
           className="btn btn-primary"
           style={{ width: "100%" }}
-          onClick={() => bookWithLab(bookLabId, bookPrice, cheapest?.id ?? "", cheapest ? labNameById.get(cheapest.labId) : undefined)}
+          onClick={() =>
+            addToCart(bookLabId, bookPrice, p.mrp, cheapest?.id ?? "", cheapest ? labNameById.get(cheapest.labId) : undefined)
+          }
         >
-          Book Now
+          Add to Cart
           <span className="mi" aria-hidden="true">arrow_forward</span>
         </button>
         {cheapest && labNameById.get(cheapest.labId) && (
@@ -207,8 +230,16 @@ export default function PackageDetailPage() {
       {/* "Compare labs" list is disabled site-wide (not deleted — see
           LabsPage's own route in App.tsx for the matching note). The
           `pricing` subscription above it stays: bookPrice/bookLabId/
-          cheapest, used by the "Book Now" button, are computed from
+          cheapest, used by the "Add to Cart" button, are computed from
           it regardless of whether this list renders. */}
+
+      {pendingSwap && (
+        <CartLabSwapConfirm
+          currentLabName={cart.labName}
+          onConfirm={pendingSwap}
+          onCancel={() => setPendingSwap(null)}
+        />
+      )}
 
       {p.faq && p.faq.length > 0 && (
         <div>
