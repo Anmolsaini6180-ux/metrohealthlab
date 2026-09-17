@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useDominantEdgeColor } from "@/hooks/useDominantEdgeColor";
 import type { Banner } from "@/types/content";
 
 interface Props {
@@ -12,31 +11,21 @@ interface Props {
 // A specific, real, freely-licensed (Unsplash License — free for
 // commercial use, no attribution required) photo, not a random/
 // rotating stock feed: a gloved hand holding a blood-collection tube.
-// Verified on unsplash.com/photos/fKC9eWRnlGY before use. This is
-// generic healthcare stock photography used as page furniture — same
-// as virtually every diagnostics site uses before commissioning its
-// own photography — not a claim that this is Metro Health Lab's own
-// staff or facility.
+// Verified on unsplash.com/photos/fKC9eWRnlGY before use. Generic
+// healthcare stock photography used as page furniture until the admin
+// uploads real photography — same as virtually every diagnostics site
+// uses before commissioning its own — never a claim that this is
+// Metro Health Lab's own staff or facility.
 const FALLBACK_HERO_IMAGE =
   "https://images.unsplash.com/photo-1639772823849-6efbd173043c?auto=format&fit=crop&w=1200&q=75";
 
-// The landing hero. Each slide is an admin-authored `banners` row, so
-// copy and links stay editable from Admin -> Banners exactly as before.
-//
-// IMAGERY: a banner renders its own `imageUrl` when the admin has
-// uploaded one (Admin -> Banners -> image, via the existing Cloudinary
-// uploader) — that always wins, and the moment a real image is
-// uploaded it takes the fallback's place with no code change. Until
-// then this shows real (licensed) healthcare photography rather than a
-// gradient/icon panel, matching the reference design's use of
-// photography in this exact spot. The photo is a full-bleed background
-// across the whole card (mh-hero__bg, position: absolute, behind a
-// readable gradient overlay) — not a small side panel — with the copy
-// and feature chips layered on top.
-//
-// The three feature chips are value props this product genuinely
-// delivers, and the lab count is the real number of active labs rather
-// than a hardcoded marketing figure.
+// Design system v2 hero — a clean two-column composition (copy left,
+// photo right on desktop; stacked on mobile) replacing the previous
+// version's text-over-photo treatment, where an admin's own uploaded
+// image (which may already carry its own logo/text baked in) fought
+// with the overlay copy for legibility. Real trust signals now sit in
+// a plain row beneath the copy instead of floating cards layered on
+// top of the photo.
 export default function HeroBanner({ banners, labCount }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
@@ -73,15 +62,15 @@ export default function HeroBanner({ banners, labCount }: Props) {
   if (banners.length === 0) return null;
 
   return (
-    <section className="mh-hero-section" aria-label="Featured">
-      <div className="mh-hero-track" ref={trackRef}>
+    <section className="mh2-hero-section" aria-label="Featured">
+      <div className="mh2-hero-track" ref={trackRef}>
         {banners.map((b) => (
           <HeroSlide key={b.id} banner={b} labCount={labCount} />
         ))}
       </div>
 
       {banners.length > 1 && (
-        <div className="mh-hero-dots">
+        <div className="mh2-hero-dots">
           {banners.map((b, i) => (
             <button
               key={b.id}
@@ -98,73 +87,57 @@ export default function HeroBanner({ banners, labCount }: Props) {
   );
 }
 
-// One slide, its own component so useDominantEdgeColor (a hook) can be
-// called once per real image rather than inside the parent's .map().
 function HeroSlide({ banner: b, labCount }: { banner: Banner; labCount: number }) {
   const imageUrl = b.imageUrl || FALLBACK_HERO_IMAGE;
-  const dominantColor = useDominantEdgeColor(imageUrl);
 
   return (
-    <article className="mh-hero">
-      {/* Full-bleed backdrop behind the whole card. Once the photo's own
-          edge colour has been sampled (see the hook's own comment for
-          why edges, not the whole image), that flat colour replaces the
-          blurred copy — a photo with a plain studio background then
-          reads as if it were shot in front of this card's own
-          background, rather than as a blurry smear. Until then (or if
-          sampling fails) the blurred copy is what's shown, so there is
-          never a moment with nothing behind the photo. */}
-      <div
-        className="mh-hero__bg-fill"
-        aria-hidden="true"
-        style={dominantColor ? { backgroundColor: dominantColor, backgroundImage: "none" } : { backgroundImage: `url(${imageUrl})` }}
-      />
-      {/* The real photo on top, shown WHOLE (object-fit: contain)
-          — no cropping, whatever the source image's own aspect
-          ratio is. Purely decorative (the title/subtitle carry
-          the meaning), so alt stays empty rather than describing
-          generic stock photography as if it depicted this
-          business's own staff or facility. */}
-      <img className="mh-hero__bg" src={imageUrl} alt="" loading="lazy" />
-      <div className="mh-hero__overlay" aria-hidden="true" />
+    <article className="mh2-hero">
+      <div className="mh2-hero__copy">
+        <span className="mh2-hero__eyebrow">Trusted Diagnostics, Made Simple</span>
+        <h1 className="mh2-hero__title">{b.title}</h1>
+        {b.subtitle && <p className="mh2-hero__subtitle">{b.subtitle}</p>}
 
-      <div className="mh-hero__body">
-        <h2 className="mh-hero__title">{b.title}</h2>
-        {b.subtitle && <p className="mh-hero__subtitle">{b.subtitle}</p>}
-        {b.ctaLabel && b.ctaLink && (
-          <Link className="mh-hero__cta" to={b.ctaLink}>
-            {b.ctaLabel}
-            <span className="mi" aria-hidden="true">arrow_forward</span>
+        <div className="mh2-hero__ctas">
+          {b.ctaLabel && b.ctaLink ? (
+            <Link className="mh2-btn mh2-btn--primary mh2-btn--lg" to={b.ctaLink}>
+              {b.ctaLabel}
+              <span className="mi" aria-hidden="true">arrow_forward</span>
+            </Link>
+          ) : (
+            <Link className="mh2-btn mh2-btn--primary mh2-btn--lg" to="/tests">
+              Book a Test
+              <span className="mi" aria-hidden="true">arrow_forward</span>
+            </Link>
+          )}
+          <Link className="mh2-btn mh2-btn--outline mh2-btn--lg" to="/packages">
+            Explore Packages
           </Link>
-        )}
-      </div>
+        </div>
 
-      <div className="mh-hero__aside">
-        <ul className="mh-hero__features">
+        <ul className="mh2-hero__trust-row">
           <li>
             <span className="mi" aria-hidden="true">home_health</span>
-            <span>
-              <strong>Home Collection</strong>
-              <em>At your doorstep</em>
-            </span>
+            Home Collection
           </li>
           <li>
             <span className="mi" aria-hidden="true">description</span>
-            <span>
-              <strong>Digital Reports</strong>
-              <em>Fast &amp; secure</em>
-            </span>
+            Digital Reports
           </li>
           {labCount > 0 && (
             <li>
               <span className="mi" aria-hidden="true">verified</span>
-              <span>
-                <strong>{labCount} Trusted Labs</strong>
-                <em>Compare &amp; choose</em>
-              </span>
+              {labCount} Trusted Lab{labCount === 1 ? "" : "s"}
             </li>
           )}
         </ul>
+      </div>
+
+      <div className="mh2-hero__media">
+        {/* Purely decorative — the title/subtitle carry the meaning, and
+            an admin's own uploaded creative may already contain its
+            own embedded text/logo, so this is never described as if
+            it depicted specific staff or facilities. */}
+        <img className="mh2-hero__image" src={imageUrl} alt="" loading="eager" />
       </div>
     </article>
   );
