@@ -2,35 +2,12 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { subscribeToOffers } from "@/services/contentService";
-import { liveOffers } from "@/utils/offerWindow";
-import { formatCurrencyInr } from "@/services/pricingService";
+import { discountLabel, liveOffers, validityLabel } from "@/utils/offerWindow";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import Seo from "@/components/common/Seo";
 import { buildBreadcrumbSchema } from "@/utils/seoSchema";
-import type { Offer } from "@/types/content";
-
-function discountLabel(offer: Offer): string | null {
-  if (!offer.discountValue) return null;
-  return offer.discountType === "flat"
-    ? `${formatCurrencyInr(offer.discountValue)} OFF`
-    : `${offer.discountValue}% OFF`;
-}
-
-// Formats the admin's plain "YYYY-MM-DD" bounds for a customer.
-function validityLabel(offer: Offer): string | null {
-  const fmt = (value: string) => {
-    const d = new Date(`${value}T00:00:00`);
-    return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-  };
-  const from = offer.startAt ? fmt(offer.startAt) : null;
-  const until = offer.endAt ? fmt(offer.endAt) : null;
-  if (from && until) return `Valid ${from} – ${until}`;
-  if (until) return `Valid until ${until}`;
-  if (from) return `From ${from}`;
-  return null;
-}
 
 // Every offer shown here is admin-controlled: created and edited under
 // Admin -> Marketing -> Offers, and filtered to the ones that are both

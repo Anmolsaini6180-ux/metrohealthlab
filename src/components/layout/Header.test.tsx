@@ -47,7 +47,8 @@ describe("Header service-area chip", () => {
   it("keeps the greeting and the search control alongside it", () => {
     const html = render({ city: "Ghaziabad, UP" });
     expect(html).toContain("Hi, Aman");
-    expect(html).toContain("tune");
+    expect(html).toContain("search-input-mobile");
+    expect(html).toContain("Search for tests, packages, scans...");
   });
 
   // The bookings shortcut was deliberately dropped from the header: a

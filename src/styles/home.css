@@ -473,6 +473,109 @@
   }
 }
 
+/* ---- Promo carousel (live Offers, surfaced on the homepage) ---- */
+.mh-promo-carousel__track {
+  display: flex;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  margin-inline: calc(-1 * var(--space-md));
+  padding-inline: var(--space-md);
+}
+
+.mh-promo-carousel__track::-webkit-scrollbar {
+  display: none;
+}
+
+.mh-promo-card {
+  flex: 0 0 260px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mh-promo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+}
+
+.mh-promo-card__image {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+
+.mh-promo-card__body {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.mh-promo-card__badge {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--color-accent);
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+}
+
+.mh-promo-card__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  color: var(--color-ink);
+  line-height: 1.25;
+}
+
+.mh-promo-card__subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  line-height: 1.4;
+}
+
+.mh-promo-card__validity {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+}
+
+.mh-promo-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+}
+
+.mh-promo-card__cta .mi {
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  .mh-promo-card {
+    flex-basis: 320px;
+  }
+
+  .mh-promo-card__image {
+    height: 150px;
+  }
+}
+
 /* ---- Doorstep promo strip ---- */
 .mh-doorstep-promo {
   display: flex;
@@ -564,13 +667,113 @@
   bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px) + var(--space-sm));
   z-index: 25;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
   padding: 10px 12px;
   border-radius: 16px;
   background: #fff;
   border: 1px solid var(--color-line);
   box-shadow: 0 8px 26px rgba(16, 38, 92, 0.16);
+}
+
+/* The old version was a single <a> wrapping the whole card, with only
+   itself and a lone CTA to fit. Now there are up to four flex children
+   (icon+copy, two CTAs, a close button) — cramming all of them onto
+   one non-wrapping row collapsed the copy text to near-zero width at
+   real mobile sizes, wrapping it one character per line (caught in
+   real browser QA at 390px, not just reasoned about). flex-basis: 100%
+   forces the tap-area (and, in the no-phone variant below, the plain
+   copy span) onto its own full-width row every time, with the CTAs +
+   close button wrapping together onto a second row beneath it — same
+   fix, applied consistently regardless of exact viewport width rather
+   than tuned to one breakpoint. */
+.mh-call-card__tap-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+/* No-phone variant: .mh-call-card__copy sits directly in the card
+   (no tap-area/icon), so only its sizing needs the same fix — its own
+   internal lead/main stacking must stay untouched. */
+.mh-call-card > .mh-call-card__copy {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.mh-call-card__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--color-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.mh-call-card__cta--secondary {
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+  box-shadow: none;
+}
+
+.mh-call-card--form {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  position: relative;
+  padding: 14px 16px;
+}
+
+.mh-call-card--form .mh-call-card__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.mh-call-card__form {
+  display: grid;
+  gap: 8px;
+}
+
+.mh-call-card__form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mh-call-card__input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  font-size: var(--text-sm);
+}
+
+.mh-call-card__sent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding-right: 20px;
+}
+
+.mh-call-card__error {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 430px) {
+  .mh-call-card__form-row {
+    flex-direction: column;
+  }
 }
 
 .mh-call-card__icon {

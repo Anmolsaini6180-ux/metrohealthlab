@@ -331,7 +331,7 @@ export default function AddBookingDialog({
                 form.phone,
                 buildWhatsAppBookingMessage(
                   {
-                    id: created.reference,
+                    reference: created.reference,
                     items: [{ itemType: form.useCustomItem ? "test" : form.itemKind, refId: "", name: created.itemName, labId: "", price: created.finalAmount }],
                     finalAmount: created.finalAmount,
                     amountReceived: created.amountReceived,
@@ -342,7 +342,6 @@ export default function AddBookingDialog({
                       phone: form.phone.trim(),
                       address: form.address.trim() || undefined,
                     },
-                    labName: form.useCustomItem ? undefined : labNameById.get(selectedPricing?.labId ?? ""),
                   },
                   settings?.businessName ?? "Metro Health Lab"
                 )

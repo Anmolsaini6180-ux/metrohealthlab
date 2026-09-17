@@ -35,6 +35,8 @@ export interface Campaign {
   updatedBy?: string;
   createdAt: unknown;
   updatedAt: unknown;
+  /** Soft-delete marker set by archive_campaign — set means hidden from the default list, never destroyed. */
+  archivedAt?: string;
 }
 
 export const LEAD_STATUSES = ["NEW", "CONTACTED", "INTERESTED", "FOLLOW_UP", "CONVERTED", "NOT_INTERESTED", "LOST"] as const;

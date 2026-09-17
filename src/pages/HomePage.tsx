@@ -2,10 +2,11 @@ import { useRealtimeQuery } from "@/hooks/useRealtimeQuery";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import Seo from "@/components/common/Seo";
 import { buildOrganizationSchema, buildWebsiteSchema } from "@/utils/seoSchema";
-import { subscribeToArticles, subscribeToBanners } from "@/services/contentService";
+import { subscribeToArticles, subscribeToBanners, subscribeToOffers } from "@/services/contentService";
 import { subscribeToTestCategories, subscribeToTests } from "@/services/testService";
 import { subscribeToPackages } from "@/services/packageService";
 import { subscribeToActiveLabs } from "@/services/labService";
+import { liveOffers } from "@/utils/offerWindow";
 import LoadingState from "@/components/common/LoadingState";
 import CardGridSkeleton from "@/components/common/CardGridSkeleton";
 import ErrorState from "@/components/common/ErrorState";
@@ -14,6 +15,7 @@ import QuickCategories from "@/components/home/QuickCategories";
 import HeroBanner from "@/components/home/HeroBanner";
 import DoorstepPromo from "@/components/home/DoorstepPromo";
 import PackageShowcase from "@/components/home/PackageShowcase";
+import PromoCarousel from "@/components/home/PromoCarousel";
 import {
   DoorstepSteps,
   FamilyCareRow,
@@ -43,6 +45,8 @@ export default function HomePage() {
   const packages = useRealtimeQuery<HealthPackage[]>((cb, err) => subscribeToPackages(undefined, cb, err), []);
   const labs = useRealtimeQuery(subscribeToActiveLabs, []);
   const articles = useRealtimeQuery<Article[]>((cb, err) => subscribeToArticles(undefined, cb, err), []);
+  const offers = useRealtimeQuery(subscribeToOffers, []);
+  const visibleOffers = liveOffers(offers.data ?? []);
 
   const businessName = settings?.businessName ?? "Metro Health";
   const categoryList = categories.data ?? [];
@@ -84,6 +88,9 @@ export default function HomePage() {
         <EmptyState icon="inventory_2" title="No packages available yet" />
       )}
       {packages.data && packages.data.length > 0 && <PackageShowcase packages={packages.data} />}
+
+      {/* ---- Promotional carousel (live Offers) ---- */}
+      <PromoCarousel offers={visibleOffers} />
 
       {/* ---- Health concerns ---- */}
       {categories.data && categories.data.length === 0 && (

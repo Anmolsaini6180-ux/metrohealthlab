@@ -275,6 +275,119 @@ img {
   margin-inline-start: var(--space-md);
 }
 
+/* Live search autocomplete — shared by the desktop header bar and the
+   mobile hero's floating-card search (SearchAutocomplete.tsx). The
+   dropdown itself is positioned relative to this wrapper regardless of
+   which parent styles the input, so one panel style works in both
+   places. */
+.mh-search-auto {
+  position: relative;
+  width: 100%;
+}
+
+.mh-search-auto__input-wrap {
+  position: relative;
+}
+
+.mh-search-auto__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  color: var(--color-ink-soft);
+  pointer-events: none;
+}
+
+.mh-search-auto__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.mh-search-auto__section-label {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  font-weight: 600;
+  padding: 8px 10px 4px;
+}
+
+.mh-search-auto__status {
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  padding: 12px 10px;
+}
+
+.mh-search-auto__link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.mh-search-auto__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.mh-search-auto__item:hover,
+.mh-search-auto__item.is-active {
+  background: var(--color-bg-tint);
+}
+
+.mh-search-auto__item-kind {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+}
+
+.mh-search-auto__item-kind--package {
+  background: #fdece0;
+  color: var(--color-accent);
+}
+
+.mh-search-auto__item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mh-search-auto__item-price {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
 .mh-header__icons {
   display: flex;
   align-items: center;
@@ -345,6 +458,27 @@ img {
   align-items: center;
   gap: 10px;
   box-shadow: var(--shadow-card);
+}
+
+/* Same floating-card treatment, now on SearchAutocomplete's own
+   wrapper element instead of a plain div. */
+.mh-header__mobile-search-form .mh-search-auto__input-wrap {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.mh-header__mobile-search-form .mh-search-auto__icon {
+  color: var(--color-primary);
+}
+
+.mh-header__mobile-search-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: var(--text-sm);
+  padding: 12px 14px 12px 40px;
 }
 
 .icon-btn {
@@ -2146,16 +2280,6 @@ h1, h2, h3 {
 
 .mh-header__wordmark {
   align-items: flex-start;
-}
-
-.mh-header__search-filter {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--color-ink-soft);
-  display: inline-flex;
-  align-items: center;
-  padding: 0 2px;
 }
 
 /* ---------- Floating call-to-book ---------- */

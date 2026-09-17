@@ -6,10 +6,34 @@ import type { Article, Banner, Offer } from "@/types/content";
 const DEFAULT_LIST_LIMIT = 200;
 type Unsubscribe = () => void;
 
+// Real, confirmed root cause of "the homepage banner doesn't show the
+// image I configured": this query filtered only on `active`, never on
+// the admin form's own start_at/end_at date-range fields — so EVERY
+// active banner showed regardless of its scheduled window, while a
+// banner outside its window (not yet started, or already ended) would
+// have kept showing forever with no way to tell it apart from one that
+// hadn't. Dates are plain "YYYY-MM-DD" (see AdminBannersPage's date
+// inputs), compared as calendar days in the viewer's own timezone —
+// same inclusive-end-of-day convention as isOfferLive() in
+// offerWindow.ts, so a banner set to end "today" is still live for the
+// whole of today on both features alike.
+export function isBannerLive(b: Pick<Banner, "startAt" | "endAt">, now: Date = new Date()): boolean {
+  const at = now.getTime();
+  if (b.startAt) {
+    const from = new Date(`${b.startAt}T00:00:00`).getTime();
+    if (!Number.isNaN(from) && at < from) return false;
+  }
+  if (b.endAt) {
+    const to = new Date(`${b.endAt}T23:59:59.999`).getTime();
+    if (!Number.isNaN(to) && at > to) return false;
+  }
+  return true;
+}
+
 export async function getBanners(): Promise<Banner[]> {
   const { data, error } = await getSupabaseClient().from("banners").select("*").eq("active", true).order("display_order", { ascending: true });
   if (error) throw error;
-  return (data ?? []).map(rowToBanner);
+  return (data ?? []).map(rowToBanner).filter((b) => isBannerLive(b));
 }
 
 export function subscribeToBanners(callback: (banners: Banner[]) => void, onError?: (error: Error) => void): Unsubscribe {

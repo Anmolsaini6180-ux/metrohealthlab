@@ -3,6 +3,7 @@ import {
   buildWhatsAppBookingMessage,
   buildWhatsAppLink,
   extractAgeGender,
+  formatIstSlot,
   parseAmount,
   parsePhone,
   parseWhatsAppBooking,
@@ -182,57 +183,132 @@ describe("parsePhone", () => {
   });
 });
 
+describe("formatIstSlot", () => {
+  it("formats a real slot instant in IST, 12-hour with zero-padded hour", () => {
+    // 00:30 UTC on 2026-09-11 = 06:00 IST (UTC+5:30) — the exact
+    // "11 September 2026 at 06:00 AM" example from the spec.
+    expect(formatIstSlot("2026-09-11T00:30:00.000Z", "2026-09-11")).toBe("11 September 2026 at 06:00 AM");
+  });
+
+  it("converts a PM hour correctly", () => {
+    // 08:30 UTC = 14:00 IST = 2:00 PM.
+    expect(formatIstSlot("2026-09-11T08:30:00.000Z", "2026-09-11")).toBe("11 September 2026 at 02:00 PM");
+  });
+
+  it("shows 12:00 AM at IST midnight, not 00:00", () => {
+    // 18:30 UTC (previous day) = 00:00 IST.
+    expect(formatIstSlot("2026-09-10T18:30:00.000Z", "2026-09-11")).toBe("11 September 2026 at 12:00 AM");
+  });
+
+  it("shows 12:00 PM at IST noon", () => {
+    // 06:30 UTC = 12:00 IST.
+    expect(formatIstSlot("2026-09-11T06:30:00.000Z", "2026-09-11")).toBe("11 September 2026 at 12:00 PM");
+  });
+
+  it("falls back to the date only when there is no exact slot instant", () => {
+    expect(formatIstSlot(undefined, "2026-09-11")).toBe("11 September 2026");
+  });
+
+  it("is stable regardless of the machine's own local timezone", () => {
+    // Not literally changing TZ here (no control over the test
+    // runner's env), but asserting the function reads Asia/Kolkata
+    // explicitly rather than Date's own local-timezone accessors —
+    // this instant would print a different hour under almost any
+    // other timezone if getHours()/getMinutes() had been used instead.
+    expect(formatIstSlot("2026-09-11T00:30:00.000Z", "2026-09-11")).not.toContain("12:30");
+  });
+});
+
 describe("buildWhatsAppBookingMessage", () => {
   const booking = {
-    id: "MH26082000012",
+    reference: "MH-000000012",
     items: [{ itemType: "package", refId: "p1", name: "Metro Full Body Health Check", labId: "l1", price: 1299 }],
     finalAmount: 1299,
     amountReceived: 0,
     bookingStatus: "confirmed",
     date: "2026-09-02",
-    labName: "Dr. Lal PathLabs",
-    contact: { name: "Asha Verma", phone: "9876543210", address: "12 Nehru Road" },
+    startAt: "2026-09-02T01:30:00.000Z", // 07:00 IST
+    contact: { name: "Asha Verma", phone: "9876543210", address: "12 Nehru Road, Ghaziabad" },
   } as unknown as Booking;
 
-  it("includes the real booking values", () => {
+  it("matches the exact required template, field for field", () => {
     const msg = buildWhatsAppBookingMessage(booking, "Metro Health Lab");
-    expect(msg).toContain("Booking ID: MH26082000012");
-    expect(msg).toContain("Booking Amount: ₹1,299");
-    expect(msg).toContain("Paid Amount: ₹0");
-    expect(msg).toContain("Pending Amount: ₹1,299");
-    expect(msg).toContain("Booking Status: Confirmed");
-    expect(msg).toContain("Customer Name: Asha Verma");
-    expect(msg).toContain("Lab: Dr. Lal PathLabs");
-    expect(msg).toContain("Metro Full Body Health Check");
+    expect(msg).toBe(
+      [
+        "🏥 *Metro Health Lab*",
+        "*Booking Confirmation*",
+        "",
+        "Dear Asha Verma,",
+        "",
+        "Your health package booking has been successfully confirmed. Please find your booking details below:",
+        "",
+        "📋 *Booking Details*",
+        "• *Booking ID:* MH-000000012",
+        "• *Booking Status:* ✅ Order Booked",
+        "• *Package:* Metro Full Body Health Check",
+        "• *Booking Amount:* ₹1,299/-",
+        "• *Paid Amount:* ₹0/-",
+        "• *Pending Amount:* ₹1,299/-",
+        "",
+        "👤 *Customer Details*",
+        "• *Name:* Asha Verma",
+        "• *Contact:* 9876543210",
+        "",
+        "📍 *Sample Collection Address:*",
+        "12 Nehru Road, Ghaziabad",
+        "",
+        "🕕 *Sample Collection:*",
+        "2 September 2026 at 07:00 AM",
+        "",
+        "Thank you for choosing *Metro Health Lab*.",
+        "Our collection executive will coordinate with you for sample collection.",
+        "",
+        "*Metro Health Lab*",
+        "*Your Health, Our Priority*",
+      ].join("\n")
+    );
+  });
+
+  it("includes a real Age/Gender line when patient info is supplied", () => {
+    const msg = buildWhatsAppBookingMessage(booking, "Metro Health Lab", { patient: { age: 34, gender: "female" } });
+    expect(msg).toContain("• *Age/Gender:* 34 / F");
+  });
+
+  it("omits the Age/Gender line entirely when no patient info is supplied", () => {
+    const msg = buildWhatsAppBookingMessage(booking, "Metro Health Lab");
+    expect(msg).not.toContain("Age/Gender");
+  });
+
+  it("uses a configured tagline when one is provided", () => {
+    const msg = buildWhatsAppBookingMessage(booking, "Metro Health Lab", { tagline: "Accurate tests. Better health." });
+    expect(msg).toContain("*Accurate tests. Better health.*");
+    expect(msg).not.toContain("Your Health, Our Priority");
   });
 
   it("reflects a part payment in the pending amount", () => {
     const msg = buildWhatsAppBookingMessage({ ...booking, amountReceived: 500 } as Booking, "Metro Health Lab");
-    expect(msg).toContain("Paid Amount: ₹500");
-    expect(msg).toContain("Pending Amount: ₹799");
+    expect(msg).toContain("• *Paid Amount:* ₹500/-");
+    expect(msg).toContain("• *Pending Amount:* ₹799/-");
   });
 
   it("never shows a negative pending amount", () => {
     const msg = buildWhatsAppBookingMessage({ ...booking, amountReceived: 5000 } as Booking, "Metro Health Lab");
-    expect(msg).toContain("Pending Amount: ₹0");
+    expect(msg).toContain("• *Pending Amount:* ₹0/-");
   });
 
-  it("omits contact lines that the booking does not have", () => {
-    const msg = buildWhatsAppBookingMessage({ ...booking, contact: undefined, labName: undefined } as Booking, "Metro Health Lab");
-    expect(msg).not.toContain("Customer Name:");
-    expect(msg).not.toContain("Lab:");
-    expect(msg).toContain("Booking ID: MH26082000012");
+  it("shows the real current status once a booking has moved past 'confirmed', instead of falsely claiming Order Booked", () => {
+    const msg = buildWhatsAppBookingMessage({ ...booking, bookingStatus: "sample_collected" } as Booking, "Metro Health Lab");
+    expect(msg).toContain("• *Booking Status:* Sample collected");
+    expect(msg).not.toContain("Order Booked");
   });
 
   // Round trip: what we generate must be readable by our own parser.
-  it("produces a message our parser can read back", () => {
+  it("produces a message our parser can read the booking ID and amounts back from", () => {
     const msg = buildWhatsAppBookingMessage(booking, "Metro Health Lab");
     const { fields } = parseWhatsAppBooking(msg);
-    expect(fields.bookingRef).toBe("MH26082000012");
+    expect(fields.bookingRef).toBe("MH-000000012");
     expect(fields.bookingAmount).toBe(1299);
     expect(fields.paidAmount).toBe(0);
-    expect(fields.customerName).toBe("Asha Verma");
-    expect(fields.customerPhone).toBe("9876543210");
   });
 
   // This is the customer-facing message text (shared over WhatsApp,
@@ -248,17 +324,27 @@ describe("buildWhatsAppBookingMessage", () => {
     expect(msg.toLowerCase()).not.toContain("tp");
     expect(msg.toLowerCase()).not.toContain("margin");
   });
+
+  it("never shows undefined/null/[object Object] even with fully missing contact", () => {
+    const msg = buildWhatsAppBookingMessage({ ...booking, contact: undefined } as Booking, "Metro Health Lab");
+    expect(msg).not.toContain("undefined");
+    expect(msg).not.toContain("null");
+    expect(msg).not.toContain("[object Object]");
+    expect(msg).toContain("• *Name:* Customer");
+    expect(msg).toContain("Not on file — please confirm with the customer.");
+    expect(msg).not.toContain("• *Contact:*");
+  });
 });
 
 describe("buildWhatsAppBookingMessage — partial contact field combinations", () => {
-  // A real booking always has id/items/finalAmount/bookingStatus/date
-  // (they're required on the Booking type — there is no "draft a
+  // A real booking always has reference/items/finalAmount/bookingStatus/
+  // date (they're required on the Booking type — there is no "draft a
   // message before a booking exists" tool in this codebase, only this
-  // post-confirmation message), but contact/labName are genuinely
-  // optional and vary per booking source. Each case below is a
-  // realistic combination, not a synthetic one.
+  // post-confirmation message), but contact is genuinely optional and
+  // varies per booking source. Each case below is a realistic
+  // combination, not a synthetic one.
   const minimal = {
-    id: "MH26090400001",
+    reference: "MH-000000099",
     items: [{ itemType: "package", refId: "p1", name: "Full Body Checkup", labId: "l1", price: 999 }],
     finalAmount: 999,
     amountReceived: 0,
@@ -266,50 +352,47 @@ describe("buildWhatsAppBookingMessage — partial contact field combinations", (
     date: "2026-09-10",
   } as unknown as Booking;
 
-  it("name only (no phone, no address, no lab)", () => {
+  it("name only (no phone, no address)", () => {
     const msg = buildWhatsAppBookingMessage({ ...minimal, contact: { name: "Asha" } } as Booking, "Metro Health Lab");
-    expect(msg).toContain("Customer Name: Asha");
-    expect(msg).not.toContain("Customer Phone:");
-    expect(msg).not.toContain("Customer Address:");
-    expect(msg).not.toContain("Lab:");
+    expect(msg).toContain("• *Name:* Asha");
+    expect(msg).not.toContain("• *Contact:*");
+    expect(msg).toContain("Not on file — please confirm with the customer.");
     expect(msg).not.toContain("undefined");
     expect(msg).not.toContain("null");
   });
 
   it("name + phone only", () => {
     const msg = buildWhatsAppBookingMessage({ ...minimal, contact: { name: "Asha", phone: "9876543210" } } as Booking, "Metro Health Lab");
-    expect(msg).toContain("Customer Name: Asha");
-    expect(msg).toContain("Customer Phone: 9876543210");
-    expect(msg).not.toContain("Customer Address:");
+    expect(msg).toContain("• *Name:* Asha");
+    expect(msg).toContain("• *Contact:* 9876543210");
     expect(msg).not.toContain("undefined");
   });
 
   it("package only — no contact at all", () => {
     const msg = buildWhatsAppBookingMessage({ ...minimal, contact: undefined } as Booking, "Metro Health Lab");
     expect(msg).toContain("Full Body Checkup");
-    expect(msg).not.toContain("Customer Name:");
-    expect(msg).not.toContain("Customer Phone:");
+    expect(msg).toContain("• *Name:* Customer");
+    expect(msg).not.toContain("• *Contact:*");
     expect(msg).not.toContain("undefined");
     expect(msg).not.toContain("null");
   });
 
   it("name + address only (no phone)", () => {
     const msg = buildWhatsAppBookingMessage({ ...minimal, contact: { name: "Asha", address: "12 Nehru Road" } } as Booking, "Metro Health Lab");
-    expect(msg).toContain("Customer Name: Asha");
-    expect(msg).toContain("Customer Address: 12 Nehru Road");
-    expect(msg).not.toContain("Customer Phone:");
+    expect(msg).toContain("• *Name:* Asha");
+    expect(msg).toContain("12 Nehru Road");
+    expect(msg).not.toContain("• *Contact:*");
     expect(msg).not.toContain("undefined");
   });
 
   it("complete booking — every optional field present", () => {
     const msg = buildWhatsAppBookingMessage(
-      { ...minimal, labName: "Dr. Lal PathLabs", contact: { name: "Asha", phone: "9876543210", address: "12 Nehru Road" } } as Booking,
+      { ...minimal, contact: { name: "Asha", phone: "9876543210", address: "12 Nehru Road" } } as Booking,
       "Metro Health Lab"
     );
-    expect(msg).toContain("Customer Name: Asha");
-    expect(msg).toContain("Customer Phone: 9876543210");
-    expect(msg).toContain("Customer Address: 12 Nehru Road");
-    expect(msg).toContain("Lab: Dr. Lal PathLabs");
+    expect(msg).toContain("• *Name:* Asha");
+    expect(msg).toContain("• *Contact:* 9876543210");
+    expect(msg).toContain("12 Nehru Road");
     expect(msg).not.toContain("undefined");
     expect(msg).not.toContain("null");
   });

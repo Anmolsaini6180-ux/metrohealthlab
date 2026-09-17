@@ -328,6 +328,7 @@ export function rowToCampaign(r: Record<string, unknown>): Campaign {
     landingPage: (r.landing_page as string) ?? undefined,
     createdBy: (r.created_by as string) ?? "",
     updatedBy: (r.updated_by_firebase_uid as string) ?? undefined,
+    archivedAt: (r.archived_at as string) ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

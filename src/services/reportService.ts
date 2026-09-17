@@ -30,6 +30,7 @@ export async function getUserReports(userId: string): Promise<Report[]> {
     labId: r.lab_id ?? "",
     status: r.status,
     storageProvider: r.storage_provider ?? undefined,
+    bucket: r.bucket ?? undefined,
     publicId: r.public_id ?? undefined,
     assetId: r.asset_id ?? undefined,
     resourceType: r.resource_type ?? undefined,
@@ -49,14 +50,40 @@ export interface SecureDownloadUrlResponse {
   expiresAt: string;
 }
 
+const SIGNED_URL_TTL_SECONDS = 600; // 10 minutes — matches AdminReportsPage's own long-standing copy.
+
+/**
+ * New reports (storage_provider = 'supabase_storage') get a REAL
+ * signed URL: createSignedUrl() itself re-checks the caller's own
+ * Storage RLS before issuing one (patient_reports_owner_read /
+ * patient_reports_staff_read — see supabase_storage_buckets_and_rls),
+ * so a customer can only ever get a link to their OWN report, and the
+ * link genuinely stops working after SIGNED_URL_TTL_SECONDS — both
+ * properties the previous Cloudinary path's bare public delivery URL
+ * only claimed in this page's own UI copy, never actually enforced
+ * (real, confirmed gap: that URL had no expiry and needed no signature
+ * at all). Any report still on 'cloudinary' (there were zero at the
+ * time of this fix) keeps working exactly as before — not migrated,
+ * not broken, just not upgraded automatically.
+ */
 export async function getSecureDownloadUrl(reportId: string): Promise<SecureDownloadUrlResponse> {
   const { data, error } = await getSupabaseClient()
     .from("reports")
-    .select("public_id, format, resource_type")
+    .select("public_id, format, resource_type, storage_provider, bucket")
     .eq("id", reportId)
     .maybeSingle();
   if (error) throw error;
   if (!data || !data.public_id) throw new Error("That report has no file on record yet.");
+
+  if (data.storage_provider === "supabase_storage") {
+    const bucket = data.bucket || "patient-reports";
+    const { data: signed, error: signError } = await getSupabaseClient()
+      .storage.from(bucket)
+      .createSignedUrl(data.public_id, SIGNED_URL_TTL_SECONDS);
+    if (signError) throw signError;
+    if (!signed?.signedUrl) throw new Error("Could not create a download link for that report.");
+    return { url: signed.signedUrl, expiresAt: new Date(Date.now() + SIGNED_URL_TTL_SECONDS * 1000).toISOString() };
+  }
 
   const cloudinary = getCloudinaryConfig();
   if (!cloudinary) throw new Error("Report downloads are not configured yet (missing Cloudinary settings).");
@@ -64,7 +91,9 @@ export async function getSecureDownloadUrl(reportId: string): Promise<SecureDown
   const resourceType = data.resource_type || "image";
   const ext = data.format ? `.${data.format}` : "";
   const url = `https://res.cloudinary.com/${encodeURIComponent(cloudinary.cloudName)}/${resourceType}/upload/${data.public_id}${ext}`;
-  // No expiry: unlike a signed URL, this link works for as long as the
-  // asset exists. Documented in the response shape rather than faked.
+  // Legacy path only (storage_provider = 'cloudinary' or unset). No
+  // real expiry exists for this URL shape — see the migration note
+  // above; kept working as-is for any pre-existing row rather than
+  // silently changed.
   return { url, expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() };
 }

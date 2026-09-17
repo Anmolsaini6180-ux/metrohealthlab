@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { adminHomePathForRole, adminMenuLabelForRole } from "@/utils/roleAccess";
@@ -7,20 +6,14 @@ import Logo from "@/components/brand/Logo";
 import ProfileMenu from "./ProfileMenu";
 import NotificationBell from "./NotificationBell";
 import HeaderCallButton from "./HeaderCallButton";
+import SearchAutocomplete from "@/components/common/SearchAutocomplete";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 
 export default function Header() {
-  const navigate = useNavigate();
   const { profile } = useAuth();
   const { role } = useAdminRole();
   const adminPath = adminHomePathForRole(role);
   const { settings } = useBrandingSettings();
-  const [q, setQ] = useState("");
-
-  function handleSearchSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (q.trim()) navigate(`/tests?q=${encodeURIComponent(q.trim())}`);
-  }
 
   const firstName = profile?.name?.split(" ")[0];
   // Shown next to the wordmark on mobile. Comes from Branding Settings
@@ -62,22 +55,12 @@ export default function Header() {
           )}
         </nav>
 
-        <form className="mh-header__search" onSubmit={handleSearchSubmit} role="search">
-          <label className="visually-hidden" htmlFor="search-input-desktop">
-            Search tests and packages
-          </label>
-          <div style={{ position: "relative" }}>
-            <span className="mi mh-header__search-icon" aria-hidden="true">search</span>
-            <input
-              id="search-input-desktop"
-              type="search"
-              placeholder="Search tests, packages, health concerns..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="mh-header__search-input"
-            />
-          </div>
-        </form>
+        <SearchAutocomplete
+          id="search-input-desktop"
+          placeholder="Search tests, packages, health concerns..."
+          className="mh-header__search"
+          inputClassName="mh-header__search-input"
+        />
 
         <div className="mh-header__icons">
           <HeaderCallButton />
@@ -119,25 +102,12 @@ export default function Header() {
           {firstName ? `Hi, ${firstName} 👋` : "Welcome 👋"} — <span className="text-soft">what are we checking today?</span>
         </p>
 
-        <form onSubmit={handleSearchSubmit} role="search" className="mh-header__mobile-search-form">
-          <label className="visually-hidden" htmlFor="search-input-mobile">
-            Search tests and packages
-          </label>
-          <div className="mh-header__mobile-search">
-            <span className="mi" style={{ color: "var(--color-primary)" }} aria-hidden="true">search</span>
-            <input
-              id="search-input-mobile"
-              type="search"
-              placeholder="Search for tests, packages, scans..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              style={{ flex: 1, border: "none", background: "transparent", fontSize: "var(--text-sm)" }}
-            />
-            <button type="submit" className="mh-header__search-filter" aria-label="Search">
-              <span className="mi" aria-hidden="true">tune</span>
-            </button>
-          </div>
-        </form>
+        <SearchAutocomplete
+          id="search-input-mobile"
+          placeholder="Search for tests, packages, scans..."
+          className="mh-header__mobile-search-form"
+          inputClassName="mh-header__mobile-search-input"
+        />
       </div>
     </header>
   );

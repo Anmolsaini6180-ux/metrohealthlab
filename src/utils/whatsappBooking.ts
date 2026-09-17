@@ -116,7 +116,10 @@ export function splitSlotDateTime(slot: string): { date?: string; time?: string 
 function matchLabel(line: string): { field: keyof ParsedWhatsAppBooking; value: string } | null {
   // "Label: value" and "Label - value" are both common in forwarded
   // messages; "*Label:*" appears when WhatsApp bold markers survive.
-  const cleaned = line.replace(/[*_~`]/g, "").trim();
+  // A leading "•" (buildWhatsAppBookingMessage's own bullet format) is
+  // stripped the same way — this parser must be able to read back the
+  // exact messages this app itself generates, not just ones it receives.
+  const cleaned = line.replace(/^[•\s]+/, "").replace(/[*_~`]/g, "").trim();
   const separator = cleaned.search(/[:\-–]/);
   if (separator === -1) return null;
 
@@ -217,40 +220,123 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function rupees(value: number): string {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return `₹${value.toLocaleString("en-IN")}/-`;
+}
+
+export interface WhatsAppPatientInfo {
+  age?: number;
+  gender?: "male" | "female" | "other";
+}
+
+const GENDER_SHORT: Record<"male" | "female" | "other", string> = { male: "M", female: "F", other: "Other" };
+
+/**
+ * "{DD Month YYYY} at {hh:mm AM/PM}", always read in Asia/Kolkata
+ * regardless of the caller's own local timezone — using Intl's locale
+ * AM/PM string directly is a real, known source of platform-dependent
+ * formatting (case, spacing, narrow-no-break-space before AM/PM all
+ * vary by ICU version), so the numeric parts are pulled out with
+ * hour12:false and the 12-hour conversion + "AM"/"PM" are built by
+ * hand — guaranteed identical output everywhere this runs.
+ *
+ * `startAt` (set by a database trigger from date + the real slot's
+ * start_time, already resolved server-side) is what makes the
+ * exact time available at all — without a slot, only the date is
+ * shown, never a fabricated time.
+ */
+export function formatIstSlot(startAt: string | undefined, date: string): string {
+  const source = startAt ?? `${date}T00:00:00+05:30`;
+  const instant = new Date(source);
+  if (Number.isNaN(instant.getTime())) return date;
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const dateText = `${get("day")} ${get("month")} ${get("year")}`;
+  if (!startAt) return dateText;
+
+  const hour24 = Number(get("hour"));
+  const ampm = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${dateText} at ${String(hour12).padStart(2, "0")}:${get("minute")} ${ampm}`;
 }
 
 /**
- * Builds the confirmation message for a real booking. Every value comes
- * from the booking document — nothing is templated in.
+ * Builds the confirmation message for a real booking — every value
+ * comes from the booking (and, optionally, the patient) record, never
+ * templated/sample data. Uses `reference` (the MH-XXXXXXXXX customer-
+ * facing number), never the internal `id` — a real bug fixed here: the
+ * previous version read `.id`, which is the raw database uuid, not
+ * anything a customer should ever see (see Booking.reference's own
+ * doc comment); AddBookingDialog.tsx's own call site was already
+ * working around this by passing `reference` in as `id`.
+ *
+ * Fields with no real value to show (age/gender, phone, address) are
+ * either omitted (a bullet with nothing to say) or given an honest
+ * "not on file" note — never "undefined", "null" or a fabricated
+ * placeholder.
  */
 export function buildWhatsAppBookingMessage(
   booking: Pick<
     Booking,
-    "id" | "items" | "finalAmount" | "amountReceived" | "bookingStatus" | "date" | "contact" | "labName"
+    "reference" | "items" | "finalAmount" | "amountReceived" | "bookingStatus" | "date" | "startAt" | "contact"
   >,
-  businessName: string
+  businessName: string,
+  options?: { patient?: WhatsAppPatientInfo | null; tagline?: string }
 ): string {
   const amountReceived = booking.amountReceived ?? 0;
+  const pendingAmount = Math.max(booking.finalAmount - amountReceived, 0);
+  const customerName = booking.contact?.name?.trim() || "Customer";
+  const packageName = booking.items.map((i) => i.name).filter(Boolean).join(", ") || "—";
+  const tagline = options?.tagline?.trim() || "Your Health, Our Priority";
+  const statusLine = booking.bookingStatus === "confirmed" ? "✅ Order Booked" : STATUS_LABELS[booking.bookingStatus] ?? booking.bookingStatus;
+
+  const ageGender: string[] = [];
+  if (options?.patient?.age != null) ageGender.push(String(options.patient.age));
+  if (options?.patient?.gender) ageGender.push(GENDER_SHORT[options.patient.gender]);
+
   const lines = [
-    "Booking Confirmation",
+    `🏥 *${businessName}*`,
+    `*Booking Confirmation*`,
     "",
-    `Booking ID: ${booking.id}`,
-    `Business: ${businessName}`,
-    `Booking Status: ${STATUS_LABELS[booking.bookingStatus] ?? booking.bookingStatus}`,
-    `Booking Amount: ${rupees(booking.finalAmount)}`,
-    `Paid Amount: ${rupees(amountReceived)}`,
-    `Pending Amount: ${rupees(Math.max(booking.finalAmount - amountReceived, 0))}`,
-    `Sample Collection Slot: ${booking.date}`,
+    `Dear ${customerName},`,
+    "",
+    "Your health package booking has been successfully confirmed. Please find your booking details below:",
+    "",
+    "📋 *Booking Details*",
+    `• *Booking ID:* ${booking.reference}`,
+    `• *Booking Status:* ${statusLine}`,
+    `• *Package:* ${packageName}`,
+    `• *Booking Amount:* ${rupees(booking.finalAmount)}`,
+    `• *Paid Amount:* ${rupees(amountReceived)}`,
+    `• *Pending Amount:* ${rupees(pendingAmount)}`,
+    "",
+    "👤 *Customer Details*",
+    `• *Name:* ${customerName}`,
   ];
-
-  if (booking.labName) lines.push(`Lab: ${booking.labName}`);
-  if (booking.contact?.name) lines.push(`Customer Name: ${booking.contact.name}`);
-  if (booking.contact?.phone) lines.push(`Customer Phone: ${booking.contact.phone}`);
-  if (booking.contact?.address) lines.push(`Customer Address: ${booking.contact.address}`);
-
-  const items = booking.items.map((i) => i.name).filter(Boolean);
-  if (items.length > 0) lines.push(`Test/Package Details: ${items.join(", ")}`);
+  if (ageGender.length > 0) lines.push(`• *Age/Gender:* ${ageGender.join(" / ")}`);
+  if (booking.contact?.phone) lines.push(`• *Contact:* ${booking.contact.phone}`);
+  lines.push(
+    "",
+    "📍 *Sample Collection Address:*",
+    booking.contact?.address?.trim() || "Not on file — please confirm with the customer.",
+    "",
+    "🕕 *Sample Collection:*",
+    formatIstSlot(booking.startAt, booking.date),
+    "",
+    `Thank you for choosing *${businessName}*.`,
+    "Our collection executive will coordinate with you for sample collection.",
+    "",
+    `*${businessName}*`,
+    `*${tagline}*`
+  );
 
   return lines.join("\n");
 }

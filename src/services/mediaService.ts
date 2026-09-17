@@ -170,6 +170,37 @@ export interface ReportUploadResult {
   reportId: string;
 }
 
+const REPORT_BUCKET = "patient-reports";
+const REPORT_ALLOWED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+const REPORT_MAX_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Strips a filename down to characters safe in a Storage object path —
+ * never trusts the original name as-is (it comes straight from the
+ * admin's filesystem and could contain "../", spaces, unicode, or
+ * anything else a path shouldn't). The bucket's own allowed_mime_types/
+ * file_size_limit (see the supabase_storage_buckets_and_rls and
+ * storage_bucket_mime_and_size_limits migrations) are the REAL
+ * boundary — enforced server-side regardless of what this file's own
+ * reported .type/.name claim — these checks are just fast, friendly
+ * client-side feedback before even attempting the upload.
+ */
+function safeFilename(name: string): string {
+  const cleaned = name.replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-120);
+  return cleaned || "file";
+}
+
+/**
+ * Reports live in the PRIVATE patient-reports bucket, browser -> Storage
+ * directly (RLS restricts writes there to staff — can_manage_catalog()
+ * — same gate every other report-management action already uses). The
+ * object path's first segment is the booking's own customer, so the
+ * owner-read RLS policy can later match it against auth.uid() — a
+ * WhatsApp booking never linked to a real account has no such uid, so
+ * "unassigned" is used instead (nobody's owner-read policy can ever
+ * match that literal string, which is correct: only staff can read an
+ * unlinked booking's report, exactly as before).
+ */
 export async function uploadReportFile(params: {
   file: File;
   bookingId: string;
@@ -179,20 +210,51 @@ export async function uploadReportFile(params: {
   packageId?: string;
   reportId?: string;
 }): Promise<ReportUploadResult> {
-  const result = await uploadToCloudinary(params.file, { folder: "reports" });
-  const { data, error } = await getSupabaseClient().rpc("confirm_report_upload", {
+  if (!REPORT_ALLOWED_TYPES.has(params.file.type)) {
+    throw new Error("Reports must be a PDF, JPEG, PNG or WebP file.");
+  }
+  if (params.file.size > REPORT_MAX_BYTES) {
+    throw new Error("Report file is too large (20 MB max).");
+  }
+
+  const client = getSupabaseClient();
+  const { data: booking, error: bookingError } = await client
+    .from("bookings")
+    .select("user_id")
+    .eq("id", params.bookingId)
+    .maybeSingle();
+  if (bookingError) throw bookingError;
+  if (!booking) throw new Error("That booking no longer exists.");
+
+  const ownerSegment = (booking.user_id as string | null) ?? "unassigned";
+  const objectPath = `${ownerSegment}/${crypto.randomUUID()}-${safeFilename(params.file.name)}`;
+
+  const { error: uploadError } = await client.storage.from(REPORT_BUCKET).upload(objectPath, params.file, {
+    contentType: params.file.type,
+    upsert: false,
+  });
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await client.rpc("confirm_report_upload_storage", {
     p_booking_id: params.bookingId,
-    p_public_id: result.publicId,
-    p_asset_id: result.publicId,
-    p_resource_type: result.resourceType,
-    p_format: result.format,
-    p_bytes: result.bytes,
-    p_filename: result.originalFilename ?? params.file.name,
-    p_folder: result.folder ?? "reports",
+    p_bucket: REPORT_BUCKET,
+    p_object_path: objectPath,
+    p_format: params.file.name.split(".").pop() ?? "",
+    p_bytes: params.file.size,
+    p_filename: params.file.name,
     p_test_id: params.testId ?? null,
     p_package_id: params.packageId ?? null,
   });
-  if (error) throw error;
+  if (error) {
+    // The metadata row is what actually makes a report exist anywhere
+    // in the product — an orphaned Storage object with no reports row
+    // is inert (unreachable by any RLS policy that matches on booking/
+    // report data, unlisted anywhere) rather than a dangling reference
+    // to something that no longer resolves, so it's safe to leave for
+    // manual cleanup rather than risk masking this real error with a
+    // second failure from the cleanup attempt itself.
+    throw error;
+  }
   return { reportId: (data as unknown as { id: string }).id };
 }
 

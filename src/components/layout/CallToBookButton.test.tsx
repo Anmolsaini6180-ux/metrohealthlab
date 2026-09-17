@@ -33,22 +33,34 @@ beforeEach(() => {
 });
 
 describe("CallToBookButton", () => {
-  // The live project has no branding document at all, which is exactly
-  // the state this has to survive without rendering a dead button.
-  it("renders nothing when branding has not been configured", () => {
-    expect(render(null)).toBe("");
+  // Real behaviour change: a "Request a callback" lead capture (see
+  // publicLeadService.createCallbackLead) works independently of any
+  // configured business phone number, so the card now degrades to a
+  // callback-only version instead of disappearing entirely — a
+  // callback-request card that dials nothing dialable is still useful;
+  // one that offers no way at all to reach the business was the actual
+  // problem the old "renders nothing" behaviour left unsolved.
+  it("still offers a way to request a callback when branding has not been configured", () => {
+    const html = render(null);
+    expect(html).toContain("mh-call-card");
+    expect(html).toContain("Request Callback");
+    expect(html).not.toContain('href="tel:');
   });
 
-  it("renders nothing when no phone number is set", () => {
-    expect(render({})).toBe("");
-    expect(render({ phone: "" })).toBe("");
-    expect(render({ phone: "   " })).toBe("");
+  it("still offers a way to request a callback when no phone number is set", () => {
+    for (const phone of [undefined, "", "   "]) {
+      const html = render({ phone });
+      expect(html).toContain("Request Callback");
+      expect(html).not.toContain('href="tel:');
+    }
   });
 
-  it("renders a real tel: link once a phone number exists", () => {
+  it("renders a real tel: link once a phone number exists, alongside Request Callback", () => {
     const html = render({ phone: "+91 99999 88888" });
     expect(html).toContain('href="tel:+919999988888"');
     expect(html).toContain("Call our health experts");
+    expect(html).toContain("Call Now");
+    expect(html).toContain("Request Callback");
     expect(html).toContain("mh-call-card");
   });
 
@@ -57,12 +69,19 @@ describe("CallToBookButton", () => {
     expect(render({ phone: "0120 456 7890" })).toContain('href="tel:01204567890"');
   });
 
-  it("renders nothing when the phone number contains no dialable digits", () => {
-    expect(render({ phone: "call us!" })).toBe("");
+  it("still offers a way to request a callback when the phone number has no dialable digits", () => {
+    const html = render({ phone: "call us!" });
+    expect(html).toContain("Request Callback");
+    expect(html).not.toContain('href="tel:');
   });
 
-  it("labels the control for screen readers with the number", () => {
+  it("labels the tap-to-call control for screen readers with the number", () => {
     expect(render({ phone: "+91 99999 88888" })).toContain('aria-label="Call +91 99999 88888 to book"');
+  });
+
+  it("always offers a way to dismiss the card", () => {
+    expect(render(null)).toContain('aria-label="Close"');
+    expect(render({ phone: "+91 99999 88888" })).toContain('aria-label="Close"');
   });
 
   // The card is full-width and fixed, so anywhere it is not wanted it
