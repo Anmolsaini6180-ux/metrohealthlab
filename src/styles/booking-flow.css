@@ -5,10 +5,11 @@
    that used to live here have been replaced by the mh2- versions
    below — BookingFlowPage, BookingStepper and PhoneNumberModal are
    their only consumers, and all three now use the v2 classes
-   exclusively. .mh-add-row and .mh-order-summary below stay,
-   unchanged: both are shared with admin upload rows and
-   TrackBookingPage respectively, neither of which is part of this
-   pass.
+   exclusively. .mh-add-row stays, unchanged: it's shared with admin
+   upload rows, which aren't part of this pass. The legacy
+   .mh-order-summary* rules that used to live here were removed once
+   TrackBookingPage (their last consumer) moved to .mh2-order-summary
+   below.
    ============================================================ */
 .mh-add-row {
   display: flex;
@@ -26,40 +27,6 @@
 .mh-add-row:hover {
   border-color: var(--color-primary);
   background: var(--color-bg-tint);
-}
-
-/* ---- Order summary (review step) ---- */
-.mh-order-summary {
-  border: 1px solid var(--color-line);
-  border-radius: 14px;
-  padding: var(--space-md);
-  display: grid;
-  gap: 8px;
-}
-
-.mh-order-summary__title {
-  font-weight: 700;
-  font-size: var(--text-sm);
-  margin-bottom: 2px;
-}
-
-.mh-order-summary__row {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--text-sm);
-  color: var(--color-ink-soft);
-}
-
-.mh-order-summary__row.is-total {
-  font-weight: 800;
-  font-size: var(--text-base);
-  color: var(--color-ink);
-}
-
-.mh-order-summary__rule {
-  border: none;
-  border-top: 1px dashed var(--color-line);
-  margin: 2px 0;
 }
 
 /* ============================================================

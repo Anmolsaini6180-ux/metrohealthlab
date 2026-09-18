@@ -1,67 +1,64 @@
 /* ============================================================
-   TRACK BOOKING / CONFIRMATION
+   DESIGN SYSTEM V2 — Track booking / confirmation
+   Exclusive to TrackBookingPage — replaces the legacy track and
+   timeline rules that used to live in this file. .mh2-order-summary
+   (booking-flow.css) is reused as-is for the summary rows; this page
+   was the last consumer of the legacy .mh-order-summary, which is now
+   removed there too.
    ============================================================ */
-.mh-track {
+.mh2-track {
   display: grid;
-  /* See .mh-booking in booking-flow.css for the full explanation: a
-     grid's implicit column with no explicit width sizes (and stretches
-     every row to match) the widest descendant's min-content, which can
-     silently push a whole page's content past the viewport edge. */
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-lg);
 }
 
-.mh-track__success {
+.mh2-track__success {
   display: grid;
   justify-items: center;
   gap: 6px;
   text-align: center;
   padding: var(--space-lg) var(--space-md);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-tint);
+  border-radius: var(--radius-xl);
+  background: var(--color-primary-soft);
   border: 1px solid var(--color-line);
 }
 
-.mh-track__success-icon {
+.mh2-track__success-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 56px;
   height: 56px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--color-success);
   color: #fff;
   margin-bottom: 4px;
 }
 
-.mh-track__success-icon .mi {
+.mh2-track__success-icon .mi {
   font-size: 32px;
 }
 
-.mh-track__success-title {
+.mh2-track__success-title {
+  font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 800;
+  color: var(--color-primary-deep);
 }
 
-.mh-track__success-id {
+.mh2-track__success-id {
   color: var(--color-ink-soft);
   font-size: var(--text-sm);
   margin-bottom: 8px;
 }
 
-.mh-track__summary {
+.mh2-track__summary {
   width: 100%;
   text-align: left;
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  border-radius: 14px;
-  padding: var(--space-md);
-  display: grid;
-  gap: 8px;
   margin-top: 4px;
 }
 
-.mh-track__whatsnext {
+.mh2-track__whatsnext {
   display: flex;
   align-items: flex-start;
   gap: 6px;
@@ -71,25 +68,32 @@
   margin-top: 6px;
 }
 
-.mh-track__whatsnext .mi {
+.mh2-track__whatsnext .mi {
   font-size: 18px;
   flex-shrink: 0;
   color: var(--color-primary);
 }
 
-.mh-track__actions {
+.mh2-track__actions {
   display: flex;
   gap: var(--space-sm);
   width: 100%;
   margin-top: 8px;
 }
 
-.mh-track__actions .btn {
+.mh2-track__actions .mh2-btn {
   flex: 1;
 }
 
+.mh2-track__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  color: var(--color-primary-deep);
+}
+
 /* ---- Vertical status timeline ---- */
-.mh-timeline {
+.mh2-timeline {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -97,7 +101,7 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.mh-timeline__item {
+.mh2-timeline__item {
   position: relative;
   display: flex;
   align-items: center;
@@ -106,33 +110,33 @@
   opacity: 0.45;
 }
 
-.mh-timeline__item.is-done {
+.mh2-timeline__item.is-done {
   opacity: 1;
 }
 
-.mh-timeline__dot {
+.mh2-timeline__dot {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   border: 2px solid var(--color-line);
   color: #fff;
   flex-shrink: 0;
   z-index: 1;
 }
 
-.mh-timeline__dot .mi {
+.mh2-timeline__dot .mi {
   font-size: 15px;
 }
 
-.mh-timeline__item.is-done .mh-timeline__dot {
+.mh2-timeline__item.is-done .mh2-timeline__dot {
   background: var(--color-primary);
   border-color: var(--color-primary);
 }
 
-.mh-timeline__line {
+.mh2-timeline__line {
   position: absolute;
   left: 11px;
   top: 24px;
@@ -141,11 +145,11 @@
   background: var(--color-line);
 }
 
-.mh-timeline__item.is-done .mh-timeline__line {
+.mh2-timeline__item.is-done .mh2-timeline__line {
   background: var(--color-primary);
 }
 
-.mh-timeline__label {
+.mh2-timeline__label {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-ink);

@@ -97,52 +97,52 @@ export default function TrackBookingPage() {
   };
 
   return (
-    <div className="mh-track">
+    <div className="mh2-track">
       {justBooked && booking.bookingStatus !== "cancelled" && booking.bookingStatus !== "refunded" && (
-        <div className="mh-track__success">
-          <span className="mh-track__success-icon" aria-hidden="true">
+        <div className="mh2-track__success">
+          <span className="mh2-track__success-icon" aria-hidden="true">
             <span className="mi">check_circle</span>
           </span>
-          <h1 className="mh-track__success-title">Booking Confirmed!</h1>
-          <p className="mh-track__success-id">Booking ID: {booking.reference}</p>
+          <h1 className="mh2-track__success-title">Booking Confirmed!</h1>
+          <p className="mh2-track__success-id">Booking ID: {booking.reference}</p>
 
-          <div className="mh-track__summary">
+          <div className="mh2-order-summary mh2-track__summary">
             {booking.items.map((it, i) => (
-              <div className="mh-order-summary__row" key={i}>
+              <div className="mh2-order-summary__row" key={i}>
                 <span>{it.name}</span>
                 <span>{formatCurrencyInr(it.price)}</span>
               </div>
             ))}
-            <hr className="mh-order-summary__rule" />
-            <div className="mh-order-summary__row">
+            <hr className="mh2-order-summary__rule" />
+            <div className="mh2-order-summary__row">
               <span>Date</span>
               <span>{new Date(booking.date).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</span>
             </div>
-            <div className="mh-order-summary__row">
+            <div className="mh2-order-summary__row">
               <span>{booking.collectionType === "home" ? "Address" : "Collection"}</span>
               <span>{booking.collectionType === "home" ? booking.contact?.address ?? "Home collection" : "Center visit"}</span>
             </div>
-            <div className="mh-order-summary__row is-total">
+            <div className="mh2-order-summary__row is-total">
               <span>Total Amount</span>
               <span>{formatCurrencyInr(booking.finalAmount)}</span>
             </div>
-            <div className="mh-order-summary__row">
+            <div className="mh2-order-summary__row">
               <span>Payment</span>
               <span>Cash on Home</span>
             </div>
           </div>
 
-          <p className="mh-track__whatsnext">
+          <p className="mh2-track__whatsnext">
             <span className="mi" aria-hidden="true">info</span>
             What's next: our team will assign a collector and reach out before arrival. Track every
             step live on this page.
           </p>
 
-          <div className="mh-track__actions">
-            <Link className="btn btn-outline" to="/bookings">
+          <div className="mh2-track__actions">
+            <Link className="mh2-btn mh2-btn--outline" to="/bookings">
               View My Bookings
             </Link>
-            <Link className="btn btn-primary" to="/">
+            <Link className="mh2-btn mh2-btn--primary" to="/">
               Back to Home
             </Link>
           </div>
@@ -150,10 +150,10 @@ export default function TrackBookingPage() {
       )}
 
       <div>
-        <h1 style={{ fontSize: "var(--text-xl)" }}>{justBooked ? "Live Status" : `Tracking ${booking.reference}`}</h1>
+        <h1 className="mh2-track__title">{justBooked ? "Live Status" : `Tracking ${booking.reference}`}</h1>
         {/* Real status: only ever changes when staff/admin genuinely
             changes it via set_booking_status. */}
-        <p className="text-soft" style={{ fontWeight: 600, fontSize: "var(--text-md)" }}>
+        <p className="text-soft" style={{ fontWeight: 700, fontSize: "var(--text-md)" }}>
           {STEP_LABELS[booking.bookingStatus]}
         </p>
         {/* Automation state: a SEPARATE, purely time/staffing-driven line
@@ -181,8 +181,8 @@ export default function TrackBookingPage() {
       </div>
 
       {booking.bookingStatus === "payment_pending" ? (
-        <div className="card" style={{ display: "grid", gap: "var(--space-sm)" }}>
-          <p style={{ fontWeight: 600 }}>
+        <div className="mh2-card" style={{ display: "grid", gap: "var(--space-sm)" }}>
+          <p style={{ fontWeight: 700, fontFamily: "var(--font-display)" }}>
             {booking.paymentStatus === "failed" ? "Payment didn't go through" : "Waiting for payment confirmation..."}
           </p>
           <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
@@ -190,21 +190,21 @@ export default function TrackBookingPage() {
               ? "Your booking is held — retry payment to confirm it."
               : "This updates automatically the moment payment is verified — no need to refresh."}
           </p>
-          <Link className="btn btn-accent" to={`/bookings/${booking.id}`}>
+          <Link className="mh2-btn mh2-btn--primary" to={`/bookings/${booking.id}`}>
             {booking.paymentStatus === "failed" ? "Retry payment" : "View booking"}
           </Link>
         </div>
       ) : booking.bookingStatus === "cancelled" || booking.bookingStatus === "refunded" ? (
-        <div className="card">{STEP_LABELS[booking.bookingStatus]}</div>
+        <div className="mh2-card">{STEP_LABELS[booking.bookingStatus]}</div>
       ) : (
-        <ol className="mh-timeline">
+        <ol className="mh2-timeline">
           {TIMELINE.map((status, i) => (
-            <li key={status} className={`mh-timeline__item${i <= currentIndex ? " is-done" : ""}`}>
-              <span className="mh-timeline__dot" aria-hidden="true">
+            <li key={status} className={`mh2-timeline__item${i <= currentIndex ? " is-done" : ""}`}>
+              <span className="mh2-timeline__dot" aria-hidden="true">
                 <span className="mi">{i <= currentIndex ? "check" : ""}</span>
               </span>
-              {i < TIMELINE.length - 1 && <span className="mh-timeline__line" aria-hidden="true" />}
-              <span className="mh-timeline__label">{STEP_LABELS[status]}</span>
+              {i < TIMELINE.length - 1 && <span className="mh2-timeline__line" aria-hidden="true" />}
+              <span className="mh2-timeline__label">{STEP_LABELS[status]}</span>
             </li>
           ))}
         </ol>
@@ -212,7 +212,9 @@ export default function TrackBookingPage() {
 
       {history.length > 0 && (
         <div>
-          <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>Updates</h2>
+          <h2 className="mh2-dashboard__section-title" style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-sm)" }}>
+            Updates
+          </h2>
           <div style={{ display: "grid", gap: 6 }}>
             {history.map((h) => (
               <p key={h.id} className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
@@ -224,7 +226,7 @@ export default function TrackBookingPage() {
       )}
 
       {contactPhone && (
-        <a className="btn btn-outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`} style={{ justifySelf: "start" }}>
+        <a className="mh2-btn mh2-btn--outline" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`} style={{ justifySelf: "start" }}>
           <span className="mi" aria-hidden="true">call</span> Call us about this booking
         </a>
       )}
