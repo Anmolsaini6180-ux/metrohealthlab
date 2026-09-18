@@ -1,93 +1,102 @@
 /* ============================================================
-   ADMIN SHELL — topbar, grouped sidebar, mobile drawer
+   DESIGN SYSTEM V2 — ADMIN SHELL
+   Topbar, grouped sidebar, mobile drawer. Exclusive to AdminLayout —
+   replaces the previous light, undifferentiated shell with a dark
+   navy sidebar (the same --color-primary-deep the customer site uses
+   for headings) against a light operational canvas, so admin reads as
+   a distinct, deliberate "control room" rather than the customer site
+   with a sidebar bolted on.
    ============================================================ */
-.mh-admin-shell {
+.mh2-admin-shell {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--color-bg-tint);
+  background: var(--gray-50);
 }
 
 /* ---- Topbar ---- */
-.mh-admin-topbar {
+.mh2-admin-topbar {
   position: sticky;
   top: 0;
   z-index: 30;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px var(--space-md);
+  height: 60px;
+  padding: 0 var(--space-md);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line);
+  box-shadow: var(--shadow-xs);
 }
 
-.mh-admin-topbar__burger {
+.mh2-admin-topbar__burger {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   color: var(--color-ink);
   flex-shrink: 0;
 }
 
-.mh-admin-topbar__logo {
+.mh2-admin-topbar__logo {
   display: flex;
   align-items: center;
   border-radius: var(--radius-sm);
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s var(--ease-standard);
 }
 
-.mh-admin-topbar__logo:hover {
+.mh2-admin-topbar__logo:hover {
   opacity: 0.8;
 }
 
-.mh-admin-topbar__spacer {
+.mh2-admin-topbar__spacer {
   flex: 1;
 }
 
-.mh-admin-topbar__icon {
+.mh2-admin-topbar__icon {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 38px;
   height: 38px;
-  border-radius: 50%;
-  background: var(--color-bg-tint);
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
   color: var(--color-primary);
   flex-shrink: 0;
 }
 
-.mh-admin-topbar__account {
+.mh2-admin-topbar__account {
   display: none;
   align-items: center;
   gap: 8px;
 }
 
-.mh-admin-topbar__avatar {
+.mh2-admin-topbar__avatar {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--color-primary);
   color: #fff;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--text-sm);
   flex-shrink: 0;
 }
 
-.mh-admin-topbar__who {
+.mh2-admin-topbar__who {
   display: flex;
   flex-direction: column;
   line-height: 1.2;
 }
 
-.mh-admin-topbar__name {
+.mh2-admin-topbar__name {
   font-weight: 700;
   font-size: var(--text-sm);
   max-width: 160px;
@@ -96,152 +105,163 @@
   white-space: nowrap;
 }
 
-.mh-admin-topbar__role {
+.mh2-admin-topbar__role {
   font-size: 11px;
   color: var(--color-ink-soft);
   text-transform: capitalize;
 }
 
-.mh-admin-topbar__logout {
+.mh2-admin-topbar__logout {
   display: none;
 }
 
 @media (min-width: 1024px) {
-  .mh-admin-topbar__burger {
+  .mh2-admin-topbar__burger {
     display: none;
   }
 
-  .mh-admin-topbar__account {
+  .mh2-admin-topbar__account {
     display: flex;
   }
 
-  .mh-admin-topbar__logout {
+  .mh2-admin-topbar__logout {
     display: inline-flex;
   }
 }
 
 /* ---- Body: sidebar + main ---- */
-.mh-admin-body {
+.mh2-admin-body {
   display: flex;
   flex: 1;
   min-height: 0;
 }
 
-.mh-admin-sidebar {
+.mh2-admin-sidebar {
   display: none;
 }
 
-.mh-admin-main {
+.mh2-admin-main {
   flex: 1;
   min-width: 0;
   padding: var(--space-md);
 }
 
-.mh-admin-main > * {
+.mh2-admin-main > * {
   max-width: 1400px;
 }
 
 @media (min-width: 1024px) {
-  .mh-admin-sidebar {
+  .mh2-admin-sidebar {
     display: block;
     width: 240px;
     flex-shrink: 0;
-    border-right: 1px solid var(--color-line);
-    background: var(--color-surface);
+    background: var(--color-primary-deep);
     position: sticky;
-    top: 57px;
+    top: 60px;
     align-self: flex-start;
-    height: calc(100vh - 57px);
+    height: calc(100vh - 60px);
     overflow-y: auto;
   }
 
-  .mh-admin-main {
+  .mh2-admin-main {
     padding: var(--space-lg);
   }
 }
 
 @media (min-width: 1440px) {
-  .mh-admin-sidebar {
+  .mh2-admin-sidebar {
     width: 264px;
   }
 }
 
 /* ---- Nav (shared by sidebar and drawer) ---- */
-.mh-admin-nav {
+.mh2-admin-nav {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   padding: var(--space-sm);
 }
 
-.mh-admin-nav__group {
+.mh2-admin-nav__group {
   margin-bottom: 6px;
 }
 
-.mh-admin-nav__group-title {
-  padding: 10px 10px 4px;
+.mh2-admin-nav__group-title {
+  padding: 14px 10px 4px;
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--color-ink-soft);
+  color: rgba(255, 255, 255, 0.45);
 }
 
-.mh-admin-nav__link {
+.mh2-admin-nav__link {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--color-ink);
+  color: rgba(255, 255, 255, 0.78);
+  border-left: 3px solid transparent;
+  transition: background-color 0.15s var(--ease-standard), color 0.15s var(--ease-standard);
 }
 
-.mh-admin-nav__link .mi {
+.mh2-admin-nav__link .mi {
   font-size: 19px;
-  color: var(--color-ink-soft);
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.mh-admin-nav__link:hover {
-  background: var(--color-bg-tint);
+.mh2-admin-nav__link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }
 
-.mh-admin-nav__link.is-active {
-  background: var(--color-bg-tint);
-  color: var(--color-primary);
+.mh2-admin-nav__link.is-active {
+  background: rgba(232, 97, 26, 0.16);
+  color: #fff;
+  border-left-color: var(--color-accent);
 }
 
-.mh-admin-nav__link.is-active .mi {
-  color: var(--color-primary);
+.mh2-admin-nav__link.is-active .mi {
+  color: var(--color-accent);
+}
+
+/* Sidebar context only: the drawer version below is on a light
+   backdrop panel, so its own rule (further down) overrides these. */
+@media (min-width: 1024px) {
+  .mh2-admin-sidebar .mh2-admin-nav__link {
+    color: rgba(255, 255, 255, 0.78);
+  }
 }
 
 /* ---- Mobile drawer ---- */
-.mh-admin-drawer {
+.mh2-admin-drawer {
   position: fixed;
   inset: 0;
   z-index: 50;
 }
 
-.mh-admin-drawer__backdrop {
+.mh2-admin-drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(12, 38, 82, 0.5);
 }
 
-.mh-admin-drawer__panel {
+.mh2-admin-drawer__panel {
   position: relative;
   width: min(84vw, 300px);
   height: 100%;
-  background: var(--color-surface);
+  background: var(--color-primary-deep);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  box-shadow: var(--shadow-elevated);
-  animation: mh-drawer-in 0.18s ease-out;
+  box-shadow: var(--shadow-floating);
+  animation: mh2-admin-drawer-in 0.18s var(--ease-standard);
 }
 
-@keyframes mh-drawer-in {
+@keyframes mh2-admin-drawer-in {
   from {
     transform: translateX(-16px);
     opacity: 0.6;
@@ -252,26 +272,38 @@
   }
 }
 
-.mh-admin-drawer__head {
+.mh2-admin-drawer__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md);
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.mh-admin-drawer__account {
+.mh2-admin-drawer__head .mh2-admin-topbar__logo {
+  filter: brightness(0) invert(1);
+}
+
+.mh2-admin-drawer__account {
   display: flex !important;
   padding: var(--space-md);
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.mh-admin-drawer__logout {
+.mh2-admin-drawer__account .mh2-admin-topbar__name {
+  color: #fff;
+}
+
+.mh2-admin-drawer__account .mh2-admin-topbar__role {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mh2-admin-drawer__logout {
   margin: var(--space-md);
 }
 
 @media (min-width: 1024px) {
-  .mh-admin-drawer {
+  .mh2-admin-drawer {
     display: none;
   }
 }
@@ -284,7 +316,10 @@
    by real meaning (green = money in hand / done, amber = still
    pending, red = cancelled) replaces a wall of identical neutral
    boxes, and the --muted variant quietly de-emphasises catalog counts
-   so the eye lands on today's booking/revenue numbers first. */
+   so the eye lands on today's booking/revenue numbers first.
+   Not yet redesigned to mh2- — shared by AdminDashboardPage,
+   AdminBookingDashboardPage and AdminFinancePage (MetricCard.tsx,
+   TrendChart.tsx), none of which have been rebuilt yet. */
 .mh-dash-section {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

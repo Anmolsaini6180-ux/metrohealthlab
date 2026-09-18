@@ -113,16 +113,16 @@ export default function AdminLayout() {
   const initial = (profile?.name ?? profile?.email ?? user?.email ?? "?").charAt(0).toUpperCase();
 
   const nav = (
-    <nav className="mh-admin-nav">
+    <nav className="mh2-admin-nav">
       {visibleGroups.map((group) => (
-        <div className="mh-admin-nav__group" key={group.title}>
-          <p className="mh-admin-nav__group-title">{group.title}</p>
+        <div className="mh2-admin-nav__group" key={group.title}>
+          <p className="mh2-admin-nav__group-title">{group.title}</p>
           {group.items.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
-              className={({ isActive }) => `mh-admin-nav__link${isActive ? " is-active" : ""}`}
+              className={({ isActive }) => `mh2-admin-nav__link${isActive ? " is-active" : ""}`}
             >
               <span className="mi" aria-hidden="true">{item.icon}</span>
               {item.label}
@@ -134,70 +134,70 @@ export default function AdminLayout() {
   );
 
   return (
-    <div className="mh-admin-shell">
+    <div className="mh2-admin-shell">
       {/* Sticky topbar: hamburger (mobile only) + brand + account cluster.
           The sidebar below still carries full navigation on desktop; on
           mobile the hamburger opens it as a slide-in drawer instead. */}
-      <header className="mh-admin-topbar">
+      <header className="mh2-admin-topbar">
         <button
           type="button"
-          className="mh-admin-topbar__burger"
+          className="mh2-admin-topbar__burger"
           aria-label={drawerOpen ? "Close menu" : "Open menu"}
           aria-expanded={drawerOpen}
           onClick={() => setDrawerOpen((v) => !v)}
         >
           <span className="mi" aria-hidden="true">{drawerOpen ? "close" : "menu"}</span>
         </button>
-        <Link to="/" className="mh-admin-topbar__logo" aria-label="Go to the website home page">
+        <Link to="/" className="mh2-admin-topbar__logo" aria-label="Go to the website home page">
           <Logo variant="compact" height={28} />
         </Link>
-        <div className="mh-admin-topbar__spacer" />
+        <div className="mh2-admin-topbar__spacer" />
         {/* Real inbox for THIS admin/staff account's own alert rows
             (booking_automation_alert, staff_status_update) — before this
             there was no way to see one again once its one-shot push
             toast (useNotificationPush, above) had passed: no badge, no
             list. Same table/RLS/components as the customer-facing bell,
             not a parallel system — see the component's own comment. */}
-        <div className="mh-admin-topbar__icon" style={{ padding: 0, display: "flex" }}>
+        <div className="mh2-admin-topbar__icon" style={{ padding: 0, display: "flex" }}>
           <NotificationBell seeAllHref="/admin/notifications" />
         </div>
-        <div className="mh-admin-topbar__account">
-          <span className="mh-admin-topbar__avatar" aria-hidden="true">{initial}</span>
-          <span className="mh-admin-topbar__who">
-            <span className="mh-admin-topbar__name">{profile?.name ?? user?.email ?? "Signed in"}</span>
-            <span className="mh-admin-topbar__role">{role}</span>
+        <div className="mh2-admin-topbar__account">
+          <span className="mh2-admin-topbar__avatar" aria-hidden="true">{initial}</span>
+          <span className="mh2-admin-topbar__who">
+            <span className="mh2-admin-topbar__name">{profile?.name ?? user?.email ?? "Signed in"}</span>
+            <span className="mh2-admin-topbar__role">{role}</span>
           </span>
         </div>
-        <button type="button" className="btn btn-outline mh-admin-topbar__logout" onClick={handleLogout}>
+        <button type="button" className="mh2-btn mh2-btn--outline mh2-btn--sm mh2-admin-topbar__logout" onClick={handleLogout}>
           <span className="mi" aria-hidden="true">logout</span>
           Log out
         </button>
       </header>
 
-      <div className="mh-admin-body">
-        <aside className="mh-admin-sidebar">{nav}</aside>
+      <div className="mh2-admin-body">
+        <aside className="mh2-admin-sidebar">{nav}</aside>
 
         {drawerOpen && (
-          <div className="mh-admin-drawer" role="dialog" aria-modal="true" aria-label="Admin navigation">
-            <div className="mh-admin-drawer__backdrop" onClick={() => setDrawerOpen(false)} />
-            <div className="mh-admin-drawer__panel">
-              <div className="mh-admin-drawer__head">
-                <Link to="/" className="mh-admin-topbar__logo" aria-label="Go to the website home page">
+          <div className="mh2-admin-drawer" role="dialog" aria-modal="true" aria-label="Admin navigation">
+            <div className="mh2-admin-drawer__backdrop" onClick={() => setDrawerOpen(false)} />
+            <div className="mh2-admin-drawer__panel">
+              <div className="mh2-admin-drawer__head">
+                <Link to="/" className="mh2-admin-topbar__logo" aria-label="Go to the website home page">
                   <Logo variant="compact" height={26} />
                 </Link>
                 <button type="button" className="icon-btn" aria-label="Close menu" onClick={() => setDrawerOpen(false)}>
                   <span className="mi">close</span>
                 </button>
               </div>
-              <div className="mh-admin-topbar__account mh-admin-drawer__account">
-                <span className="mh-admin-topbar__avatar" aria-hidden="true">{initial}</span>
-                <span className="mh-admin-topbar__who">
-                  <span className="mh-admin-topbar__name">{profile?.name ?? user?.email ?? "Signed in"}</span>
-                  <span className="mh-admin-topbar__role">{role}</span>
+              <div className="mh2-admin-topbar__account mh2-admin-drawer__account">
+                <span className="mh2-admin-topbar__avatar" aria-hidden="true">{initial}</span>
+                <span className="mh2-admin-topbar__who">
+                  <span className="mh2-admin-topbar__name">{profile?.name ?? user?.email ?? "Signed in"}</span>
+                  <span className="mh2-admin-topbar__role">{role}</span>
                 </span>
               </div>
               {nav}
-              <button type="button" className="btn btn-outline mh-admin-drawer__logout" onClick={handleLogout}>
+              <button type="button" className="mh2-btn mh2-btn--outline mh2-admin-drawer__logout" onClick={handleLogout}>
                 <span className="mi" aria-hidden="true">logout</span>
                 Log out
               </button>
@@ -205,7 +205,7 @@ export default function AdminLayout() {
           </div>
         )}
 
-        <main className="mh-admin-main">
+        <main className="mh2-admin-main">
           <Breadcrumbs />
           <Outlet />
         </main>
