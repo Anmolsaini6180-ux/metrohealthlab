@@ -44,8 +44,8 @@ export default function AdminTestsPage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
-        <h1 style={{ fontSize: "var(--text-xl)" }}>Tests</h1>
-        <button className="btn btn-primary" onClick={() => setShowCreate((s) => !s)}>
+        <h1 className="mh2-admin-page-title" style={{ fontSize: "var(--text-xl)" }}>Tests</h1>
+        <button className="mh2-btn mh2-btn--primary" onClick={() => setShowCreate((s) => !s)}>
           {showCreate ? "Cancel" : "+ Add test"}
         </button>
       </div>
@@ -77,9 +77,9 @@ export default function AdminTestsPage() {
       {tests.data && tests.data.length > 0 && (
         <div style={{ display: "grid", gap: "var(--space-sm)" }}>
           {tests.data.map((t) => (
-            <div key={t.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div key={t.id} className="mh2-admin-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <div>
-                <p style={{ fontWeight: 600 }}>
+                <p style={{ fontWeight: 700 }}>
                   {t.name} {!t.active && <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>(inactive)</span>}
                 </p>
                 <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
@@ -94,8 +94,8 @@ export default function AdminTestsPage() {
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-outline" onClick={() => setEditing(t)}>Edit</button>
-                <button className="btn btn-outline" onClick={() => handleToggleActive(t)}>
+                <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => setEditing(t)}>Edit</button>
+                <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => handleToggleActive(t)}>
                   {t.active ? "Deactivate" : "Activate"}
                 </button>
               </div>
@@ -166,7 +166,7 @@ function TestForm({
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+    <form className="mh2-admin-card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
       <input placeholder="Name" required value={form.name} onChange={(e) => update("name", e.target.value)} />
       <input placeholder="Slug (url-friendly)" required value={form.slug} onChange={(e) => update("slug", e.target.value)} />
       {/* An admin has no way to know a category's raw id by sight — was
@@ -240,7 +240,7 @@ function TestForm({
       <label><input type="checkbox" checked={form.centerCollection} onChange={(e) => update("centerCollection", e.target.checked)} /> Center collection</label>
       <label><input type="checkbox" checked={form.fastingRequired} onChange={(e) => update("fastingRequired", e.target.checked)} /> Fasting required</label>
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy}>
+      <button className="mh2-btn mh2-btn--primary" type="submit" disabled={busy}>
         {busy ? "Saving..." : existing ? "Save changes" : "Create test"}
       </button>
     </form>

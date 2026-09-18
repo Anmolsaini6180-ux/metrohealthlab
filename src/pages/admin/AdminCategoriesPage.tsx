@@ -33,9 +33,9 @@ export default function AdminCategoriesPage() {
   return (
     <div>
       <div className="mh-page-head">
-        <h1 style={{ fontSize: "var(--text-xl)" }}>Categories</h1>
+        <h1 className="mh2-admin-page-title" style={{ fontSize: "var(--text-xl)" }}>Categories</h1>
         <button
-          className="btn btn-primary"
+          className="mh2-btn mh2-btn--primary"
           onClick={() => {
             setEditing(null);
             setShowCreate((s) => !s);
@@ -82,7 +82,7 @@ export default function AdminCategoriesPage() {
           {categories.data.map((c) => (
             <div
               key={c.id}
-              className="card"
+              className="mh2-admin-card"
               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-sm)" }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", minWidth: 0 }}>
@@ -90,7 +90,7 @@ export default function AdminCategoriesPage() {
                     this renders a fallback rather than assuming one. */}
                 <CategoryIcon iconName={c.icon} size={26} color="var(--color-primary)" />
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ fontWeight: 600 }}>
+                  <p style={{ fontWeight: 700 }}>
                     {c.name}{" "}
                     {!c.active && <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>(inactive)</span>}
                   </p>
@@ -102,7 +102,7 @@ export default function AdminCategoriesPage() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
-                  className="btn btn-outline"
+                  className="mh2-btn mh2-btn--outline mh2-btn--sm"
                   onClick={() => {
                     setShowCreate(false);
                     setEditing(c);
@@ -110,7 +110,7 @@ export default function AdminCategoriesPage() {
                 >
                   Edit
                 </button>
-                <button className="btn btn-outline" onClick={() => handleToggleActive(c)}>
+                <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => handleToggleActive(c)}>
                   {c.active ? "Deactivate" : "Activate"}
                 </button>
               </div>
@@ -184,8 +184,8 @@ function CategoryForm({
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
-      <p style={{ fontWeight: 700 }}>{existing ? `Edit “${existing.name}”` : "New category"}</p>
+    <form className="mh2-admin-card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+      <p style={{ fontWeight: 700, fontFamily: "var(--font-display)" }}>{existing ? `Edit "${existing.name}"` : "New category"}</p>
 
       <div className="mh-form-grid" style={{ marginBottom: 0 }}>
         <label>
@@ -232,11 +232,11 @@ function CategoryForm({
               />
               <span className={icon ? undefined : "text-soft"}>{icon || "No icon selected"}</span>
             </span>
-            <button type="button" className="btn btn-outline" onClick={() => setPickerOpen(true)}>
+            <button type="button" className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => setPickerOpen(true)}>
               {icon ? "Change icon" : "Choose icon"}
             </button>
             {icon && (
-              <button type="button" className="btn btn-outline" onClick={() => setIcon("")}>
+              <button type="button" className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => setIcon("")}>
                 Remove
               </button>
             )}
@@ -261,10 +261,10 @@ function CategoryForm({
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
 
       <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
-        <button className="btn btn-primary" type="submit" disabled={busy}>
+        <button className="mh2-btn mh2-btn--primary" type="submit" disabled={busy}>
           {busy ? "Saving..." : existing ? "Save changes" : "Create category"}
         </button>
-        <button className="btn btn-outline" type="button" onClick={onCancel} disabled={busy}>
+        <button className="mh2-btn mh2-btn--outline" type="button" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
       </div>
