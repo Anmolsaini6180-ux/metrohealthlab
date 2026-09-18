@@ -165,11 +165,11 @@ export default function AdminBookingsPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-md)" }}>Bookings</h1>
+      <h1 className="mh2-admin-page-title" style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-md)" }}>Bookings</h1>
 
       <div style={{ display: "flex", gap: "var(--space-sm)", marginBottom: "var(--space-md)", flexWrap: "wrap", alignItems: "center" }}>
         <DateRangePicker onChange={(r) => setRange(r)} />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 260, padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 260 }}>
           <option value="">All statuses</option>
           {STATUS_GROUPS.map((g) => (
             <option key={g.value} value={g.value}>{g.label}</option>
@@ -179,7 +179,7 @@ export default function AdminBookingsPage() {
           ))}
         </select>
         {statusFilter && (
-          <button className="btn btn-outline" onClick={() => setStatusFilter("")}>
+          <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => setStatusFilter("")}>
             Clear status filter
           </button>
         )}
@@ -188,7 +188,7 @@ export default function AdminBookingsPage() {
           placeholder="Search booking ID, customer, phone, or test/package"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 220, padding: 8, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+          style={{ flex: 1, minWidth: 220 }}
         />
       </div>
 
@@ -207,22 +207,22 @@ export default function AdminBookingsPage() {
           {visibleBookings.map((b) => {
             const canAdvance = isPrivileged || (role === "COLLECTION_AGENT" && b.assignedAgentId);
             return (
-              <div key={b.id} className="card">
+              <div key={b.id} className="mh2-admin-card">
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <p style={{ fontWeight: 600 }}>{b.reference}</p>
+                    <p style={{ fontWeight: 700 }}>{b.reference}</p>
                     <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>{b.items.map((i) => i.name).join(", ")}</p>
                     <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{b.date} • {b.collectionType}</p>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontWeight: 600 }}>{formatCurrencyInr(b.finalAmount)}</p>
+                    <p style={{ fontWeight: 700 }}>{formatCurrencyInr(b.finalAmount)}</p>
                     <div style={{ margin: "4px 0" }}><StatusBadge status={b.bookingStatus} /></div>
                     <p className="text-soft" style={{ fontSize: "var(--text-xs)" }}>{b.paymentStatus.replace(/_/g, " ")}</p>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", gap: "var(--space-sm)", marginTop: "var(--space-sm)", flexWrap: "wrap", alignItems: "center" }}>
-                  <button className="btn btn-outline" onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}>
+                  <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}>
                     {expandedId === b.id ? "Hide details" : "Details"}
                   </button>
                   {b.bookingStatus === "confirmed" && isPrivileged && (
@@ -230,7 +230,7 @@ export default function AdminBookingsPage() {
                       defaultValue=""
                       disabled={busyId === b.id}
                       onChange={(e) => handleAssign(b.id, e.target.value)}
-                      style={{ padding: 6, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+                      style={{ maxWidth: 220, minHeight: 0, padding: "6px 10px" }}
                     >
                       <option value="" disabled>Assign agent...</option>
                       {(agents.data ?? []).map((a) => (
@@ -249,7 +249,7 @@ export default function AdminBookingsPage() {
                           if (value === b.bookingStatus) return;
                           setPendingStatusChange({ id: b.id, reference: b.reference, from: b.bookingStatus, to: value });
                         }}
-                        style={{ padding: 6, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-line)" }}
+                        style={{ maxWidth: 220, minHeight: 0, padding: "6px 10px" }}
                       >
                         {Object.entries(STATUS_LABELS)
                           .filter(([value]) => value === b.bookingStatus || !["cancelled", "refunded"].includes(value) || isPrivileged)

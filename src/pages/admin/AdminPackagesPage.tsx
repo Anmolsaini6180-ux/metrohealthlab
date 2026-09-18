@@ -44,8 +44,8 @@ export default function AdminPackagesPage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-md)" }}>
-        <h1 style={{ fontSize: "var(--text-xl)" }}>Packages</h1>
-        <button className="btn btn-primary" onClick={() => setShowCreate((s) => !s)}>
+        <h1 className="mh2-admin-page-title" style={{ fontSize: "var(--text-xl)" }}>Packages</h1>
+        <button className="mh2-btn mh2-btn--primary" onClick={() => setShowCreate((s) => !s)}>
           {showCreate ? "Cancel" : "+ Add package"}
         </button>
       </div>
@@ -63,9 +63,9 @@ export default function AdminPackagesPage() {
       {packages.data && packages.data.length > 0 && (
         <div style={{ display: "grid", gap: "var(--space-sm)" }}>
           {packages.data.map((p) => (
-            <div key={p.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div key={p.id} className="mh2-admin-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <div>
-                <p style={{ fontWeight: 600 }}>
+                <p style={{ fontWeight: 700 }}>
                   {p.name} {!p.active && <span className="text-soft" style={{ fontSize: "var(--text-xs)" }}>(inactive)</span>}
                 </p>
                 <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
@@ -83,8 +83,8 @@ export default function AdminPackagesPage() {
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-outline" onClick={() => setEditing(p)}>Edit</button>
-                <button className="btn btn-outline" onClick={() => handleToggleActive(p)}>
+                <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => setEditing(p)}>Edit</button>
+                <button className="mh2-btn mh2-btn--outline mh2-btn--sm" onClick={() => handleToggleActive(p)}>
                   {p.active ? "Deactivate" : "Activate"}
                 </button>
               </div>
@@ -149,7 +149,7 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
+    <form className="mh2-admin-card" onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-sm)", marginBottom: "var(--space-md)" }}>
       <input placeholder="Name" required value={form.name} onChange={(e) => update("name", e.target.value)} />
       <input placeholder="Slug" required value={form.slug} onChange={(e) => update("slug", e.target.value)} />
       <input placeholder="Category" required value={form.category} onChange={(e) => update("category", e.target.value)} />
@@ -227,7 +227,7 @@ function PackageForm({ actorUid, existing, onDone }: { actorUid: string; existin
       </div>
       <label><input type="checkbox" checked={form.homeCollection} onChange={(e) => update("homeCollection", e.target.checked)} /> Home collection</label>
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy}>
+      <button className="mh2-btn mh2-btn--primary" type="submit" disabled={busy}>
         {busy ? "Saving..." : existing ? "Save changes" : "Create package"}
       </button>
     </form>
@@ -310,13 +310,13 @@ function TestPicker({ selectedIds, onChange }: { selectedIds: string[]; onChange
             onChange={(e) => setSearch(e.target.value)}
           />
           {(search.trim() || results.length > 0) && (
-            <div className="card" style={{ maxHeight: 200, overflowY: "auto", display: "grid", gap: 4 }}>
+            <div className="mh2-admin-card" style={{ maxHeight: 200, overflowY: "auto", display: "grid", gap: 4 }}>
               {results.length === 0 && <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>No tests match.</p>}
               {results.map((t) => (
                 <button
                   key={t.id}
                   type="button"
-                  className="btn btn-outline"
+                  className="mh2-btn mh2-btn--outline mh2-btn--sm"
                   style={{ justifyContent: "space-between" }}
                   onClick={() => addTest(t.id)}
                 >

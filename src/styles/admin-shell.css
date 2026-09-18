@@ -467,3 +467,169 @@ a.mh-metric-card:focus-visible {
 .mh-trend-bar:hover rect {
   opacity: 0.82;
 }
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Admin dashboard metric/chart cards
+   Parallel to the legacy metric-card and dash-section rules above
+   (used by AdminBookingDashboardPage, AdminFinancePage,
+   AdminCampaignsPage — none of which are part of this pass), plus a
+   generic admin card reused by AdminBookingsPage and
+   AdminPackagesPage.
+   ============================================================ */
+.mh2-dash-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.mh2-dash-section__title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mh2-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: var(--space-sm);
+}
+
+.mh2-metric-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  min-width: 0;
+}
+
+a.mh2-metric-card {
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard);
+}
+
+a.mh2-metric-card:hover,
+a.mh2-metric-card:focus-visible {
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-2px);
+}
+
+.mh2-metric-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.mh2-metric-card__icon .mi {
+  font-size: 20px;
+}
+
+.mh2-metric-card__body {
+  min-width: 0;
+}
+
+.mh2-metric-card__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-primary-deep);
+}
+
+.mh2-metric-card__label {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  margin-top: 1px;
+}
+
+.mh2-metric-card--success .mh2-metric-card__icon {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.mh2-metric-card--warning .mh2-metric-card__icon {
+  background: rgba(245, 165, 36, 0.16);
+  color: var(--color-amber);
+}
+
+.mh2-metric-card--danger .mh2-metric-card__icon {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.mh2-metric-card--accent .mh2-metric-card__icon {
+  background: rgba(232, 97, 26, 0.12);
+  color: var(--color-accent);
+}
+
+.mh2-metric-card--muted {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 8px 4px;
+}
+
+.mh2-metric-card--muted .mh2-metric-card__icon {
+  width: 32px;
+  height: 32px;
+  background: var(--gray-100);
+}
+
+.mh2-metric-card--muted .mh2-metric-card__icon .mi {
+  font-size: 16px;
+}
+
+.mh2-metric-card--muted .mh2-metric-card__value {
+  font-size: var(--text-base);
+}
+
+.mh2-chart-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+}
+
+.mh2-chart-card__head .mi {
+  color: var(--color-primary);
+  font-size: 18px;
+}
+
+.mh2-chart-card__head h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-primary-deep);
+}
+
+/* Generic admin content card — reused by AdminBookingsPage and
+   AdminPackagesPage list rows/forms in place of the plain .card. */
+.mh2-admin-card {
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.mh2-admin-page-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--color-primary-deep);
+}

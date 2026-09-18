@@ -13,7 +13,7 @@ import { formatCurrencyInr } from "@/services/pricingService";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import BarList from "@/components/admin/BarList";
 import TrendChart from "@/components/admin/TrendChart";
-import Metric from "@/components/admin/MetricCard";
+import Metric from "@/components/admin/MetricCardV2";
 import LoadingState from "@/components/common/LoadingState";
 import ErrorState from "@/components/common/ErrorState";
 import { enumerateDays, resolveDateRange, type DateRange } from "@/utils/dateRanges";
@@ -148,7 +148,7 @@ export default function AdminDashboardPage() {
     <div style={{ display: "grid", gap: "var(--space-lg)" }}>
       <div className="mh-page-head">
         <div>
-          <h1 style={{ fontSize: "var(--text-xl)" }}>Dashboard</h1>
+          <h1 className="mh2-admin-page-title" style={{ fontSize: "var(--text-xl)" }}>Dashboard</h1>
           <p className="text-soft" style={{ fontSize: "var(--text-sm)" }}>
             Signed in as {role}. All figures below are scoped to your team and the selected filters, and update live.
           </p>
@@ -179,9 +179,9 @@ export default function AdminDashboardPage() {
 
       {bookings.data && (
         <>
-          <div className="mh-dash-section">
-            <p className="mh-dash-section__title">Bookings — selected range</p>
-            <div className="mh-metric-grid">
+          <div className="mh2-dash-section">
+            <p className="mh2-dash-section__title">Bookings — selected range</p>
+            <div className="mh2-metric-grid">
               <Metric icon="calendar_month" label="Total bookings" value={stats.total} to={bookingsLink()} />
               <Metric icon="check_circle" label="Completed" value={stats.completed} to={bookingsLink("completed")} tone="success" />
               <Metric icon="hourglass_top" label="Pending" value={stats.pending} to={bookingsLink("payment_pending,confirmed")} tone="warning" />
@@ -192,40 +192,40 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="mh-dash-section">
-            <p className="mh-dash-section__title">Cash on Home</p>
-            <div className="mh-metric-grid">
+          <div className="mh2-dash-section">
+            <p className="mh2-dash-section__title">Cash on Home</p>
+            <div className="mh2-metric-grid">
               <Metric icon="payments" label="Cash collected" value={formatCurrencyInr(stats.cashCollected)} tone="success" />
               <Metric icon="account_balance_wallet" label="Cash pending" value={formatCurrencyInr(stats.cashPending)} tone="warning" />
             </div>
           </div>
 
-          <div className="mh-dash-section">
-            <p className="mh-dash-section__title">Analytics</p>
+          <div className="mh2-dash-section">
+            <p className="mh2-dash-section__title">Analytics</p>
             <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-              <div className="card">
-                <div className="mh-chart-card__head">
+              <div className="mh2-admin-card">
+                <div className="mh2-chart-card__head">
                   <span className="mi" aria-hidden="true">trending_up</span>
                   <h3>Bookings trend</h3>
                 </div>
                 <TrendChart series={[{ label: "Bookings", color: "var(--color-primary)", data: bookingsByDay }]} />
               </div>
-              <div className="card">
-                <div className="mh-chart-card__head">
+              <div className="mh2-admin-card">
+                <div className="mh2-chart-card__head">
                   <span className="mi" aria-hidden="true">donut_large</span>
                   <h3>Status breakdown</h3>
                 </div>
                 <BarList items={statusBreakdown} />
               </div>
-              <div className="card">
-                <div className="mh-chart-card__head">
+              <div className="mh2-admin-card">
+                <div className="mh2-chart-card__head">
                   <span className="mi" aria-hidden="true">science</span>
                   <h3>Top tests</h3>
                 </div>
                 <BarList items={topTests} />
               </div>
-              <div className="card">
-                <div className="mh-chart-card__head">
+              <div className="mh2-admin-card">
+                <div className="mh2-chart-card__head">
                   <span className="mi" aria-hidden="true">inventory_2</span>
                   <h3>Top packages</h3>
                 </div>
@@ -240,9 +240,9 @@ export default function AdminDashboardPage() {
           even if the booking analytics above are still loading — kept
           quiet/muted since they're reference counts, not today's
           activity, so they don't compete with the numbers above. */}
-      <div className="mh-dash-section">
-        <p className="mh-dash-section__title">Catalog</p>
-        <div className="mh-metric-grid">
+      <div className="mh2-dash-section">
+        <p className="mh2-dash-section__title">Catalog</p>
+        <div className="mh2-metric-grid">
           <Metric icon="science" label="Active tests" value={activeTests.data?.length ?? (activeTests.loading ? "…" : 0)} to="/admin/tests" muted />
           <Metric icon="inventory_2" label="Active packages" value={activePackages.data?.length ?? (activePackages.loading ? "…" : 0)} to="/admin/packages" muted />
           <Metric icon="category" label="Categories" value={categories.data?.length ?? (categories.loading ? "…" : 0)} to="/admin/categories" muted />
