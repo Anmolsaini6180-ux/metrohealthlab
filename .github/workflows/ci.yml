@@ -1,0 +1,145 @@
+name: CI
+
+# Runs on every pull request and every push to main. Vercel is
+# configured (one-time, in its dashboard) to require this workflow's
+# checks before promoting a production deployment, so a red build here
+# means the currently-live site simply stays live.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend — typecheck, build, test
+    runs-on: ubuntu-latest
+    # VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY are safe,
+    # public-by-design values — see src/supabase/client.ts's own
+    # security-boundary comment: the boundary is RLS, not secrecy of
+    # these two, and Vite inlines them into the browser bundle in every
+    # real deployment anyway. Without them here, this job has no .env
+    # file to read them from (.env is gitignored on purpose, never
+    # checked out), so src/supabase/client.test.ts and every test that
+    # calls createTestSupabaseClient() (src/supabase/authTestUtils.ts,
+    # used by auth.test.ts / firebaseUidMapping.test.ts /
+    # roleService.test.ts) fail immediately with "supabaseUrl is
+    # required." Configure both as repository VARIABLES: Settings ->
+    # Secrets and variables -> Actions -> Variables tab -> New
+    # repository variable. Never put the service-role key here — see
+    # the "Unit tests" step below for that one.
+    env:
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        # SUPABASE_SERVICE_ROLE_KEY is scoped to only this one step
+        # (not the job-level env above) to keep its exposure window as
+        # small as possible — no other step needs it. It's required
+        # only by scripts/migration/lib/testAdmin.mjs, used exclusively
+        # from auth.test.ts / firebaseUidMapping.test.ts /
+        # roleService.test.ts to create and delete throwaway
+        # (*.example.invalid) pre-confirmed test accounts via the
+        # Supabase Admin API — these are real integration tests against
+        # the live project, not mocks, by design (see each file's own
+        # header comment), so there is no way to run them without it.
+        # Configure it as an encrypted repository SECRET: Settings ->
+        # Secrets and variables -> Actions -> Secrets tab -> New
+        # repository secret. GitHub encrypts it at rest, masks it in
+        # every log line, and — because this workflow triggers on
+        # `pull_request`, never `pull_request_target` — never passes it
+        # to a run triggered by a fork's pull request.
+        run: npm test
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Production build
+        run: npm run build
+
+      - name: Fail if a server secret leaked into the bundle
+        # The build output is public — anything in dist/ is readable by
+        # anyone. This looks for a secret NAME bound to a string VALUE
+        # (rather than the bare name, which legitimately appears in the
+        # setup page's instructions), plus the cloudinary:// URL form,
+        # which embeds the API secret directly.
+        run: |
+          set -o pipefail
+          FOUND=0
+          if grep -rIonE '(RAZORPAY_KEY_SECRET|RAZORPAY_WEBHOOK_SECRET|CLOUDINARY_API_SECRET|SUPER_ADMIN_BOOTSTRAP_SECRET)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{8,}' dist/; then
+            echo "::error::A server-only secret appears to be assigned a value in the built bundle."
+            FOUND=1
+          fi
+          if grep -rIonE 'cloudinary://[^"'"'"'[:space:]]+' dist/; then
+            echo "::error::A cloudinary:// URL (which embeds the API secret) is present in the built bundle."
+            FOUND=1
+          fi
+          if [ "$FOUND" -ne 0 ]; then exit 1; fi
+          echo "No server secrets found in dist/."
+
+  functions:
+    name: Functions — typecheck, build, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Type check
+        working-directory: functions
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: functions
+        run: npm test
+
+      - name: Build
+        working-directory: functions
+        run: npm run build
+
+  rules:
+    name: Firestore security rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # The Firestore emulator is a Java process.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security rules tests against the emulator
+        run: npm run test:rules

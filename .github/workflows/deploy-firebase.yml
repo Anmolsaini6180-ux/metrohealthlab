@@ -1,0 +1,94 @@
+name: Deploy Firebase backend
+
+# Frontend deployment is handled by Vercel's own Git integration — this
+# workflow covers the half Vercel doesn't: Firestore rules and indexes,
+# and Storage rules.
+#
+# It deliberately does NOT deploy Cloud Functions. The project runs on
+# the Firebase Spark (free) plan, where `firebase deploy --only
+# functions` fails outright, and nothing in the running app depends on a
+# function any more — authentication and authorization are Firebase Auth
+# + Firestore + these rules. The functions/ tree is legacy reference
+# code; CI still type-checks and tests it, but it is never shipped.
+#
+# It only runs after the CI workflow has fully succeeded on main, so a
+# broken build can never be deployed. If CI fails, this never starts and
+# the currently-deployed backend stays exactly as it is.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  # Manual re-run (e.g. after fixing a deploy-only problem like an
+  # expired token) without needing an empty commit.
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Firestore and Storage rules
+    runs-on: ubuntu-latest
+    # workflow_run fires on failure too — this is the gate.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Check out the exact commit CI validated, not whatever is at
+          # the head of main by the time this starts.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          # Full history — the change detection below needs the parent
+          # commit, which a shallow clone wouldn't have.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Work out what actually changed
+        id: changes
+        run: |
+          BEFORE="${{ github.event.workflow_run.head_sha }}"
+          if [ -z "$BEFORE" ] || ! git rev-parse "$BEFORE^" >/dev/null 2>&1; then
+            # No usable parent (first commit, shallow clone, manual run):
+            # deploy rather than guess.
+            echo "rules=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED=$(git diff --name-only "$BEFORE^" "$BEFORE")
+          echo "Changed files:"; echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(firestore\.rules|storage\.rules|firestore\.indexes\.json|firebase\.json)$'; then
+            echo "rules=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rules=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Authenticate to Firebase
+        if: steps.changes.outputs.rules == 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT repository secret is not set."
+            exit 1
+          fi
+          # Written outside the workspace so it can never be picked up by
+          # a build step or committed by accident.
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-key.json" >> "$GITHUB_ENV"
+
+      - name: Deploy Firestore and Storage rules
+        if: steps.changes.outputs.rules == 'true'
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules,firestore:indexes,storage --project metro-health-0001 --non-interactive
+
+      - name: Nothing to deploy
+        if: steps.changes.outputs.rules != 'true'
+        run: echo "No backend files changed in this commit — skipping deploy."
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-key.json"

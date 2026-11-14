@@ -1,0 +1,110 @@
+/* Design system v2 — evolved from the real Metro Health Lab brand
+   (navy + orange, confirmed against the live branding.logoUrl), not a
+   new unrelated palette. Values are deepened/refined for a more
+   premium, editorial feel (richer navy for authority, a warmer more
+   saturated orange for CTAs, a real neutral gray scale instead of two
+   ad-hoc "ink" tones) while keeping every existing variable NAME
+   intact — hundreds of already-working component styles across admin,
+   booking, tracker, auth etc. reference these names, and changing the
+   values (not the contract) is what safely elevates the whole app's
+   polish in one place rather than requiring every page to be touched
+   before any of them can ship. New component-system tokens (buttons,
+   cards, badges) are added below for the genuinely rebuilt components
+   (Header, Hero, homepage sections) to consume. */
+:root {
+  /* ---- Core palette ---- */
+  --color-primary: #163B7A;
+  --color-primary-deep: #0C2652;
+  --color-primary-soft: #EAF0FB;
+  --color-accent: #E8611A;
+  --color-accent-deep: #C24E10;
+  --color-accent-soft: #FDECE0;
+
+  /* Neutral scale — replaces the old two-tone "ink"/"ink-soft" with a
+     real gray ramp; --color-ink/--color-ink-soft are kept as aliases
+     to specific steps so nothing referencing them by name breaks. */
+  --gray-50: #F7F9FC;
+  --gray-100: #EEF1F7;
+  --gray-200: #DFE5EF;
+  --gray-300: #C7CFDD;
+  --gray-400: #9AA6B8;
+  --gray-500: #6B7688;
+  --gray-600: #4C5566;
+  --gray-700: #333B4A;
+  --gray-800: #1F2530;
+  --gray-900: #12151C;
+
+  --color-bg-tint: var(--gray-100);
+  --color-bg-warm: #FCF7F2;
+  --color-surface: #FFFFFF;
+  --color-ink: var(--gray-900);
+  --color-ink-soft: var(--gray-500);
+  --color-line: var(--gray-200);
+
+  --color-amber: #E6A317;
+  --color-coral: #F0574A;
+  --color-success: #16875A;
+  --color-success-soft: #E4F5EE;
+  --color-danger: #C7402F;
+  --color-danger-soft: #FBEAE7;
+  --color-info: var(--color-primary);
+  --color-info-soft: var(--color-primary-soft);
+
+  --font-display: "Poppins", "Manrope", sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Fluid type scale — grows smoothly between mobile and desktop instead
+     of jumping at fixed breakpoints. */
+  --text-xs: clamp(0.72rem, 0.68rem + 0.2vw, 0.8rem);
+  --text-sm: clamp(0.82rem, 0.78rem + 0.2vw, 0.9rem);
+  --text-base: clamp(0.95rem, 0.9rem + 0.25vw, 1rem);
+  --text-lg: clamp(1.05rem, 1rem + 0.4vw, 1.2rem);
+  --text-xl: clamp(1.3rem, 1.15rem + 0.8vw, 1.6rem);
+  --text-2xl: clamp(1.6rem, 1.3rem + 1.4vw, 2.2rem);
+  --text-3xl: clamp(2rem, 1.6rem + 2vw, 3rem);
+  /* New — for genuinely large hero-scale headlines the old scale
+     topped out short of. */
+  --text-4xl: clamp(2.4rem, 1.9rem + 2.6vw, 3.75rem);
+
+  --space-xs: clamp(0.4rem, 0.35rem + 0.2vw, 0.5rem);
+  --space-sm: clamp(0.6rem, 0.55rem + 0.3vw, 0.8rem);
+  --space-md: clamp(1rem, 0.9rem + 0.5vw, 1.4rem);
+  --space-lg: clamp(1.5rem, 1.3rem + 1vw, 2.2rem);
+  --space-xl: clamp(2.2rem, 1.8rem + 2vw, 3.5rem);
+  --space-2xl: clamp(3rem, 2.4rem + 3vw, 5rem);
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
+  /* Layered shadow system — softer and more diffuse than a single flat
+     drop-shadow, the actual visual difference between "a card with a
+     box-shadow" and something that reads as premium. */
+  --shadow-xs: 0 1px 2px rgba(12, 38, 82, 0.06);
+  --shadow-card: 0 2px 8px rgba(12, 38, 82, 0.06), 0 1px 2px rgba(12, 38, 82, 0.05);
+  --shadow-elevated: 0 12px 32px rgba(12, 38, 82, 0.12), 0 2px 8px rgba(12, 38, 82, 0.06);
+  --shadow-floating: 0 20px 48px rgba(12, 38, 82, 0.18), 0 4px 12px rgba(12, 38, 82, 0.08);
+
+  --container-max: 1280px;
+  --bottomnav-height: 62px;
+  --header-height: 64px;
+
+  /* Reference breakpoints (used in media queries throughout global.css
+     and component CSS — kept here as the single source of truth):
+     <480px mobile, 480-767px large mobile, 768-1023px tablet,
+     1024-1279px laptop, 1280px+ desktop. */
+  --bp-sm: 480px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+
+  /* ---- New component-system tokens (design system v2) ----
+     Consumed by the rebuilt Header/Hero/homepage sections. Existing
+     components keep using the raw tokens above directly, unchanged. */
+  --btn-height: 48px;
+  --btn-height-sm: 38px;
+  --btn-radius: var(--radius-full);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}

@@ -1,0 +1,50 @@
+/* ============================================================
+   ABOUT / CONTACT
+   ============================================================ */
+.mh-static-page {
+  max-width: 640px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.mh-static-page__hero {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  margin-bottom: -8px;
+}
+
+@media (min-width: 768px) {
+  .mh-static-page__hero {
+    height: 280px;
+  }
+}
+
+.mh-static-page__contact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.mh-static-page__dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.mh-static-page__dl dt {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.mh-static-page__dl dd {
+  font-size: var(--text-base);
+}
+
+.mh-static-page__dl a {
+  color: var(--color-primary);
+  font-weight: 600;
+}

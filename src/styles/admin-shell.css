@@ -1,0 +1,635 @@
+/* ============================================================
+   DESIGN SYSTEM V2 — ADMIN SHELL
+   Topbar, grouped sidebar, mobile drawer. Exclusive to AdminLayout —
+   replaces the previous light, undifferentiated shell with a dark
+   navy sidebar (the same --color-primary-deep the customer site uses
+   for headings) against a light operational canvas, so admin reads as
+   a distinct, deliberate "control room" rather than the customer site
+   with a sidebar bolted on.
+   ============================================================ */
+.mh2-admin-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--gray-50);
+}
+
+/* ---- Topbar ---- */
+.mh2-admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 60px;
+  padding: 0 var(--space-md);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-line);
+  box-shadow: var(--shadow-xs);
+}
+
+.mh2-admin-topbar__burger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  flex-shrink: 0;
+}
+
+.mh2-admin-topbar__logo {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  transition: opacity 0.15s var(--ease-standard);
+}
+
+.mh2-admin-topbar__logo:hover {
+  opacity: 0.8;
+}
+
+.mh2-admin-topbar__spacer {
+  flex: 1;
+}
+
+.mh2-admin-topbar__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh2-admin-topbar__account {
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.mh2-admin-topbar__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+}
+
+.mh2-admin-topbar__who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.mh2-admin-topbar__name {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mh2-admin-topbar__role {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  text-transform: capitalize;
+}
+
+.mh2-admin-topbar__logout {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .mh2-admin-topbar__burger {
+    display: none;
+  }
+
+  .mh2-admin-topbar__account {
+    display: flex;
+  }
+
+  .mh2-admin-topbar__logout {
+    display: inline-flex;
+  }
+}
+
+/* ---- Body: sidebar + main ---- */
+.mh2-admin-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.mh2-admin-sidebar {
+  display: none;
+}
+
+.mh2-admin-main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-md);
+}
+
+.mh2-admin-main > * {
+  max-width: 1400px;
+}
+
+@media (min-width: 1024px) {
+  .mh2-admin-sidebar {
+    display: block;
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--color-primary-deep);
+    position: sticky;
+    top: 60px;
+    align-self: flex-start;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+
+  .mh2-admin-main {
+    padding: var(--space-lg);
+  }
+}
+
+@media (min-width: 1440px) {
+  .mh2-admin-sidebar {
+    width: 264px;
+  }
+}
+
+/* ---- Nav (shared by sidebar and drawer) ---- */
+.mh2-admin-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: var(--space-sm);
+}
+
+.mh2-admin-nav__group {
+  margin-bottom: 6px;
+}
+
+.mh2-admin-nav__group-title {
+  padding: 14px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.mh2-admin-nav__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  border-left: 3px solid transparent;
+  transition: background-color 0.15s var(--ease-standard), color 0.15s var(--ease-standard);
+}
+
+.mh2-admin-nav__link .mi {
+  font-size: 19px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.mh2-admin-nav__link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.mh2-admin-nav__link.is-active {
+  background: rgba(232, 97, 26, 0.16);
+  color: #fff;
+  border-left-color: var(--color-accent);
+}
+
+.mh2-admin-nav__link.is-active .mi {
+  color: var(--color-accent);
+}
+
+/* Sidebar context only: the drawer version below is on a light
+   backdrop panel, so its own rule (further down) overrides these. */
+@media (min-width: 1024px) {
+  .mh2-admin-sidebar .mh2-admin-nav__link {
+    color: rgba(255, 255, 255, 0.78);
+  }
+}
+
+/* ---- Mobile drawer ---- */
+.mh2-admin-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.mh2-admin-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 38, 82, 0.5);
+}
+
+.mh2-admin-drawer__panel {
+  position: relative;
+  width: min(84vw, 300px);
+  height: 100%;
+  background: var(--color-primary-deep);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  box-shadow: var(--shadow-floating);
+  animation: mh2-admin-drawer-in 0.18s var(--ease-standard);
+}
+
+@keyframes mh2-admin-drawer-in {
+  from {
+    transform: translateX(-16px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.mh2-admin-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.mh2-admin-drawer__head .mh2-admin-topbar__logo {
+  filter: brightness(0) invert(1);
+}
+
+.mh2-admin-drawer__account {
+  display: flex !important;
+  padding: var(--space-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.mh2-admin-drawer__account .mh2-admin-topbar__name {
+  color: #fff;
+}
+
+.mh2-admin-drawer__account .mh2-admin-topbar__role {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mh2-admin-drawer__logout {
+  margin: var(--space-md);
+}
+
+@media (min-width: 1024px) {
+  .mh2-admin-drawer {
+    display: none;
+  }
+}
+
+/* ---- Admin Dashboard: grouped metric cards ----
+   A new, purpose-built card for AdminDashboardPage rather than
+   restyling the shared .mh-stat-card (also used by the customer
+   dashboard and three other admin pages) — this keeps that redesign
+   scoped to the one screen it was actually about. An icon badge tinted
+   by real meaning (green = money in hand / done, amber = still
+   pending, red = cancelled) replaces a wall of identical neutral
+   boxes, and the --muted variant quietly de-emphasises catalog counts
+   so the eye lands on today's booking/revenue numbers first.
+   Not yet redesigned to mh2- — shared by AdminDashboardPage,
+   AdminBookingDashboardPage and AdminFinancePage (MetricCard.tsx,
+   TrendChart.tsx), none of which have been rebuilt yet. */
+.mh-dash-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.mh-dash-section__title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mh-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: var(--space-sm);
+}
+
+.mh-metric-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  text-align: left;
+  min-width: 0;
+}
+
+a.mh-metric-card {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+a.mh-metric-card:hover,
+a.mh-metric-card:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+}
+
+.mh-metric-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+}
+
+.mh-metric-card__icon .mi {
+  font-size: 20px;
+}
+
+.mh-metric-card__body {
+  min-width: 0;
+}
+
+.mh-metric-card__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mh-metric-card__label {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  margin-top: 1px;
+}
+
+.mh-metric-card--success .mh-metric-card__icon {
+  background: rgba(26, 156, 107, 0.12);
+  color: var(--color-success);
+}
+
+.mh-metric-card--warning .mh-metric-card__icon {
+  background: rgba(245, 165, 36, 0.16);
+  color: var(--color-amber);
+}
+
+.mh-metric-card--danger .mh-metric-card__icon {
+  background: rgba(214, 69, 69, 0.12);
+  color: var(--color-danger);
+}
+
+.mh-metric-card--accent .mh-metric-card__icon {
+  background: rgba(242, 113, 28, 0.12);
+  color: var(--color-accent);
+}
+
+/* Quieter treatment for secondary/catalog counts: smaller icon badge,
+   no card background/border of its own, so it reads as a lighter row
+   beneath the real headline numbers rather than competing with them. */
+.mh-metric-card--muted {
+  background: transparent;
+  border-color: transparent;
+  padding: 8px 4px;
+}
+
+.mh-metric-card--muted .mh-metric-card__icon {
+  width: 32px;
+  height: 32px;
+}
+
+.mh-metric-card--muted .mh-metric-card__icon .mi {
+  font-size: 16px;
+}
+
+.mh-metric-card--muted .mh-metric-card__value {
+  font-size: var(--text-base);
+}
+
+.mh-chart-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+}
+
+.mh-chart-card__head .mi {
+  color: var(--color-primary);
+  font-size: 18px;
+}
+
+.mh-chart-card__head h3 {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.mh-trend-bar rect {
+  transition: opacity 0.12s ease;
+}
+
+.mh-trend-bar:hover rect {
+  opacity: 0.82;
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Admin dashboard metric/chart cards
+   Parallel to the legacy metric-card and dash-section rules above
+   (used by AdminBookingDashboardPage, AdminFinancePage,
+   AdminCampaignsPage — none of which are part of this pass), plus a
+   generic admin card reused by AdminBookingsPage and
+   AdminPackagesPage.
+   ============================================================ */
+.mh2-dash-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.mh2-dash-section__title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mh2-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: var(--space-sm);
+}
+
+.mh2-metric-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  text-align: left;
+  min-width: 0;
+}
+
+a.mh2-metric-card {
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard);
+}
+
+a.mh2-metric-card:hover,
+a.mh2-metric-card:focus-visible {
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-2px);
+}
+
+.mh2-metric-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.mh2-metric-card__icon .mi {
+  font-size: 20px;
+}
+
+.mh2-metric-card__body {
+  min-width: 0;
+}
+
+.mh2-metric-card__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-primary-deep);
+}
+
+.mh2-metric-card__label {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  margin-top: 1px;
+}
+
+.mh2-metric-card--success .mh2-metric-card__icon {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.mh2-metric-card--warning .mh2-metric-card__icon {
+  background: rgba(245, 165, 36, 0.16);
+  color: var(--color-amber);
+}
+
+.mh2-metric-card--danger .mh2-metric-card__icon {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.mh2-metric-card--accent .mh2-metric-card__icon {
+  background: rgba(232, 97, 26, 0.12);
+  color: var(--color-accent);
+}
+
+.mh2-metric-card--muted {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 8px 4px;
+}
+
+.mh2-metric-card--muted .mh2-metric-card__icon {
+  width: 32px;
+  height: 32px;
+  background: var(--gray-100);
+}
+
+.mh2-metric-card--muted .mh2-metric-card__icon .mi {
+  font-size: 16px;
+}
+
+.mh2-metric-card--muted .mh2-metric-card__value {
+  font-size: var(--text-base);
+}
+
+.mh2-chart-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+}
+
+.mh2-chart-card__head .mi {
+  color: var(--color-primary);
+  font-size: 18px;
+}
+
+.mh2-chart-card__head h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-primary-deep);
+}
+
+/* Generic admin content card — reused by AdminBookingsPage and
+   AdminPackagesPage list rows/forms in place of the plain .card. */
+.mh2-admin-card {
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.mh2-admin-page-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--color-primary-deep);
+}

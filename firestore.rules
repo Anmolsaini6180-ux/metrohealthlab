@@ -1,0 +1,630 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // SPARK / FREE-PLAN AUTHORIZATION MODEL — NO CLOUD FUNCTIONS
+    //
+    // There is no Blaze plan here, so there are no Cloud Functions and
+    // therefore no Firebase Auth CUSTOM CLAIMS (only the Admin SDK can
+    // mint those). Everything below is enforced by these rules alone,
+    // against data only these rules allow to be written.
+    //
+    // Two trusted inputs, and nothing else:
+    //
+    //  1. system/config.masterAdminUid — the single root authority.
+    //     Written ONLY from the Firebase Console / Admin SDK; it is
+    //     `allow write: if false` for every client, forever. This is
+    //     the bootstrap record: whoever's uid is in it is SUPER_ADMIN.
+    //
+    //  2. users/{uid}.role + .status + the ownership chain — written
+    //     ONLY by a caller these rules have already established as a
+    //     higher-ranked staff member, and only with a role strictly
+    //     below their own and an ownership chain that points back at
+    //     them. A client can put nothing else there.
+    //
+    // Consequences that matter:
+    //   * A browser cannot grant itself (or anyone) a role. Every
+    //     staff write is checked against the CALLER'S OWN stored
+    //     record, re-read from Firestore inside the rule.
+    //   * SUPER_ADMIN is not assignable by anybody through any code
+    //     path. It is derived exclusively from system/config, and a
+    //     users document claiming role:"SUPER_ADMIN" for any other uid
+    //     is ignored outright (see assignedRole below) rather than
+    //     honoured.
+    //   * A revoked/inactive staff member loses everything on their
+    //     next request — the role is read live from Firestore, not
+    //     from a token that would stay valid for an hour.
+    //   * Nothing in the React app is consulted. Frontend role state
+    //     is presentation only.
+    // ============================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ---------- Trusted bootstrap record ----------
+    // Bound with `let` so the document is fetched once per evaluation
+    // rather than re-expanded at every call site — these helpers are
+    // reached by almost every rule in this file.
+    function masterUid() {
+      let path = /databases/$(database)/documents/system/config;
+      // '' when the project has not been bootstrapped yet, which makes
+      // every isMaster() check below false rather than erroring.
+      return exists(path) ? get(path).data.get('masterAdminUid', '') : '';
+    }
+    function isMaster() {
+      let master = masterUid();
+      return isSignedIn() && master != '' && request.auth.uid == master;
+    }
+
+    // ---------- Staff role, read live from users/{uid} ----------
+    function myDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    function iHaveUserDoc() {
+      return isSignedIn() && exists(myDocPath());
+    }
+    function myDoc() {
+      return get(myDocPath()).data;
+    }
+
+    // A role only counts while the record is explicitly active, and
+    // SUPER_ADMIN is deliberately NOT accepted from a document: the
+    // only super admin is the uid in system/config. So even a
+    // hand-written or legacy users doc that says role:"SUPER_ADMIN"
+    // confers nothing at all.
+    function assignedRole(d) {
+      return 'role' in d && 'status' in d && d.status == 'active' &&
+        d.role in ['ADMIN', 'SUB_ADMIN', 'COLLECTION_AGENT'] ? d.role : null;
+    }
+    function role() {
+      return isMaster() ? 'SUPER_ADMIN' : (iHaveUserDoc() ? assignedRole(myDoc()) : null);
+    }
+
+    function isStaff() {
+      return role() in ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN", "COLLECTION_AGENT"];
+    }
+    function isSuperAdmin() {
+      return role() == "SUPER_ADMIN";
+    }
+    // Who may open Admin -> Settings -> Admin & Staff at all. Collection
+    // agents never manage staff.
+    function canManageStaff() {
+      return role() in ["SUPER_ADMIN", "ADMIN", "SUB_ADMIN"];
+    }
+    // SUPER_ADMIN and ADMIN manage the catalog (tests, packages, labs,
+    // pricing, offers, banners, coupons, slots, service areas, content).
+    // SUB_ADMIN/COLLECTION_AGENT are operational roles and never get
+    // catalog write access.
+    function canManageCatalog() {
+      return role() in ["SUPER_ADMIN", "ADMIN"];
+    }
+    // Every catalog write must self-report its author, and rules verify
+    // that claim matches the actual signed-in caller.
+    function validAdminWrite() {
+      return canManageCatalog() && request.resource.data.updatedBy == request.auth.uid;
+    }
+
+    // ---------- The role hierarchy (mirrored in src/utils/roleAccess.ts) ----------
+    // You may only ever assign a role strictly BELOW your own. Nobody
+    // can assign SUPER_ADMIN through any path — that role exists only
+    // for the bootstrap uid in system/config.
+    function canAssign(callerRole, targetRole) {
+      return (callerRole == 'SUPER_ADMIN' && targetRole in ['ADMIN', 'SUB_ADMIN', 'COLLECTION_AGENT'])
+        || (callerRole == 'ADMIN' && targetRole in ['SUB_ADMIN', 'COLLECTION_AGENT'])
+        || (callerRole == 'SUB_ADMIN' && targetRole == 'COLLECTION_AGENT');
+    }
+
+    // Which single user document a staff caller may read: a
+    // SUPER_ADMIN any of them, an ADMIN/SUB_ADMIN only their own
+    // subtree (unchanged from the pre-Spark rules).
+    function staffCanGet(target) {
+      let myRole = role();
+      return myRole == 'SUPER_ADMIN'
+        || (myRole == 'ADMIN' && target.get('adminId', '') == request.auth.uid)
+        || (myRole == 'SUB_ADMIN' && target.get('subAdminId', '') == request.auth.uid);
+    }
+
+    // Which QUERIES over the users collection are allowed. Deliberately
+    // narrower than staffCanGet: a SUPER_ADMIN's listing must be
+    // filtered to staff records, so this can never become a bulk dump
+    // of the customer base.
+    function staffCanList(target) {
+      let myRole = role();
+      return (myRole == 'SUPER_ADMIN' && 'role' in target)
+        || (myRole == 'ADMIN' && target.get('adminId', '') == request.auth.uid)
+        || (myRole == 'SUB_ADMIN' && target.get('subAdminId', '') == request.auth.uid);
+    }
+
+    // Authority over a record that ALREADY carries a role: a
+    // SUPER_ADMIN over everyone, everyone else only over records whose
+    // denormalized chain points back at them.
+    function hasAuthorityOver(callerRole, target) {
+      return callerRole == 'SUPER_ADMIN'
+        || (callerRole == 'ADMIN' && target.get('adminId', '') == request.auth.uid)
+        || (callerRole == 'SUB_ADMIN' && target.get('subAdminId', '') == request.auth.uid);
+    }
+
+    // ---------- Public catalog data: readable by anyone, writable only
+    // by SUPER_ADMIN/ADMIN ----------
+    match /tests/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /testCategories/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /packages/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /labs/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /labPricing/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /serviceAreas/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /pincodes/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /collectionCenters/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /slots/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /articles/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /articleCategories/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /faqs/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /testimonials/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /banners/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /offers/{id} { allow read: if true; allow write: if validAdminWrite(); }
+    match /settings/{id} { allow read: if true; allow write: if validAdminWrite(); }
+
+    // Coupons: customers never read this collection directly. Staff who
+    // can manage the catalog read/write it for the admin coupons screen.
+    match /coupons/{id} {
+      allow read: if canManageCatalog();
+      allow write: if validAdminWrite();
+    }
+    match /couponUsage/{id} { allow read: if canManageCatalog(); allow write: if false; }
+
+    // ---------- Marketing ----------
+    match /campaigns/{id} { allow read: if canManageCatalog(); allow write: if validAdminWrite(); }
+    match /segments/{id} { allow read: if canManageCatalog(); allow write: if validAdminWrite(); }
+    match /leads/{id} {
+      allow get: if canManageCatalog() || (
+        isStaff() && (
+          (role() == "SUB_ADMIN" && resource.data.assignedSubAdminId == request.auth.uid) ||
+          (role() == "COLLECTION_AGENT" && resource.data.assignedCollectionAgentId == request.auth.uid)
+        )
+      );
+      // Listing stays closed to clients: the leads screen is a Cloud
+      // Function surface that Spark cannot serve, and an unscoped list
+      // here is exactly what a rules-only model must not hand out.
+      allow list: if false;
+      allow create: if validAdminWrite();
+      // SUPER_ADMIN/ADMIN can edit anything; a SUB_ADMIN/COLLECTION_AGENT
+      // assigned a lead can only change its status, never reassign it to
+      // themselves or edit its details.
+      allow update: if validAdminWrite() || (
+        isStaff() && (
+          (role() == "SUB_ADMIN" && resource.data.assignedSubAdminId == request.auth.uid) ||
+          (role() == "COLLECTION_AGENT" && resource.data.assignedCollectionAgentId == request.auth.uid)
+        ) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedBy', 'updatedAt']) &&
+        request.resource.data.updatedBy == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // users/{uid} — customer profiles AND the staff authorization
+    // records. This is the collection that decides who is an admin, so
+    // every write path below is explicit about which fields it may
+    // touch and who may touch them.
+    // ============================================================
+    match /users/{userId} {
+
+      // The one uid the project owner designated in system/config may
+      // materialize its own SUPER_ADMIN record — and nothing else can.
+      // This is what makes the bootstrap work without server code: the
+      // authority comes from a document no client can write, not from
+      // an email the browser compares against a constant.
+      function isMasterSelfWrite() {
+        let next = request.resource.data;
+        let master = masterUid();
+        return isOwner(userId)
+          && master != ''
+          && userId == master
+          && next.role == 'SUPER_ADMIN'
+          && next.status == 'active'
+          && next.get('superAdminId', '') == ''
+          && next.get('adminId', '') == ''
+          && next.get('subAdminId', '') == '';
+      }
+
+      // A self-created profile may not carry ANY authorization field.
+      function isPlainProfile(d) {
+        return !('role' in d) && !('status' in d)
+          && !('superAdminId' in d) && !('adminId' in d) && !('subAdminId' in d);
+      }
+
+      function onlyProfileFieldsChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'phone', 'photoUrl', 'dateOfBirth', 'gender', 'preferences', 'updatedAt']);
+      }
+
+      // ---- The staff-management write. Everything about a role
+      // assignment lives here. The caller's OWN record is fetched from
+      // Firestore inside this rule — never anything the request
+      // supplied — and every derived value is bound once with `let`.
+      function isStaffRoleWrite() {
+        let me = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+        let callerRole = isMaster() ? 'SUPER_ADMIN' : assignedRole(me);
+        let next = request.resource.data;
+        let prev = resource.data;
+        // The chain a NEW record must carry: exactly the caller's own
+        // position in the tree, so you can only ever attach somebody
+        // underneath yourself. Every level stores every ancestor's uid,
+        // so hierarchy-scoped reads never need a recursive lookup.
+        let wantSuper = callerRole == 'SUPER_ADMIN' ? request.auth.uid : me.get('superAdminId', '');
+        let wantAdmin = callerRole == 'ADMIN' ? request.auth.uid : me.get('adminId', '');
+        let wantSub = callerRole == 'SUB_ADMIN' ? request.auth.uid : me.get('subAdminId', '');
+        let targetIsStaff = 'role' in prev;
+
+        return
+          // You can never touch your own authorization record: no
+          // self-promotion, no self-demotion, no self-revocation.
+          userId != request.auth.uid
+          // ...and never the master/bootstrap account, from any role.
+          && userId != masterUid()
+          // Only a role strictly below your own. This is the single
+          // check that makes "an ADMIN cannot create a SUPER_ADMIN",
+          // "an ADMIN cannot mint another ADMIN", "a SUB_ADMIN cannot
+          // touch an ADMIN" and "a COLLECTION_AGENT manages nobody"
+          // all true at once.
+          && canAssign(callerRole, next.role)
+          && next.status in ['active', 'revoked']
+          // Either the written chain is exactly the caller's own
+          // position, or it is left untouched — which is what a
+          // re-role, a revocation or a restore of an EXISTING member
+          // does, so that acting on somebody deep in the tree does not
+          // silently re-parent them onto whoever clicked the button.
+          && (
+            (next.get('superAdminId', '') == wantSuper
+              && next.get('adminId', '') == wantAdmin
+              && next.get('subAdminId', '') == wantSub)
+            || (targetIsStaff && !next.diff(prev).affectedKeys().hasAny(['superAdminId', 'adminId', 'subAdminId']))
+          )
+          && next.updatedBy == request.auth.uid
+          // Nothing but the authorization fields may move in the same
+          // write — a staff manager cannot edit somebody's profile,
+          // email or any other data through this path.
+          && next.diff(prev).affectedKeys()
+              .hasOnly(['role', 'status', 'superAdminId', 'adminId', 'subAdminId', 'updatedAt', 'updatedBy'])
+          // Re-roling / revoking somebody who is ALREADY staff also
+          // requires authority over their existing record.
+          && (
+            !targetIsStaff
+            || (
+              hasAuthorityOver(callerRole, prev)
+              && (callerRole == 'SUPER_ADMIN' || canAssign(callerRole, prev.role))
+            )
+          );
+      }
+
+      // A caller can always read their own doc; staff can read a doc
+      // that is inside their own hierarchy (SUPER_ADMIN: every staff
+      // record; ADMIN: anyone whose denormalized adminId is them;
+      // SUB_ADMIN: anyone whose subAdminId is them).
+      allow get: if isOwner(userId) || staffCanGet(resource.data);
+
+      // Listing is how the Admin & Staff directory is built. Rules are
+      // evaluated per candidate document, so a query only succeeds when
+      // every document it could return satisfies the predicate: a
+      // SUPER_ADMIN must filter on `role` (staff only — never a bulk
+      // customer dump), an ADMIN/SUB_ADMIN on their own subtree.
+      allow list: if staffCanList(resource.data);
+
+      // Self-signup only, and it can never carry a role, a status or an
+      // ownership chain. The single exception is the bootstrap uid
+      // materializing its own SUPER_ADMIN record.
+      allow create: if isOwner(userId) && (isPlainProfile(request.resource.data) || isMasterSelfWrite());
+
+      allow update: if (isOwner(userId) && (onlyProfileFieldsChanged() || isMasterSelfWrite()))
+        || (iHaveUserDoc() && isStaffRoleWrite());
+
+      allow delete: if false;
+    }
+
+    // Email -> uid directory, so a staff manager can find the account
+    // to grant a role to WITHOUT being able to enumerate the users
+    // collection. Each entry is written only by the person who owns
+    // that verified email address, for their own uid, so nobody can
+    // point somebody else's email at their own account.
+    match /userEmails/{emailKey} {
+      allow get: if canManageStaff();
+      allow list: if false;
+      allow create, update: if isSignedIn()
+        && 'email' in request.auth.token
+        && 'email_verified' in request.auth.token
+        && request.auth.token.email_verified == true
+        && emailKey == request.auth.token.email.lower()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == emailKey
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // The trusted bootstrap record. Readable by any signed-in user (it
+    // contains a uid, which is an identifier and not a credential — the
+    // app reads it to know whether the current account is the master),
+    // and writable by NOBODY: it is created and changed only from the
+    // Firebase Console or the Admin SDK, both of which bypass these
+    // rules. This is the root of the whole authorization model.
+    match /system/{docId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow write: if false;
+    }
+
+    match /patients/{patientId} {
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId;
+    }
+
+    match /addresses/{addressId} {
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId;
+    }
+
+    match /notifications/{id} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || canManageCatalog());
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create, delete: if false;
+    }
+
+    match /supportTickets/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---------- Booking write validation ----------
+    // Re-derives every figure on a booking from the catalogue documents
+    // the booking itself points at. Used by the create rules below.
+
+    // The one priced line. `pricingRefId` names the labPricing row the
+    // customer was actually shown, and it must match the lab and the
+    // item on the booking — so quoting lab A's cheap price against lab
+    // B, or a different package entirely, is refused.
+    function itemPriceIsGenuine(d) {
+      let path = /databases/$(database)/documents/labPricing/$(d.pricingRefId);
+      let p = get(path).data;
+      let item = d.items[0];
+      return d.items.size() == 1
+        && exists(path)
+        && p.price == item.price
+        && p.labId == d.labId
+        && p.labId == item.labId
+        && (
+          (item.itemType == 'package' && p.get('packageId', '') == item.refId) ||
+          (item.itemType == 'test' && p.get('testId', '') == item.refId)
+        );
+    }
+
+    // Home collection carries the fee stored on the serviced pincode;
+    // a centre visit carries none. The booking names the area document
+    // so the claimed pincode and fee can both be checked against it.
+    function collectionFeeIsGenuine(d) {
+      let path = /databases/$(database)/documents/serviceAreas/$(d.serviceAreaId);
+      let area = get(path).data;
+      return exists(path)
+        && area.pincode == d.pincode
+        && area.get('active', false) == true
+        && d.collectionFee == (d.collectionType == 'home' ? area.get('collectionFee', 0) : 0);
+    }
+
+    function totalsAddUp(d) {
+      return d.subtotal == d.items[0].price
+        && d.discount == 0
+        && d.finalAmount == d.subtotal + d.collectionFee
+        && d.finalAmount >= 0;
+    }
+
+    // Cash on home always starts unpaid and fully outstanding.
+    function startsUnpaid(d) {
+      return d.paymentMethod == 'cash_on_home'
+        && d.paymentStatus == 'pending'
+        && d.amountReceived == 0
+        && d.pendingAmount == d.finalAmount;
+    }
+
+    // No booking may arrive pre-assigned into somebody's queue.
+    function carriesNoAssignment(d) {
+      return !('assignedAgentId' in d) && !('assignedAdminId' in d) && !('assignedSubAdminId' in d);
+    }
+
+    function isCustomerOwnBooking() {
+      let d = request.resource.data;
+      return isSignedIn()
+        && d.userId == request.auth.uid
+        // A customer can only ever file a website booking; the admin
+        // and whatsapp sources are staff pathways.
+        && d.source == 'website'
+        && d.bookingStatus == 'confirmed'
+        && d.collectionType in ['home', 'center']
+        && startsUnpaid(d)
+        && carriesNoAssignment(d)
+        && totalsAddUp(d)
+        && itemPriceIsGenuine(d)
+        && collectionFeeIsGenuine(d);
+    }
+
+    // Staff booking a customer in (phone call, pasted WhatsApp message,
+    // walk-in). Prices are not re-derived here — staff are trusted to
+    // agree a price, and the audit trail records who did — but the
+    // money still has to be internally consistent and start unpaid
+    // unless staff explicitly records cash taken up front.
+    function isStaffCreatedBooking() {
+      let d = request.resource.data;
+      return canManageCatalog()
+        && d.source in ['admin', 'whatsapp']
+        && d.paymentMethod == 'cash_on_home'
+        && d.finalAmount >= 0
+        && d.amountReceived >= 0
+        && d.amountReceived <= d.finalAmount
+        && d.pendingAmount == d.finalAmount - d.amountReceived
+        && d.paymentStatus == cashStatusFor(d.finalAmount, d.amountReceived)
+        && d.createdBy == request.auth.uid
+        && carriesNoAssignment(d);
+    }
+
+    // The single definition of what a cash payment status means, so a
+    // rule and the client cannot disagree about it.
+    function cashStatusFor(finalAmount, received) {
+      return received == 0 ? 'pending'
+        : (received >= finalAmount ? 'paid' : 'partially_paid');
+    }
+
+    // Staff edits: status moves and cash collection. The identity of
+    // the booking (who it belongs to, what was ordered, what it cost)
+    // is immutable — correcting those means cancelling and rebooking,
+    // not quietly rewriting history.
+    // Expressed as a whitelist of movable keys rather than a field-by-
+    // field comparison. That way userId / finalAmount / items / source
+    // are immutable because they simply cannot appear in the diff —
+    // and it works on bookings written before those fields existed,
+    // which a direct comparison does not (reading an absent key from a
+    // map errors, and the write is denied for the wrong reason).
+    function staffBookingUpdateIsSane() {
+      let d = request.resource.data;
+      return d.diff(resource.data).affectedKeys().hasOnly([
+        'bookingStatus', 'amountReceived', 'pendingAmount', 'paymentStatus',
+        'assignedAgentId', 'assignedSubAdminId', 'assignedAdminId',
+        'labName', 'contact', 'notes', 'updatedBy', 'updatedAt'
+      ])
+        && d.amountReceived >= 0
+        && d.amountReceived <= d.finalAmount
+        && d.pendingAmount == d.finalAmount - d.amountReceived
+        && d.paymentStatus == cashStatusFor(d.finalAmount, d.amountReceived)
+        && d.updatedBy == request.auth.uid;
+    }
+
+    // Bookings: customers read only their own. Staff can `get` (not
+    // `list`) an individual booking that's within their hierarchy scope
+    // — SUPER_ADMIN sees any booking, ADMIN sees their assigned bookings
+    // plus the unassigned "confirmed" pool they triage, SUB_ADMIN/
+    // COLLECTION_AGENT see only bookings assigned into their own scope.
+    // All writes remain server-only.
+    match /bookings/{id} {
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        (isStaff() && (
+          isSuperAdmin() ||
+          (role() == "ADMIN" && (resource.data.assignedAdminId == request.auth.uid || resource.data.bookingStatus == "confirmed")) ||
+          (role() == "SUB_ADMIN" && resource.data.assignedSubAdminId == request.auth.uid) ||
+          (role() == "COLLECTION_AGENT" && resource.data.assignedAgentId == request.auth.uid)
+        ))
+      );
+      // A customer may list their OWN bookings — "My bookings" was
+      // failing with permission-denied because every list was refused.
+      // This is the standard owner-scoped list: the rule is evaluated
+      // against each candidate document, so Firestore only serves the
+      // query when it is already constrained to userId == the caller
+      // (see bookingService.getUserBookings). An unconstrained list, or
+      // one asking for somebody else's uid, still fails closed.
+      //
+      // Staff listing: SUPER_ADMIN/ADMIN may list the whole book, which
+      // IS expressible here because it does not depend on the document.
+      // SUB_ADMIN/COLLECTION_AGENT still get no list — their hierarchy
+      // scoping cannot be expressed on a list query, and granting them
+      // a global list "for now" is exactly the accident to avoid.
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || canManageCatalog()
+      );
+
+      // ---- Client-created bookings (Spark: no Cloud Functions) ----
+      //
+      // A booking is money, so nothing about its price is taken on
+      // trust. The document must NAME the catalogue rows it was priced
+      // from (pricingRefId -> labPricing, serviceAreaId -> serviceAreas)
+      // and every figure is re-derived from those documents here. A
+      // browser that edits the price simply fails the write.
+      //
+      // Deliberate restrictions on the customer path, each because it
+      // cannot be made safe without a server:
+      //   * exactly one item — rules cannot iterate an array, so a
+      //     multi-item basket could not be priced-checked.
+      //   * discount must be 0 — applying a coupon means incrementing
+      //     its usage counters atomically, which a client cannot do.
+      //   * amountReceived must be 0 and status must be pending — a
+      //     customer never marks their own booking paid.
+      allow create: if isCustomerOwnBooking() || isStaffCreatedBooking();
+
+      // Only staff move a booking after creation. The customer has no
+      // update path at all, so financial and status fields are
+      // immutable to them by construction rather than by field list.
+      allow update: if canManageCatalog() && staffBookingUpdateIsSane();
+      allow delete: if false;
+    }
+
+    match /bookingItems/{id} {
+      allow read: if isSignedIn() &&
+        get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /bookingStatusHistory/{id} {
+      allow read: if isSignedIn() &&
+        get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /payments/{id} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || canManageCatalog());
+      allow write: if false;
+    }
+
+    match /refunds/{id} {
+      allow read: if isSignedIn() && (
+        get(/databases/$(database)/documents/payments/$(resource.data.paymentId)).data.userId == request.auth.uid ||
+        canManageCatalog()
+      );
+      allow write: if false;
+    }
+
+    // Reports: customer metadata read only for their own. ALL writes
+    // are server-only — a staff account must not be able to file a
+    // report against an arbitrary userId, or repoint an existing
+    // report's file at another customer's document.
+    match /reports/{id} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || canManageCatalog());
+      allow write: if false;
+    }
+
+    // Media library index for the admin Upload Center. Rows are written
+    // server-side from the storage provider's own verified response —
+    // a client can neither fabricate an entry nor edit one.
+    match /mediaAssets/{id} {
+      allow read: if canManageCatalog();
+      allow write: if false;
+    }
+
+    // LEGACY. The old Cloud-Function-era, email-keyed staff assignment
+    // collection. The Spark model does not use it: a role now lives on
+    // users/{uid} and is granted to an account that already exists. The
+    // collection stays sealed in both directions so any leftover
+    // documents can never confer access, and no client can plant one.
+    match /staffInvites/{email} { allow read, write: if false; }
+
+    // ---------- Internal / staff-only ----------
+    match /roles/{id} { allow read: if isOwner(id) || isStaff(); allow write: if false; }
+    match /permissions/{id} { allow read: if isStaff(); allow write: if false; }
+    match /auditLogs/{id} { allow read: if isSuperAdmin(); allow write: if false; }
+    match /collectors/{id} { allow read: if isStaff(); allow write: if false; }
+
+    // Idempotency ledgers + server-side price quotes — pure internal
+    // bookkeeping. No client ever reads or writes these directly.
+    match /bookingRequests/{id} { allow read, write: if false; }
+    match /processedWebhookEvents/{id} { allow read, write: if false; }
+    match /priceQuotes/{id} { allow read, write: if false; }
+  }
+}

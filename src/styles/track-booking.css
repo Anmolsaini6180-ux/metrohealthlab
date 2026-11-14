@@ -1,0 +1,156 @@
+/* ============================================================
+   DESIGN SYSTEM V2 — Track booking / confirmation
+   Exclusive to TrackBookingPage — replaces the legacy track and
+   timeline rules that used to live in this file. .mh2-order-summary
+   (booking-flow.css) is reused as-is for the summary rows; this page
+   was the last consumer of the legacy .mh-order-summary, which is now
+   removed there too.
+   ============================================================ */
+.mh2-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.mh2-track__success {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: var(--space-lg) var(--space-md);
+  border-radius: var(--radius-xl);
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-line);
+}
+
+.mh2-track__success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--color-success);
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.mh2-track__success-icon .mi {
+  font-size: 32px;
+}
+
+.mh2-track__success-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-primary-deep);
+}
+
+.mh2-track__success-id {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  margin-bottom: 8px;
+}
+
+.mh2-track__summary {
+  width: 100%;
+  text-align: left;
+  margin-top: 4px;
+}
+
+.mh2-track__whatsnext {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  text-align: left;
+  margin-top: 6px;
+}
+
+.mh2-track__whatsnext .mi {
+  font-size: 18px;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.mh2-track__actions {
+  display: flex;
+  gap: var(--space-sm);
+  width: 100%;
+  margin-top: 8px;
+}
+
+.mh2-track__actions .mh2-btn {
+  flex: 1;
+}
+
+.mh2-track__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  color: var(--color-primary-deep);
+}
+
+/* ---- Vertical status timeline ---- */
+.mh2-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mh2-timeline__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 40px;
+  opacity: 0.45;
+}
+
+.mh2-timeline__item.is-done {
+  opacity: 1;
+}
+
+.mh2-timeline__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-line);
+  color: #fff;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.mh2-timeline__dot .mi {
+  font-size: 15px;
+}
+
+.mh2-timeline__item.is-done .mh2-timeline__dot {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.mh2-timeline__line {
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: -16px;
+  width: 2px;
+  background: var(--color-line);
+}
+
+.mh2-timeline__item.is-done .mh2-timeline__line {
+  background: var(--color-primary);
+}
+
+.mh2-timeline__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink);
+}

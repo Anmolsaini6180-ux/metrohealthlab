@@ -1,0 +1,1255 @@
+/* ============================================================
+   HOME REDESIGN — hero, category rail, doorstep promo.
+   Matches the approved Metro Health reference: soft blue surfaces,
+   deep navy headings, controlled orange accent, generous rounding.
+   Tokens only — no raw brand colours invented here that are not
+   already in tokens.css, apart from the tints below which are
+   derived shades of the same palette.
+   ============================================================ */
+
+/* ---- Section header with a "View all" affordance ---- */
+.mh-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.mh-section-head .mh-section-title {
+  margin-bottom: 0;
+}
+
+.mh-section-link {
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mh-section-link:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — button system
+   Consumed by the rebuilt hero and homepage sections. Existing
+   .btn/.btn-primary/.btn-outline elsewhere in the app are untouched —
+   this is a parallel, more premium system (pill radius, taller
+   targets, an explicit lg size) for the components rebuilt this pass,
+   not a silent redefinition of the old one other pages still rely on.
+   ============================================================ */
+.mh2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--btn-height);
+  padding: 0 24px;
+  border-radius: var(--btn-radius);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  white-space: nowrap;
+  border: 1.5px solid transparent;
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard), background-color 0.15s var(--ease-standard);
+}
+
+.mh2-btn .mi {
+  font-size: 20px;
+}
+
+.mh2-btn--sm {
+  height: var(--btn-height-sm);
+  padding: 0 16px;
+  font-size: var(--text-sm);
+}
+
+.mh2-btn--lg {
+  height: 56px;
+  padding: 0 30px;
+  font-size: var(--text-lg);
+}
+
+.mh2-btn--primary {
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(232, 97, 26, 0.28);
+}
+
+.mh2-btn--primary:hover {
+  background: var(--color-accent-deep);
+  transform: translateY(-1px);
+}
+
+.mh2-btn--outline {
+  background: transparent;
+  color: var(--color-primary);
+  border-color: var(--color-line);
+}
+
+.mh2-btn--outline:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.mh2-btn--ghost {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-card);
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Hero
+   Clean two-column composition (copy + a single framed photo) rather
+   than text layered over a full-bleed image — legible regardless of
+   what an admin uploads, and the real trust signals (home collection,
+   digital reports, lab count) sit in their own row instead of
+   floating cards competing with the photo for attention.
+   ============================================================ */
+.mh2-hero-section {
+  margin-bottom: var(--space-lg);
+}
+
+.mh2-hero-track {
+  display: flex;
+  gap: var(--space-md);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.mh2-hero-track::-webkit-scrollbar {
+  display: none;
+}
+
+.mh2-hero {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-lg);
+}
+
+.mh2-hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.mh2-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.mh2-hero__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-3xl);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-primary-deep);
+}
+
+.mh2-hero__subtitle {
+  margin-top: 12px;
+  font-size: var(--text-lg);
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+  max-width: 46ch;
+}
+
+.mh2-hero__ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: var(--space-md);
+}
+
+.mh2-hero__trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: var(--space-lg);
+  padding: 0;
+}
+
+.mh2-hero__trust-row li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.mh2-hero__trust-row .mi {
+  color: var(--color-success);
+  font-size: 20px;
+}
+
+.mh2-hero__media {
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-elevated);
+  background: var(--color-bg-tint);
+}
+
+.mh2-hero__image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Keeps the CTAs clear of the fixed sticky-help card's own vertical
+   zone on short mobile viewports — a real overlap found in browser QA
+   at 390px, not just reasoned about (the callback card is
+   position:fixed, so it sits at the same viewport height regardless
+   of how tall the content above it is). Trimming the hero's own
+   vertical footprint here, rather than touching the card (used
+   site-wide, not hero-specific), keeps the fix scoped to what
+   actually grew taller. */
+.mh2-hero__subtitle {
+  margin-top: 6px;
+}
+
+.mh2-hero__ctas {
+  margin-top: var(--space-sm);
+}
+
+.mh2-hero-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: var(--space-md);
+}
+
+.mh2-hero-dots button {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-line);
+  padding: 0;
+  cursor: pointer;
+  transition: width 0.2s var(--ease-standard), background-color 0.2s var(--ease-standard);
+}
+
+.mh2-hero-dots button.is-active {
+  width: 24px;
+  background: var(--color-accent);
+}
+
+@media (min-width: 1024px) {
+  .mh2-hero {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2xl);
+  }
+
+  .mh2-hero__copy {
+    flex: 1 1 50%;
+  }
+
+  .mh2-hero__title {
+    font-size: var(--text-4xl);
+  }
+
+  .mh2-hero__media {
+    flex: 1 1 50%;
+  }
+
+  .mh2-hero__image {
+    height: 420px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .mh2-hero__image {
+    height: 320px;
+  }
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Category rail
+   Circular icon-forward marketplace navigation (icon in a tinted
+   circle, label + optional price line below) — replaces the previous
+   larger tinted panel cards. Denser, more scannable, closer to how a
+   real diagnostic marketplace's category rail reads.
+   ============================================================ */
+.mh2-cats__rail {
+  display: flex;
+  gap: var(--space-md);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  margin-inline: calc(-1 * var(--space-md));
+  padding-inline: var(--space-md);
+}
+
+.mh2-cats__rail::-webkit-scrollbar {
+  display: none;
+}
+
+.mh2-cat-card {
+  flex: 0 0 84px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  color: inherit;
+}
+
+.mh2-cat-card__circle {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard);
+}
+
+.mh2-cat-card:hover .mh2-cat-card__circle {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
+}
+
+.mh2-cat-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mh2-cat-card__title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.2;
+}
+
+.mh2-cat-card__support {
+  font-size: 10px;
+  color: var(--color-ink-soft);
+}
+
+@media (min-width: 768px) {
+  .mh2-cat-card {
+    flex-basis: 104px;
+  }
+
+  .mh2-cat-card__circle {
+    width: 80px;
+    height: 80px;
+  }
+
+  .mh2-cat-card__title {
+    font-size: var(--text-sm);
+  }
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Package cards
+   Image-first, dense "shopping" card: photo, discount badge, name,
+   test count + rating, collection/report meta, then a price block
+   paired directly with its own Book Now action — replaces the
+   previous text-only card (no image slot existed before this pass).
+   ============================================================ */
+.mh2-pkg-rail {
+  display: flex;
+  gap: var(--space-md);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  margin-inline: calc(-1 * var(--space-md));
+  padding-inline: var(--space-md);
+}
+
+.mh2-pkg-rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* Sizing (flex-basis for the rail, grid sizing for a listing page) is
+   the PARENT's job, not the card's own — .mh2-pkg-card itself only
+   ever describes its own visual chrome, so the exact same component
+   works unmodified inside a horizontal rail (homepage) or a wrapping
+   grid (the /packages listing page). */
+.mh2-pkg-rail .mh2-pkg-card {
+  flex: 0 0 240px;
+  scroll-snap-align: start;
+}
+
+.mh2-pkg-card,
+.mh2-test-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s var(--ease-standard);
+}
+
+.mh2-pkg-card:hover,
+.mh2-test-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+}
+
+.mh2-pkg-card__media {
+  position: relative;
+  height: 120px;
+  background: var(--color-bg-tint);
+}
+
+.mh2-pkg-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mh2-pkg-card__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+}
+
+.mh2-pkg-card__tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-xs);
+}
+
+.mh2-pkg-card__body {
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.mh2-pkg-card__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  color: var(--color-ink);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mh2-pkg-card__count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+}
+
+.mh2-pkg-card__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-amber);
+  font-weight: 700;
+}
+
+.mh2-pkg-card__rating .mi {
+  font-size: 14px;
+}
+
+.mh2-pkg-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 11px;
+  color: var(--color-ink-soft);
+}
+
+.mh2-pkg-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.mh2-pkg-card__meta .mi {
+  font-size: 14px;
+  color: var(--color-success);
+}
+
+.mh2-pkg-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.mh2-pkg-card__prices {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.mh2-pkg-card__price {
+  font-weight: 800;
+  font-size: var(--text-lg);
+  color: var(--color-ink);
+}
+
+.mh2-pkg-card__mrp {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+}
+
+.mh2-pkg-card__view-link {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-primary);
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Test card's own media area — a centered icon on a tinted background,
+   shorter than a package's photo slot since there's no image asset for
+   an individual test. Shares .mh2-pkg-card__body/__count/__meta/
+   __footer/__prices/__view-link for everything below the media, so the
+   two card types read as one consistent system in a mixed grid. */
+.mh2-test-card__media {
+  position: relative;
+  height: 72px;
+  background: var(--color-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Listing pages (/tests, /packages)
+   ============================================================ */
+.mh2-listing__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.mh2-listing__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  color: var(--color-primary-deep);
+}
+
+.mh2-listing__count {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  margin-top: 2px;
+}
+
+.mh2-listing__sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+
+.mh2-listing__sort select {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.mh2-pkg-grid,
+.mh2-test-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* ---- All-tests layout: desktop category sidebar + main column ---- */
+.mh2-alltests {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.mh2-alltests__sidebar {
+  display: none;
+}
+
+.mh2-alltests__cat-list {
+  display: grid;
+  gap: 2px;
+}
+
+.mh2-alltests__cat-list button {
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mh2-alltests__cat-list button:hover {
+  background: var(--color-bg-tint);
+}
+
+.mh2-alltests__cat-list button.is-active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.mh2-alltests__sidebar-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0 12px 8px;
+}
+
+@media (min-width: 1024px) {
+  .mh2-alltests {
+    grid-template-columns: 220px 1fr;
+    align-items: start;
+  }
+
+  .mh2-alltests__sidebar {
+    display: block;
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-md));
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-sm) 0;
+  }
+
+  .mh2-alltests .mh2-alltests__mobile-chips {
+    display: none;
+  }
+}
+
+/* ---- Doorstep promo strip ---- */
+.mh-doorstep-promo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary));
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(21, 58, 133, 0.25);
+}
+
+.mh-doorstep-promo__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  flex-shrink: 0;
+}
+
+.mh-doorstep-promo__icon .mi {
+  font-size: 24px;
+}
+
+.mh-doorstep-promo__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.mh-doorstep-promo__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  line-height: 1.25;
+}
+
+.mh-doorstep-promo__sub {
+  font-size: 12px;
+  opacity: 0.86;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.mh-doorstep-promo__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 12.5px;
+  transition: transform 0.15s ease;
+}
+
+.mh-doorstep-promo__cta .mi {
+  font-size: 16px;
+}
+
+.mh-doorstep-promo__cta:hover {
+  transform: translateY(-1px);
+}
+
+/* Very narrow: let the CTA drop under the copy rather than crushing it. */
+@media (max-width: 400px) {
+  .mh-doorstep-promo {
+    flex-wrap: wrap;
+  }
+
+  .mh-doorstep-promo__cta {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ---- Floating "call our experts" card ----
+   Replaces the old dark pill FAB with the reference's fuller card:
+   icon, two-line copy, and an orange Call Now action. Sits above the
+   bottom nav and honours the safe-area inset on notched phones. */
+.mh-call-card {
+  position: fixed;
+  left: var(--space-md);
+  right: var(--space-md);
+  bottom: calc(var(--bottomnav-height) + env(safe-area-inset-bottom, 0px) + var(--space-sm));
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--color-line);
+  box-shadow: 0 8px 26px rgba(16, 38, 92, 0.16);
+}
+
+/* The old version was a single <a> wrapping the whole card, with only
+   itself and a lone CTA to fit. Now there are up to four flex children
+   (icon+copy, two CTAs, a close button) — cramming all of them onto
+   one non-wrapping row collapsed the copy text to near-zero width at
+   real mobile sizes, wrapping it one character per line (caught in
+   real browser QA at 390px, not just reasoned about). flex-basis: 100%
+   forces the tap-area (and, in the no-phone variant below, the plain
+   copy span) onto its own full-width row every time, with the CTAs +
+   close button wrapping together onto a second row beneath it — same
+   fix, applied consistently regardless of exact viewport width rather
+   than tuned to one breakpoint. */
+.mh-call-card__tap-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+/* No-phone variant: .mh-call-card__copy sits directly in the card
+   (no tap-area/icon), so only its sizing needs the same fix — its own
+   internal lead/main stacking must stay untouched. */
+.mh-call-card > .mh-call-card__copy {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.mh-call-card__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--color-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.mh-call-card__cta--secondary {
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+  box-shadow: none;
+}
+
+.mh-call-card--form {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  position: relative;
+  padding: 14px 16px;
+}
+
+.mh-call-card--form .mh-call-card__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.mh-call-card__form {
+  display: grid;
+  gap: 8px;
+}
+
+.mh-call-card__form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mh-call-card__input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  font-size: var(--text-sm);
+}
+
+.mh-call-card__sent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding-right: 20px;
+}
+
+.mh-call-card__error {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 430px) {
+  .mh-call-card__form-row {
+    flex-direction: column;
+  }
+}
+
+.mh-call-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--color-bg-tint);
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.mh-call-card__icon .mi {
+  font-size: 20px;
+}
+
+.mh-call-card__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.mh-call-card__lead {
+  display: block;
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  line-height: 1.3;
+}
+
+.mh-call-card__main {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  line-height: 1.25;
+  color: var(--color-ink);
+}
+
+.mh-call-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12.5px;
+  box-shadow: 0 4px 12px rgba(242, 113, 28, 0.32);
+}
+
+.mh-call-card__cta .mi {
+  font-size: 16px;
+}
+
+.mh-call-card:hover .mh-call-card__cta {
+  background: #d75f12;
+}
+
+/* Very narrow phones: the two-line copy and the pill cannot both fit,
+   so drop the lead line rather than letting the CTA wrap or clip. */
+@media (max-width: 360px) {
+  .mh-call-card__lead {
+    display: none;
+  }
+}
+
+/* Desktop: no bottom nav to clear, and a full-width bar would be
+   overbearing — collapse back to a compact right-aligned card. */
+@media (min-width: 1024px) {
+  .mh-call-card {
+    left: auto;
+    right: var(--space-lg);
+    bottom: var(--space-lg);
+    max-width: 340px;
+  }
+}
+
+/* Between 361px and 420px the CTA pill leaves the copy column too
+   narrow for "Call our health experts" on one line. Tighten the type
+   and the pill rather than letting the card grow a second line and
+   push further up over the page content behind it. */
+@media (max-width: 430px) {
+  .mh-call-card__main {
+    font-size: 12.5px;
+    letter-spacing: -0.2px;
+  }
+
+  .mh-call-card__cta {
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+}
+
+
+/* ---- Large image storytelling sections (Home Collection / Family /
+   Senior Health) ----
+   Full-bleed background (photo or fallback), a readable overlay, then
+   copy on top — same three-layer pattern as .mh-hero above, not a
+   text-half/image-half split. */
+.mh-story {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 20px;
+  min-height: 320px;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Blurred, darkened, full-bleed backdrop — same technique as
+   .mh-hero__bg-fill: the same photo, cropped and blurred to fill the
+   card completely regardless of its aspect ratio, so the sharp copy on
+   top (.mh-story__bg) never has to be cropped to achieve a full-bleed
+   look. Only rendered when a real photo exists — the gradient fallback
+   below already fills the card on its own, honestly, with no photo to
+   blur. */
+.mh-story__bg-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(30px) brightness(0.7) saturate(1.15);
+  transform: scale(1.15);
+  z-index: 0;
+}
+
+.mh-story__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Shown WHOLE, never cropped — the blurred fill layer above is what
+     keeps the card looking full-bleed regardless of this photo's own
+     aspect ratio (see .mh-story__bg-fill). The fallback variant below
+     overrides this with its own flex/gradient rendering (a div, not an
+     img — object-fit is a no-op on it either way). */
+  object-fit: contain;
+  z-index: 1;
+}
+
+/* Honest fallback, never a stand-in stock photo: the SAME full-bleed
+   background treatment as a real photo, just a brand gradient + icon
+   instead — until a real image is assigned in Admin -> Media Library.
+   Never a smaller placeholder box beside the text. */
+.mh-story__bg--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary));
+}
+
+.mh-story__bg--fallback .mi {
+  font-size: 88px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.mh-story__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  /* Bottom-anchored copy (see align-items: flex-end above), so the
+     gradient strengthens toward the bottom rather than left-to-right
+     like the hero's — matches where the text actually sits. */
+  background: linear-gradient(0deg, rgba(8, 20, 48, 0.82) 0%, rgba(8, 20, 48, 0.5) 55%, rgba(8, 20, 48, 0.05) 100%);
+}
+
+.mh-story__copy {
+  position: relative;
+  z-index: 3;
+  padding: var(--space-lg);
+  display: grid;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.mh-story__eyebrow {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0.85;
+}
+
+.mh-story__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.mh-story__body {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.mh-story__copy .btn {
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .mh-story {
+    min-height: 280px;
+  }
+
+  .mh-story__copy {
+    max-width: none;
+  }
+}
+
+/* ---- Final call to action ----
+   Renders through the shared .mh-story full-background treatment above
+   (see HomeSections.tsx's FinalCta) now that it's admin-editable rather
+   than hardcoded — .mh-final-cta itself carries no rules of its own,
+   kept only as a hook in case this last-before-the-footer section ever
+   needs something the other .mh-story sections don't. */
+
+/* ============================================================
+   DESIGN SYSTEM V2 — Home Collection page
+   ============================================================ */
+.mh2-hc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xl);
+}
+
+.mh2-hc-hero {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  border-radius: var(--radius-xl);
+  background: var(--color-primary-soft);
+}
+
+.mh2-hc-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.mh2-hc-hero__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-3xl);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-primary-deep);
+}
+
+.mh2-hc-hero__sub {
+  margin-top: 12px;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+  max-width: 60ch;
+}
+
+.mh2-hc-hero__copy .mh2-btn {
+  margin-top: var(--space-md);
+}
+
+.mh2-hc-hero__art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.mh2-hc-hero__art .mi {
+  font-size: 56px;
+  color: var(--color-primary);
+}
+
+.mh2-hc-check {
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+
+.mh2-hc-check__row {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.mh2-hc-check__input {
+  flex: 1 1 200px;
+  height: var(--btn-height);
+  padding: 0 16px;
+  border-radius: var(--btn-radius);
+  border: 1.5px solid var(--color-line);
+  font-size: var(--text-base);
+}
+
+.mh2-hc-check__msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.mh2-hc-check__msg.is-success {
+  color: var(--color-success);
+}
+
+.mh2-hc-check__msg.is-danger {
+  color: var(--color-danger);
+}
+
+.mh2-hc-steps__list {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  counter-reset: none;
+}
+
+.mh2-hc-steps__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  font-weight: 600;
+}
+
+.mh2-hc-steps__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+@media (min-width: 768px) {
+  .mh2-hc-hero {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .mh2-hc-hero__copy {
+    flex: 1 1 60%;
+  }
+
+  .mh2-hc-hero__art {
+    flex: 1 1 40%;
+    min-height: 180px;
+  }
+}
